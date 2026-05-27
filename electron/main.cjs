@@ -82,8 +82,17 @@ function createWindow() {
     win.loadFile(resourcePath('client', 'dist', 'index.html'));
   }
 }
+const { createBillingWindow } = require('./electronWindowManager.cjs');
+const { formatInvoiceHTML } = require('./thermalPrinter.cjs');
 
-ipcMain.handle('print-invoice', async (event, invoiceHtml) => {
+ipcMain.handle('create-billing-window', async (event, opts = {}) => {
+  return createBillingWindow({ isDev, loadUrl: process.env.VITE_DEV_SERVER_URL, opts });
+});
+
+ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
+  // use thermal formatter if asked
+  const html = options.useThermalFormatter ? formatInvoiceHTML(options.meta || {}, invoiceHtml) : invoiceHtml;
+
   const printWindow = new BrowserWindow({
     show: false,
     width: 420,
@@ -91,35 +100,16 @@ ipcMain.handle('print-invoice', async (event, invoiceHtml) => {
     webPreferences: { offscreen: true }
   });
 
-  const html = `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          body { margin: 0; background: white; }
-          .invoice-print { width: 80mm; color: #000; background: #fff; font-family: "Courier New", monospace; font-size: 12px; padding: 4mm; }
-          table { width: 100%; border-collapse: collapse; }
-          .flex { display: flex; justify-content: space-between; }
-          .text-center { text-align: center; }
-          .font-bold { font-weight: 700; }
-          .border-t { border-top: 1px dashed #000; }
-          .border-y { border-top: 1px dashed #000; border-bottom: 1px dashed #000; }
-        </style>
-      </head>
-      <body>${invoiceHtml || ''}</body>
-    </html>
-  `;
-
   await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
   return new Promise((resolve) => {
     printWindow.webContents.print(
       {
-        silent: false,
-        printBackground: true,
+        silent: options.silent !== undefined ? options.silent : true,
+        printBackground: options.printBackground !== undefined ? options.printBackground : true,
+        deviceName: options.deviceName || undefined,
         margins: { marginType: 'none' },
-        pageSize: { width: 80000, height: 210000 }
+        pageSize: options.pageSize || { width: 80000, height: 210000 }
       },
       (success, failureReason) => {
         printWindow.close();

@@ -1,0 +1,32 @@
+import express from 'express';
+import * as billController from '../controllers/billController.js';
+import { protect } from '../middleware/auth.js';
+
+export const billRoutes = express.Router();
+
+// Apply auth middleware to all routes
+billRoutes.use(protect);
+
+// Bill CRUD
+billRoutes.post('/', billController.createBill);
+billRoutes.get('/:id', billController.getBill);
+billRoutes.put('/:id', billController.updateBill);
+billRoutes.post('/:id/delete', billController.deleteBill);
+
+// Bill search and list (these should come after specific routes)
+billRoutes.get('/stats/today', billController.getTodaysSales);
+billRoutes.get('/search', billController.searchBills);
+billRoutes.get('/', billController.getBills);
+
+// Hold bills
+billRoutes.post('/hold', billController.holdBill);
+billRoutes.get('/hold/all', billController.getHeldBills);
+billRoutes.get('/hold/:id', billController.resumeHeldBill);
+billRoutes.delete('/hold/:id', billController.deleteHeldBill);
+
+// Refunds
+billRoutes.post('/refunds', billController.createRefund);
+billRoutes.get('/refunds', billController.getRefunds);
+
+// Print logs
+billRoutes.post('/print-logs', billController.logPrint);

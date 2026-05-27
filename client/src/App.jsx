@@ -2,7 +2,8 @@ import { Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { ProtectedRoute } from './components/ProtectedRoute.jsx';
 import { AppLayout } from './layouts/AppLayout.jsx';
-import { Billing } from './pages/Billing.jsx';
+import Billing from './billing/BillingDashboard.jsx';
+import CreateBillWindow from './billing/CreateBillWindow.jsx';
 import { Customers } from './pages/Customers.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
 import { Inventory } from './pages/Inventory.jsx';
@@ -23,6 +24,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="billing" element={<Billing />} />
+            <Route path="billing/create" element={<CreateBillWindow />} />
             <Route path="products" element={<Products />} />
             <Route path="customers" element={<Customers />} />
             <Route path="inventory" element={<Inventory />} />

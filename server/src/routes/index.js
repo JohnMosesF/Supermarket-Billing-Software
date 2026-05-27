@@ -1,6 +1,7 @@
 import express from 'express';
 import { authRoutes } from './authRoutes.js';
 import { backupRoutes } from './backupRoutes.js';
+import { billRoutes } from './billRoutes.js';
 import { categoryRoutes } from './categoryRoutes.js';
 import { customerRoutes } from './customerRoutes.js';
 import { inventoryRoutes } from './inventoryRoutes.js';
@@ -30,3 +31,4 @@ apiRoutes.use('/inventory', inventoryRoutes);
 apiRoutes.use('/reports', reportRoutes);
 apiRoutes.use('/settings', settingsRoutes);
 apiRoutes.use('/backup', backupRoutes);
+apiRoutes.use('/bills', billRoutes);
