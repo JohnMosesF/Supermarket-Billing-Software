@@ -1,0 +1,32 @@
+import express from 'express';
+import { authRoutes } from './authRoutes.js';
+import { backupRoutes } from './backupRoutes.js';
+import { categoryRoutes } from './categoryRoutes.js';
+import { customerRoutes } from './customerRoutes.js';
+import { inventoryRoutes } from './inventoryRoutes.js';
+import { productRoutes } from './productRoutes.js';
+import { purchaseRoutes } from './purchaseRoutes.js';
+import { reportRoutes } from './reportRoutes.js';
+import { saleRoutes } from './saleRoutes.js';
+import { settingsRoutes } from './settingsRoutes.js';
+import { supplierRoutes } from './supplierRoutes.js';
+import { userRoutes } from './userRoutes.js';
+import { getDashboard } from '../controllers/dashboardController.js';
+import { protect } from '../middleware/auth.js';
+
+export const apiRoutes = express.Router();
+
+apiRoutes.get('/health', (req, res) => res.json({ ok: true, service: 'supermarket-api' }));
+apiRoutes.use('/auth', authRoutes);
+apiRoutes.get('/dashboard', protect, getDashboard);
+apiRoutes.use('/users', userRoutes);
+apiRoutes.use('/categories', categoryRoutes);
+apiRoutes.use('/products', productRoutes);
+apiRoutes.use('/customers', customerRoutes);
+apiRoutes.use('/suppliers', supplierRoutes);
+apiRoutes.use('/sales', saleRoutes);
+apiRoutes.use('/purchases', purchaseRoutes);
+apiRoutes.use('/inventory', inventoryRoutes);
+apiRoutes.use('/reports', reportRoutes);
+apiRoutes.use('/settings', settingsRoutes);
+apiRoutes.use('/backup', backupRoutes);
