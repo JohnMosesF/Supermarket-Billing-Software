@@ -8,7 +8,9 @@ export const env = {
   mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/supermarket_billing',
   jwtSecret: process.env.JWT_SECRET || 'development-only-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  clientUrl:
+    process.env.CLIENT_URL ||
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174',
   uploadDir: process.env.UPLOAD_DIR || 'uploads',
   autoSeedOnStart: process.env.AUTO_SEED_ON_START === 'true'
 };

@@ -9,13 +9,13 @@ billRoutes.use(protect);
 
 // Bill CRUD
 billRoutes.post('/', billController.createBill);
-billRoutes.get('/:id', billController.getBill);
-billRoutes.put('/:id', billController.updateBill);
 billRoutes.post('/:id/delete', billController.deleteBill);
 
-// Bill search and list (these should come after specific routes)
+// Bill search and list
 billRoutes.get('/stats/today', billController.getTodaysSales);
 billRoutes.get('/search', billController.searchBills);
+billRoutes.get('/:id', billController.getBill);
+billRoutes.put('/:id', billController.updateBill);
 billRoutes.get('/', billController.getBills);
 
 // Hold bills

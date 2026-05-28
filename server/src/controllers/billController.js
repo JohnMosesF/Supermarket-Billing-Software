@@ -33,7 +33,7 @@ export const createBill = asyncHandler(async (req, res) => {
 
 // Get bill by ID
 export const getBill = asyncHandler(async (req, res) => {
-  const bill = await Bill.findById(req.params.id).populate('items.product');
+  const bill = await Bill.findById(req.params.id).populate('items.productId');
   if (!bill) throw new ApiError(404, 'Bill not found');
   res.json({ bill });
 });
@@ -154,13 +154,20 @@ export const getTodaysSales = asyncHandler(async (req, res) => {
 
 // Hold bill
 export const holdBill = asyncHandler(async (req, res) => {
-  const { items, subtotal, discount, total, customerMobile } = req.body;
+  const { invoiceNo, items, subtotal, discount, total, paymentMethod, customerName, customerMobile } = req.body;
+
+  if (!items || items.length === 0) {
+    throw new ApiError(400, 'Held bill must contain at least one item');
+  }
 
   const heldBill = await HoldBill.create({
+    invoiceNo,
     items,
     subtotal,
     discount,
     total,
+    paymentMethod,
+    customerName,
     customerMobile,
     heldBy: req.user?._id,
   });

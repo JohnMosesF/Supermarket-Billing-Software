@@ -3,7 +3,7 @@ import { ErrorBoundary } from './components/ErrorBoundary.jsx';
 import { ProtectedRoute } from './components/ProtectedRoute.jsx';
 import { AppLayout } from './layouts/AppLayout.jsx';
 import Billing from './billing/BillingDashboard.jsx';
-import CreateBillWindow from './billing/CreateBillWindow.jsx';
+import BillingWindow from './billing/BillingWindow.jsx';
 import { Customers } from './pages/Customers.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
 import { Inventory } from './pages/Inventory.jsx';
@@ -21,10 +21,10 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route element={<ProtectedRoute />}>
+          <Route path="billing-window" element={<BillingWindow />} />
           <Route element={<AppLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="billing" element={<Billing />} />
-            <Route path="billing/create" element={<CreateBillWindow />} />
             <Route path="products" element={<Products />} />
             <Route path="customers" element={<Customers />} />
             <Route path="inventory" element={<Inventory />} />

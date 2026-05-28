@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import axios from 'axios';
-
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { loginUser, logoutUser } from '../services/authService.js';
+import { setStoredToken } from '../services/tokenStorage.js';
 
 export const useAuthStore = create(
   persist(
@@ -10,13 +9,26 @@ export const useAuthStore = create(
       token: null,
       user: null,
       login: async (credentials) => {
-        const { data } = await axios.post(`${baseURL}/auth/login`, credentials);
+        const data = await loginUser(credentials);
+        if (!data?.token) {
+          throw new Error('Login response did not include a token');
+        }
         set({ token: data.token, user: data.user });
         return data.user;
       },
       setSession: (session) => set(session),
-      logout: () => set({ token: null, user: null })
+      logout: () => {
+        logoutUser();
+        set({ token: null, user: null });
+      }
     }),
-    { name: 'supermarket-session' }
+    {
+      name: 'supermarket-session',
+      onRehydrateStorage: () => (state) => {
+        if (state?.token) {
+          setStoredToken(state.token);
+        }
+      }
+    }
   )
 );

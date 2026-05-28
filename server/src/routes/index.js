@@ -2,6 +2,7 @@ import express from 'express';
 import { authRoutes } from './authRoutes.js';
 import { backupRoutes } from './backupRoutes.js';
 import { billRoutes } from './billRoutes.js';
+import { holdBillRoutes } from './holdBillRoutes.js';
 import { categoryRoutes } from './categoryRoutes.js';
 import { customerRoutes } from './customerRoutes.js';
 import { inventoryRoutes } from './inventoryRoutes.js';
@@ -17,7 +18,7 @@ import { protect } from '../middleware/auth.js';
 
 export const apiRoutes = express.Router();
 
-apiRoutes.get('/health', (req, res) => res.json({ ok: true, service: 'supermarket-api' }));
+apiRoutes.get('/health', (req, res) => res.json({ success: true, message: 'Server running' }));
 apiRoutes.use('/auth', authRoutes);
 apiRoutes.get('/dashboard', protect, getDashboard);
 apiRoutes.use('/users', userRoutes);
@@ -32,3 +33,4 @@ apiRoutes.use('/reports', reportRoutes);
 apiRoutes.use('/settings', settingsRoutes);
 apiRoutes.use('/backup', backupRoutes);
 apiRoutes.use('/bills', billRoutes);
+apiRoutes.use('/hold-bills', holdBillRoutes);

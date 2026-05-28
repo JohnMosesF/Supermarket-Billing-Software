@@ -8,6 +8,7 @@ import {
   productRules,
   updateProduct
 } from '../controllers/productController.js';
+import { searchProducts } from '../controllers/productSearchController.js';
 import { authorize, protect } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
@@ -16,6 +17,7 @@ export const productRoutes = express.Router();
 
 productRoutes.use(protect);
 productRoutes.get('/sku', generateSku);
+productRoutes.get('/search', searchProducts);
 productRoutes.route('/')
   .get(productQueryRules, validate, listProducts)
   .post(authorize('admin', 'manager'), upload.single('image'), productRules, validate, createProduct);

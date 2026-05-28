@@ -13,6 +13,7 @@ function signToken(user) {
 
 function userPayload(user) {
   return {
+    _id: user._id,
     id: user._id,
     name: user.name,
     email: user.email,
@@ -42,11 +43,15 @@ export const login = asyncHandler(async (req, res) => {
   user.lastLoginAt = new Date();
   await user.save();
 
-  res.json({ token: signToken(user), user: userPayload(user) });
+  res.json({
+    success: true,
+    token: signToken(user),
+    user: userPayload(user)
+  });
 });
 
 export const me = asyncHandler(async (req, res) => {
-  res.json({ user: userPayload(req.user) });
+  res.json({ success: true, user: userPayload(req.user) });
 });
 
 export const changePasswordRules = [

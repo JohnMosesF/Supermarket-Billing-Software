@@ -5,8 +5,8 @@
   "description": "Full-stack supermarket billing, POS, inventory, and Electron desktop application.",
   "scripts": {
     "install:all": "npm install --prefix server && npm install --prefix client && npm install --prefix electron",
-    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
-    "dev:desktop": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\" \"npm run dev --prefix electron\"",
+    "dev": "concurrently --kill-others-on-fail \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:desktop": "concurrently --kill-others-on-fail \"npm run dev --prefix server\" \"npm run dev --prefix client\" \"npm run dev --prefix electron\"",
     "build": "npm run build --prefix client",
     "start": "npm run start --prefix server",
     "seed": "npm run seed --prefix server",

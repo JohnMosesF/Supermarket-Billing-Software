@@ -24,6 +24,9 @@ export function Login() {
       await login(values);
       toast.success('Welcome back');
       navigate(location.state?.from?.pathname || '/', { replace: true });
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Unable to sign in';
+      toast.error(message);
     } finally {
       setLoading(false);
     }

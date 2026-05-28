@@ -1,6 +1,8 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
 const path = require('path');
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
@@ -60,6 +62,52 @@ function startBundledBackend() {
   });
 }
 
+function waitForUrl(url, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const lib = parsed.protocol === 'https:' ? https : http;
+    const deadline = Date.now() + timeout;
+
+    const check = () => {
+      const req = lib.request(parsed, { method: 'GET', timeout: 3000 }, (res) => {
+        if (res.statusCode && res.statusCode < 500) {
+          res.resume();
+          resolve();
+        } else if (Date.now() < deadline) {
+          setTimeout(check, 500);
+        } else {
+          reject(new Error(`Timeout waiting for ${url}`));
+        }
+      });
+
+      req.on('error', () => {
+        if (Date.now() < deadline) {
+          setTimeout(check, 500);
+        } else {
+          reject(new Error(`Timeout waiting for ${url}`));
+        }
+      });
+      req.on('timeout', () => {
+        req.destroy();
+      });
+      req.end();
+    };
+
+    check();
+  });
+}
+
+async function waitForDevServers() {
+  if (!isDev) return;
+
+  const frontEndUrl = process.env.VITE_DEV_SERVER_URL;
+  const backendUrl = `http://127.0.0.1:${process.env.PORT || 5000}/api/health`;
+
+  console.log('Waiting for dev servers:', { frontEndUrl, backendUrl });
+  await Promise.all([waitForUrl(frontEndUrl), waitForUrl(backendUrl)]);
+  console.log('Dev servers are ready');
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1366,
@@ -82,7 +130,7 @@ function createWindow() {
     win.loadFile(resourcePath('client', 'dist', 'index.html'));
   }
 }
-const { createBillingWindow } = require('./electronWindowManager.cjs');
+const { createBillingWindow } = require('./electronWindowManager.js');
 const { formatInvoiceHTML } = require('./thermalPrinter.cjs');
 
 ipcMain.handle('create-billing-window', async (event, opts = {}) => {
@@ -119,8 +167,20 @@ ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
   });
 });
 
-app.whenReady().then(() => {
-  startBundledBackend();
+app.whenReady().then(async () => {
+  if (isDev) {
+    try {
+      await waitForDevServers();
+    } catch (error) {
+      console.error('Dev server readiness check failed:', error);
+      dialog.showErrorBox('Startup error', `Dev server startup failed: ${error.message}`);
+      app.quit();
+      return;
+    }
+  } else {
+    startBundledBackend();
+  }
+
   createWindow();
 });
 
