@@ -17,12 +17,14 @@ export function createBillingStore(windowId) {
     setDiscount: (discount) => set({ discount }),
     setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
 
-    addProductToCart: (product) =>
+    addProductToCart: (product, quantity = 1) =>
       set((state) => {
         if ((product.stock || 0) <= 0) {
           toast.error(`${product.name || product.productName} is out of stock`);
           return state;
         }
+
+        const qtyToAdd = Math.max(1, Number(quantity) || 1);
 
         const normalizedProduct = {
           _id: product._id,
@@ -42,7 +44,7 @@ export function createBillingStore(windowId) {
               item._id === normalizedProduct._id
                 ? {
                     ...item,
-                    quantity: Math.min(item.quantity + 1, normalizedProduct.stock),
+                    quantity: Math.min(item.quantity + qtyToAdd, normalizedProduct.stock),
                   }
                 : item
             ),
@@ -50,7 +52,7 @@ export function createBillingStore(windowId) {
         }
 
         return {
-          cart: [...state.cart, { ...normalizedProduct, quantity: 1 }],
+          cart: [...state.cart, { ...normalizedProduct, quantity: Math.min(qtyToAdd, normalizedProduct.stock) }],
         };
       }),
 

@@ -11083,13 +11083,13 @@ var require_lib = __commonJS({
             if (err) {
               next(err);
             } else {
-              var corsOptions = assign({}, defaults, options);
+              var corsOptions2 = assign({}, defaults, options);
               var originCallback = null;
-              if (corsOptions.origin && typeof corsOptions.origin === "function") {
-                originCallback = corsOptions.origin;
-              } else if (corsOptions.origin) {
+              if (corsOptions2.origin && typeof corsOptions2.origin === "function") {
+                originCallback = corsOptions2.origin;
+              } else if (corsOptions2.origin) {
                 originCallback = function(origin, cb) {
-                  cb(null, corsOptions.origin);
+                  cb(null, corsOptions2.origin);
                 };
               }
               if (originCallback) {
@@ -11097,8 +11097,8 @@ var require_lib = __commonJS({
                   if (err2 || !origin) {
                     next(err2);
                   } else {
-                    corsOptions.origin = origin;
-                    cors2(corsOptions, req, res, next);
+                    corsOptions2.origin = origin;
+                    cors2(corsOptions2, req, res, next);
                   }
                 });
               } else {
@@ -104029,10 +104029,10 @@ var require_connection2 = __commonJS({
         });
       });
     };
-    async function _wrapUserTransaction(fn, session, mongoose11) {
+    async function _wrapUserTransaction(fn, session, mongoose17) {
       try {
-        const res = mongoose11.transactionAsyncLocalStorage == null ? await fn(session) : await new Promise((resolve) => {
-          mongoose11.transactionAsyncLocalStorage.run(
+        const res = mongoose17.transactionAsyncLocalStorage == null ? await fn(session) : await new Promise((resolve) => {
+          mongoose17.transactionAsyncLocalStorage.run(
             { session },
             () => resolve(fn(session))
           );
@@ -117277,7 +117277,7 @@ var require_mongoose = __commonJS({
     Mongoose.prototype.ConnectionStates = STATES;
     Mongoose.prototype.driver = driver;
     Mongoose.prototype.setDriver = function setDriver(driver2) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       if (_mongoose.__driver === driver2) {
         return _mongoose;
       }
@@ -117295,7 +117295,7 @@ var require_mongoose = __commonJS({
         }
       }
       if (driver2.SchemaTypes != null) {
-        Object.assign(mongoose11.Schema.Types, driver2.SchemaTypes);
+        Object.assign(mongoose17.Schema.Types, driver2.SchemaTypes);
       }
       const Connection = driver2.Connection;
       const oldDefaultConnection = _mongoose.connections[0];
@@ -117313,7 +117313,7 @@ var require_mongoose = __commonJS({
       return _mongoose;
     };
     Mongoose.prototype.set = function getsetOptions(key, value) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       if (arguments.length === 1 && typeof key !== "object") {
         if (VALID_OPTIONS.indexOf(key) === -1) {
           const error2 = new SetOptionError();
@@ -117374,7 +117374,7 @@ var require_mongoose = __commonJS({
     };
     Mongoose.prototype.get = Mongoose.prototype.set;
     Mongoose.prototype.createConnection = function createConnection(uri, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       const Connection = _mongoose.__driver.Connection;
       const conn = new Connection(_mongoose);
       _mongoose.connections.push(conn);
@@ -117389,7 +117389,7 @@ var require_mongoose = __commonJS({
       if (typeof options === "function" || arguments.length >= 3 && typeof arguments[2] === "function") {
         throw new MongooseError("Mongoose.prototype.connect() no longer accepts a callback");
       }
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       if (_mongoose.connection == null) {
         _createDefaultConnection(_mongoose);
       }
@@ -117400,7 +117400,7 @@ var require_mongoose = __commonJS({
       if (arguments.length >= 1 && typeof arguments[0] === "function") {
         throw new MongooseError("Mongoose.prototype.disconnect() no longer accepts a callback");
       }
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       const remaining = _mongoose.connections.length;
       if (remaining <= 0) {
         return;
@@ -117408,18 +117408,18 @@ var require_mongoose = __commonJS({
       await Promise.all(_mongoose.connections.map((conn) => conn.close()));
     };
     Mongoose.prototype.startSession = function startSession() {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       return _mongoose.connection.startSession.apply(_mongoose.connection, arguments);
     };
     Mongoose.prototype.pluralize = function pluralize(fn) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       if (arguments.length > 0) {
         _mongoose._pluralize = fn;
       }
       return _mongoose._pluralize;
     };
     Mongoose.prototype.model = function model(name, schema, collection, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       if (typeof schema === "string") {
         collection = schema;
         schema = false;
@@ -117467,7 +117467,7 @@ var require_mongoose = __commonJS({
       return model2;
     };
     Mongoose.prototype._model = function _model(name, schema, collection, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       let model;
       if (typeof name === "function") {
         model = name;
@@ -117506,25 +117506,25 @@ var require_mongoose = __commonJS({
       return model;
     };
     Mongoose.prototype.deleteModel = function deleteModel(name) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       _mongoose.connection.deleteModel(name);
       delete _mongoose.models[name];
       return _mongoose;
     };
     Mongoose.prototype.modelNames = function modelNames() {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       const names = Object.keys(_mongoose.models);
       return names;
     };
     Mongoose.prototype._applyPlugins = function _applyPlugins(schema, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       options = options || {};
       options.applyPluginsToDiscriminators = _mongoose.options && _mongoose.options.applyPluginsToDiscriminators || false;
       options.applyPluginsToChildSchemas = typeof (_mongoose.options && _mongoose.options.applyPluginsToChildSchemas) === "boolean" ? _mongoose.options.applyPluginsToChildSchemas : true;
       applyPlugins(schema, _mongoose.plugins, options, "$globalPluginsApplied");
     };
     Mongoose.prototype.plugin = function plugin(fn, opts) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       _mongoose.plugins.push([fn, opts]);
       return _mongoose;
     };
@@ -117574,14 +117574,14 @@ var require_mongoose = __commonJS({
     Mongoose.prototype.DocumentProvider = require_documentProvider();
     Mongoose.prototype.ObjectId = SchemaTypes.ObjectId;
     Mongoose.prototype.isValidObjectId = function isValidObjectId(v) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       return _mongoose.Types.ObjectId.isValid(v);
     };
     Mongoose.prototype.isObjectIdOrHexString = function isObjectIdOrHexString(v) {
       return isBsonType(v, "ObjectId") || typeof v === "string" && objectIdHexRegexp.test(v);
     };
     Mongoose.prototype.syncIndexes = function syncIndexes(options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose11;
+      const _mongoose = this instanceof Mongoose ? this : mongoose17;
       return _mongoose.connection.syncIndexes(options);
     };
     Mongoose.prototype.Decimal128 = SchemaTypes.Decimal128;
@@ -117601,15 +117601,15 @@ var require_mongoose = __commonJS({
     Mongoose.prototype.skipMiddlewareFunction = Kareem.skipWrappedFunction;
     Mongoose.prototype.overwriteMiddlewareResult = Kareem.overwriteResult;
     Mongoose.prototype.omitUndefined = require_omitUndefined();
-    function _createDefaultConnection(mongoose12) {
-      if (mongoose12.connection) {
+    function _createDefaultConnection(mongoose18) {
+      if (mongoose18.connection) {
         return;
       }
-      const conn = mongoose12.createConnection();
+      const conn = mongoose18.createConnection();
       conn[defaultConnectionSymbol] = true;
-      conn.models = mongoose12.models;
+      conn.models = mongoose18.models;
     }
-    var mongoose11 = module2.exports = exports2 = new Mongoose({
+    var mongoose17 = module2.exports = exports2 = new Mongoose({
       [defaultMongooseSymbol]: true
     });
   }
@@ -117621,10 +117621,10 @@ var require_lib10 = __commonJS({
     "use strict";
     var mongodbDriver = require_node_mongodb_native();
     require_driver().set(mongodbDriver);
-    var mongoose11 = require_mongoose();
-    mongoose11.setDriver(mongodbDriver);
-    mongoose11.Mongoose.prototype.mongo = require_lib7();
-    module2.exports = mongoose11;
+    var mongoose17 = require_mongoose();
+    mongoose17.setDriver(mongodbDriver);
+    mongoose17.Mongoose.prototype.mongo = require_lib7();
+    module2.exports = mongoose17;
   }
 });
 
@@ -117632,55 +117632,55 @@ var require_lib10 = __commonJS({
 var require_mongoose2 = __commonJS({
   "../server/node_modules/mongoose/index.js"(exports2, module2) {
     "use strict";
-    var mongoose11 = require_lib10();
-    module2.exports = mongoose11;
-    module2.exports.default = mongoose11;
-    module2.exports.mongoose = mongoose11;
-    module2.exports.cast = mongoose11.cast;
-    module2.exports.STATES = mongoose11.STATES;
-    module2.exports.setDriver = mongoose11.setDriver;
-    module2.exports.set = mongoose11.set;
-    module2.exports.get = mongoose11.get;
-    module2.exports.createConnection = mongoose11.createConnection;
-    module2.exports.connect = mongoose11.connect;
-    module2.exports.disconnect = mongoose11.disconnect;
-    module2.exports.startSession = mongoose11.startSession;
-    module2.exports.pluralize = mongoose11.pluralize;
-    module2.exports.model = mongoose11.model;
-    module2.exports.deleteModel = mongoose11.deleteModel;
-    module2.exports.modelNames = mongoose11.modelNames;
-    module2.exports.plugin = mongoose11.plugin;
-    module2.exports.connections = mongoose11.connections;
-    module2.exports.version = mongoose11.version;
-    module2.exports.Aggregate = mongoose11.Aggregate;
-    module2.exports.Mongoose = mongoose11.Mongoose;
-    module2.exports.Schema = mongoose11.Schema;
-    module2.exports.SchemaType = mongoose11.SchemaType;
-    module2.exports.SchemaTypes = mongoose11.SchemaTypes;
-    module2.exports.VirtualType = mongoose11.VirtualType;
-    module2.exports.Types = mongoose11.Types;
-    module2.exports.Query = mongoose11.Query;
-    module2.exports.Model = mongoose11.Model;
-    module2.exports.Document = mongoose11.Document;
-    module2.exports.ObjectId = mongoose11.ObjectId;
-    module2.exports.isValidObjectId = mongoose11.isValidObjectId;
-    module2.exports.isObjectIdOrHexString = mongoose11.isObjectIdOrHexString;
-    module2.exports.syncIndexes = mongoose11.syncIndexes;
-    module2.exports.Decimal128 = mongoose11.Decimal128;
-    module2.exports.Mixed = mongoose11.Mixed;
-    module2.exports.Date = mongoose11.Date;
-    module2.exports.Number = mongoose11.Number;
-    module2.exports.Error = mongoose11.Error;
-    module2.exports.MongooseError = mongoose11.MongooseError;
-    module2.exports.now = mongoose11.now;
-    module2.exports.CastError = mongoose11.CastError;
-    module2.exports.SchemaTypeOptions = mongoose11.SchemaTypeOptions;
-    module2.exports.mongo = mongoose11.mongo;
-    module2.exports.mquery = mongoose11.mquery;
-    module2.exports.sanitizeFilter = mongoose11.sanitizeFilter;
-    module2.exports.trusted = mongoose11.trusted;
-    module2.exports.skipMiddlewareFunction = mongoose11.skipMiddlewareFunction;
-    module2.exports.overwriteMiddlewareResult = mongoose11.overwriteMiddlewareResult;
+    var mongoose17 = require_lib10();
+    module2.exports = mongoose17;
+    module2.exports.default = mongoose17;
+    module2.exports.mongoose = mongoose17;
+    module2.exports.cast = mongoose17.cast;
+    module2.exports.STATES = mongoose17.STATES;
+    module2.exports.setDriver = mongoose17.setDriver;
+    module2.exports.set = mongoose17.set;
+    module2.exports.get = mongoose17.get;
+    module2.exports.createConnection = mongoose17.createConnection;
+    module2.exports.connect = mongoose17.connect;
+    module2.exports.disconnect = mongoose17.disconnect;
+    module2.exports.startSession = mongoose17.startSession;
+    module2.exports.pluralize = mongoose17.pluralize;
+    module2.exports.model = mongoose17.model;
+    module2.exports.deleteModel = mongoose17.deleteModel;
+    module2.exports.modelNames = mongoose17.modelNames;
+    module2.exports.plugin = mongoose17.plugin;
+    module2.exports.connections = mongoose17.connections;
+    module2.exports.version = mongoose17.version;
+    module2.exports.Aggregate = mongoose17.Aggregate;
+    module2.exports.Mongoose = mongoose17.Mongoose;
+    module2.exports.Schema = mongoose17.Schema;
+    module2.exports.SchemaType = mongoose17.SchemaType;
+    module2.exports.SchemaTypes = mongoose17.SchemaTypes;
+    module2.exports.VirtualType = mongoose17.VirtualType;
+    module2.exports.Types = mongoose17.Types;
+    module2.exports.Query = mongoose17.Query;
+    module2.exports.Model = mongoose17.Model;
+    module2.exports.Document = mongoose17.Document;
+    module2.exports.ObjectId = mongoose17.ObjectId;
+    module2.exports.isValidObjectId = mongoose17.isValidObjectId;
+    module2.exports.isObjectIdOrHexString = mongoose17.isObjectIdOrHexString;
+    module2.exports.syncIndexes = mongoose17.syncIndexes;
+    module2.exports.Decimal128 = mongoose17.Decimal128;
+    module2.exports.Mixed = mongoose17.Mixed;
+    module2.exports.Date = mongoose17.Date;
+    module2.exports.Number = mongoose17.Number;
+    module2.exports.Error = mongoose17.Error;
+    module2.exports.MongooseError = mongoose17.MongooseError;
+    module2.exports.now = mongoose17.now;
+    module2.exports.CastError = mongoose17.CastError;
+    module2.exports.SchemaTypeOptions = mongoose17.SchemaTypeOptions;
+    module2.exports.mongo = mongoose17.mongo;
+    module2.exports.mquery = mongoose17.mquery;
+    module2.exports.sanitizeFilter = mongoose17.sanitizeFilter;
+    module2.exports.trusted = mongoose17.trusted;
+    module2.exports.skipMiddlewareFunction = mongoose17.skipMiddlewareFunction;
+    module2.exports.overwriteMiddlewareResult = mongoose17.overwriteMiddlewareResult;
   }
 });
 
@@ -348223,7 +348223,7 @@ end`);
 // ../server/src/app.js
 var import_compression = __toESM(require_compression(), 1);
 var import_cors = __toESM(require_lib(), 1);
-var import_express14 = __toESM(require_express2(), 1);
+var import_express16 = __toESM(require_express2(), 1);
 var import_express_mongo_sanitize = __toESM(require_express_mongo_sanitize(), 1);
 
 // ../server/node_modules/express-rate-limit/dist/index.mjs
@@ -349551,7 +349551,7 @@ var env2 = {
   mongoUri: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/supermarket_billing",
   jwtSecret: process.env.JWT_SECRET || "development-only-secret",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
-  clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
+  clientUrl: process.env.CLIENT_URL || "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174",
   uploadDir: process.env.UPLOAD_DIR || "uploads",
   autoSeedOnStart: process.env.AUTO_SEED_ON_START === "true"
 };
@@ -349575,7 +349575,7 @@ function errorHandler(error, req, res, next) {
 }
 
 // ../server/src/routes/index.js
-var import_express13 = __toESM(require_express2(), 1);
+var import_express15 = __toESM(require_express2(), 1);
 
 // ../server/src/routes/authRoutes.js
 var import_express = __toESM(require_express2(), 1);
@@ -351353,6 +351353,7 @@ function signToken(user) {
 }
 function userPayload(user) {
   return {
+    _id: user._id,
     id: user._id,
     name: user.name,
     email: user.email,
@@ -351376,10 +351377,14 @@ var login = asyncHandler(async (req, res) => {
   }
   user.lastLoginAt = /* @__PURE__ */ new Date();
   await user.save();
-  res.json({ token: signToken(user), user: userPayload(user) });
+  res.json({
+    success: true,
+    token: signToken(user),
+    user: userPayload(user)
+  });
 });
 var me = asyncHandler(async (req, res) => {
-  res.json({ user: userPayload(req.user) });
+  res.json({ success: true, user: userPayload(req.user) });
 });
 var changePasswordRules = [
   (0, import_express_validator.body)("currentPassword").isLength({ min: 8 }),
@@ -351645,8 +351650,381 @@ backupRoutes.use(protect, authorize("admin"));
 backupRoutes.get("/", createBackup);
 backupRoutes.post("/restore", import_express2.default.urlencoded({ extended: true, limit: "50mb" }), restoreBackup);
 
-// ../server/src/routes/categoryRoutes.js
+// ../server/src/routes/billRoutes.js
 var import_express3 = __toESM(require_express2(), 1);
+
+// ../server/src/models/Bill.js
+var import_mongoose10 = __toESM(require_mongoose2(), 1);
+var billItemSchema = new import_mongoose10.default.Schema(
+  {
+    productId: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "Product", required: true },
+    productName: { type: String, required: true, trim: true },
+    quantity: { type: Number, required: true, min: 1 },
+    price: { type: Number, required: true, min: 0 },
+    tax: { type: Number, required: true, min: 0, default: 0 },
+    total: { type: Number, required: true, min: 0 }
+  },
+  { _id: false }
+);
+var billSchema = new import_mongoose10.default.Schema(
+  {
+    invoiceNo: { type: String, required: true, unique: true, trim: true },
+    invoiceNumber: { type: String, trim: true },
+    customerName: { type: String, trim: true, default: "Walk-in Customer" },
+    customerMobile: { type: String, trim: true },
+    customerEmail: { type: String, trim: true },
+    customerAddress: { type: String, trim: true },
+    items: { type: [billItemSchema], required: true, validate: [(items) => items.length > 0, "Bill must contain at least one item"] },
+    subtotal: { type: Number, required: true, min: 0 },
+    taxTotal: { type: Number, required: true, min: 0, default: 0 },
+    discount: { type: Number, required: true, min: 0, default: 0 },
+    total: { type: Number, required: true, min: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ["Cash", "UPI", "Card"],
+      required: true,
+      default: "Cash",
+      set: (value) => {
+        const normalized = String(value || "").trim().toLowerCase();
+        if (normalized === "upi") return "UPI";
+        if (normalized === "cash") return "Cash";
+        if (normalized === "card") return "Card";
+        return value;
+      }
+    },
+    status: {
+      type: String,
+      enum: ["Completed", "Hold", "Cancelled", "Refunded"],
+      required: true,
+      default: "Completed"
+    },
+    staff: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "User" }
+  },
+  { timestamps: true }
+);
+billSchema.pre("validate", function(next) {
+  if (!this.invoiceNumber && this.invoiceNo) {
+    this.invoiceNumber = this.invoiceNo;
+  }
+  if (!this.invoiceNo && this.invoiceNumber) {
+    this.invoiceNo = this.invoiceNumber;
+  }
+  next();
+});
+var Bill = import_mongoose10.default.model("Bill", billSchema);
+var Bill_default = Bill;
+
+// ../server/src/models/DraftBill.js
+var import_mongoose11 = __toESM(require_mongoose2(), 1);
+var draftBillSchema = new import_mongoose11.default.Schema(
+  {
+    invoiceNo: { type: String, trim: true },
+    customerName: { type: String, trim: true },
+    customerMobile: { type: String, trim: true },
+    items: [
+      {
+        productId: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "Product" },
+        productName: { type: String, trim: true },
+        quantity: { type: Number, min: 1, default: 1 },
+        price: { type: Number, min: 0, default: 0 },
+        total: { type: Number, min: 0, default: 0 }
+      }
+    ],
+    subtotal: { type: Number, min: 0, default: 0 },
+    discount: { type: Number, min: 0, default: 0 },
+    total: { type: Number, min: 0, default: 0 },
+    savedBy: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "User" }
+  },
+  { timestamps: true }
+);
+var DraftBill = import_mongoose11.default.model("DraftBill", draftBillSchema);
+
+// ../server/src/models/DeletedBill.js
+var import_mongoose12 = __toESM(require_mongoose2(), 1);
+var deletedBillSchema = new import_mongoose12.default.Schema(
+  {
+    invoiceNo: { type: String, required: true, trim: true },
+    deletedBy: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "User", required: true },
+    reason: { type: String, trim: true },
+    originalData: { type: import_mongoose12.default.Schema.Types.Mixed, required: true }
+  },
+  { timestamps: true }
+);
+var DeletedBill = import_mongoose12.default.model("DeletedBill", deletedBillSchema);
+var DeletedBill_default = DeletedBill;
+
+// ../server/src/models/PrintLog.js
+var import_mongoose13 = __toESM(require_mongoose2(), 1);
+var printLogSchema = new import_mongoose13.default.Schema(
+  {
+    invoiceNo: { type: String, trim: true },
+    printer: { type: String, trim: true },
+    success: { type: Boolean, required: true, default: true },
+    error: { type: String, trim: true }
+  },
+  { timestamps: true }
+);
+var PrintLog = import_mongoose13.default.model("PrintLog", printLogSchema);
+var PrintLog_default = PrintLog;
+
+// ../server/src/models/HoldBill.js
+var import_mongoose14 = __toESM(require_mongoose2(), 1);
+var holdBillSchema = new import_mongoose14.default.Schema(
+  {
+    customerName: { type: String, trim: true },
+    invoiceNo: { type: String, trim: true },
+    customerMobile: { type: String, trim: true },
+    items: [
+      {
+        productId: { type: import_mongoose14.default.Schema.Types.ObjectId, ref: "Product" },
+        productName: { type: String, trim: true },
+        quantity: { type: Number, min: 1, default: 1 },
+        price: { type: Number, min: 0, default: 0 },
+        tax: { type: Number, min: 0, default: 0 },
+        total: { type: Number, min: 0, default: 0 }
+      }
+    ],
+    subtotal: { type: Number, min: 0, default: 0 },
+    discount: { type: Number, min: 0, default: 0 },
+    total: { type: Number, min: 0, default: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ["Cash", "UPI", "Card"],
+      default: "Cash",
+      set: (value) => {
+        const normalized = String(value || "").trim().toLowerCase();
+        if (normalized === "upi") return "UPI";
+        if (normalized === "cash") return "Cash";
+        if (normalized === "card") return "Card";
+        return value;
+      }
+    },
+    heldBy: { type: import_mongoose14.default.Schema.Types.ObjectId, ref: "User" }
+  },
+  { timestamps: true }
+);
+var HoldBill = import_mongoose14.default.model("HoldBill", holdBillSchema);
+var HoldBill_default = HoldBill;
+
+// ../server/src/models/Refund.js
+var import_mongoose15 = __toESM(require_mongoose2(), 1);
+var refundItemSchema = new import_mongoose15.default.Schema(
+  {
+    productId: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Product" },
+    productName: { type: String, trim: true },
+    quantity: { type: Number, min: 1, default: 1 },
+    price: { type: Number, min: 0, default: 0 },
+    total: { type: Number, min: 0, default: 0 }
+  },
+  { _id: false }
+);
+var refundSchema = new import_mongoose15.default.Schema(
+  {
+    bill: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Bill", required: true },
+    items: { type: [refundItemSchema], default: [] },
+    type: { type: String, trim: true, default: "partial" },
+    reason: { type: String, trim: true },
+    processedBy: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "User" }
+  },
+  { timestamps: true }
+);
+var Refund = import_mongoose15.default.model("Refund", refundSchema);
+var Refund_default = Refund;
+
+// ../server/src/controllers/billController.js
+var createBill = asyncHandler(async (req, res) => {
+  const { invoiceNo, items, subtotal, taxTotal, discount, total, paymentMethod, customerMobile, customerName } = req.body;
+  if (!items || items.length === 0) {
+    throw new ApiError(400, "Bill must have at least one item");
+  }
+  const bill = await Bill_default.create({
+    invoiceNo,
+    items,
+    subtotal,
+    taxTotal,
+    discount,
+    total,
+    paymentMethod,
+    customerMobile,
+    customerName,
+    staff: req.user?._id
+  });
+  res.status(201).json({ bill, message: "Bill created successfully" });
+});
+var getBill = asyncHandler(async (req, res) => {
+  const bill = await Bill_default.findById(req.params.id).populate("items.productId");
+  if (!bill) throw new ApiError(404, "Bill not found");
+  res.json({ bill });
+});
+var updateBill = asyncHandler(async (req, res) => {
+  const { items, subtotal, taxTotal, discount } = req.body;
+  const bill = await Bill_default.findById(req.params.id);
+  if (!bill) throw new ApiError(404, "Bill not found");
+  bill.items = items;
+  bill.subtotal = subtotal;
+  bill.taxTotal = taxTotal;
+  bill.discount = discount;
+  bill.total = subtotal + taxTotal - discount;
+  bill.updatedAt = /* @__PURE__ */ new Date();
+  await bill.save();
+  res.json({ bill, message: "Bill updated successfully" });
+});
+var deleteBill = asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+  const bill = await Bill_default.findById(req.params.id);
+  if (!bill) throw new ApiError(404, "Bill not found");
+  await DeletedBill_default.create({
+    invoiceNo: bill.invoiceNo,
+    deletedBy: req.user?._id,
+    reason,
+    originalData: bill.toObject()
+  });
+  await Bill_default.findByIdAndDelete(req.params.id);
+  res.json({ message: "Bill deleted successfully" });
+});
+var getBills = asyncHandler(async (req, res) => {
+  const { startDate, endDate, paymentMethod, customerMobile, page = 1, limit = 50 } = req.query;
+  const query2 = {};
+  if (startDate || endDate) {
+    query2.createdAt = {};
+    if (startDate) query2.createdAt.$gte = new Date(startDate);
+    if (endDate) query2.createdAt.$lte = new Date(endDate);
+  }
+  if (paymentMethod) query2.paymentMethod = paymentMethod;
+  if (customerMobile) query2.customerMobile = customerMobile;
+  const skip = (page - 1) * limit;
+  const bills = await Bill_default.find(query2).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit));
+  const total = await Bill_default.countDocuments(query2);
+  res.json({
+    bills,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
+var searchBills = asyncHandler(async (req, res) => {
+  const { q } = req.query;
+  if (!q) throw new ApiError(400, "Search query required");
+  const bills = await Bill_default.find({
+    $or: [
+      { invoiceNo: { $regex: q, $options: "i" } },
+      { customerMobile: { $regex: q, $options: "i" } },
+      { customerName: { $regex: q, $options: "i" } }
+    ]
+  }).sort({ createdAt: -1 }).limit(10);
+  res.json({ bills });
+});
+var getTodaysSales = asyncHandler(async (req, res) => {
+  const startOfDay = /* @__PURE__ */ new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = /* @__PURE__ */ new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+  const bills = await Bill_default.find({
+    createdAt: { $gte: startOfDay, $lte: endOfDay }
+  });
+  const stats = {
+    totalSales: bills.reduce((sum, b) => sum + b.total, 0),
+    totalBills: bills.length,
+    totalItems: bills.reduce((sum, b) => sum + (b.items || []).length, 0),
+    totalTax: bills.reduce((sum, b) => sum + b.taxTotal, 0),
+    totalDiscount: bills.reduce((sum, b) => sum + b.discount, 0),
+    paymentBreakdown: {}
+  };
+  bills.forEach((bill) => {
+    stats.paymentBreakdown[bill.paymentMethod] = (stats.paymentBreakdown[bill.paymentMethod] || 0) + bill.total;
+  });
+  res.json(stats);
+});
+var holdBill = asyncHandler(async (req, res) => {
+  const { invoiceNo, items, subtotal, discount, total, paymentMethod, customerName, customerMobile } = req.body;
+  if (!items || items.length === 0) {
+    throw new ApiError(400, "Held bill must contain at least one item");
+  }
+  const heldBill = await HoldBill_default.create({
+    invoiceNo,
+    items,
+    subtotal,
+    discount,
+    total,
+    paymentMethod,
+    customerName,
+    customerMobile,
+    heldBy: req.user?._id
+  });
+  res.status(201).json({ heldBill, message: "Bill held successfully" });
+});
+var getHeldBills = asyncHandler(async (req, res) => {
+  const heldBills = await HoldBill_default.find().sort({ createdAt: -1 });
+  res.json({ heldBills });
+});
+var resumeHeldBill = asyncHandler(async (req, res) => {
+  const heldBill = await HoldBill_default.findById(req.params.id);
+  if (!heldBill) throw new ApiError(404, "Held bill not found");
+  res.json({ heldBill });
+});
+var deleteHeldBill = asyncHandler(async (req, res) => {
+  await HoldBill_default.findByIdAndDelete(req.params.id);
+  res.json({ message: "Held bill discarded" });
+});
+var createRefund = asyncHandler(async (req, res) => {
+  const { bill, items, type, reason } = req.body;
+  const refund = await Refund_default.create({
+    bill,
+    items,
+    type,
+    reason,
+    processedBy: req.user?._id
+  });
+  res.status(201).json({ refund, message: "Refund created successfully" });
+});
+var getRefunds = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 50 } = req.query;
+  const skip = (page - 1) * limit;
+  const refunds = await Refund_default.find().sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit));
+  const total = await Refund_default.countDocuments();
+  res.json({
+    refunds,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
+var logPrint = asyncHandler(async (req, res) => {
+  const { invoiceNo, printer, success, error } = req.body;
+  const printLog = await PrintLog_default.create({
+    invoiceNo,
+    printer,
+    success,
+    error
+  });
+  res.status(201).json({ printLog });
+});
+
+// ../server/src/routes/billRoutes.js
+var billRoutes = import_express3.default.Router();
+billRoutes.use(protect);
+billRoutes.post("/", createBill);
+billRoutes.post("/:id/delete", deleteBill);
+billRoutes.get("/stats/today", getTodaysSales);
+billRoutes.get("/search", searchBills);
+billRoutes.get("/:id", getBill);
+billRoutes.put("/:id", updateBill);
+billRoutes.get("/", getBills);
+billRoutes.post("/hold", holdBill);
+billRoutes.get("/hold/all", getHeldBills);
+billRoutes.get("/hold/:id", resumeHeldBill);
+billRoutes.delete("/hold/:id", deleteHeldBill);
+billRoutes.post("/refunds", createRefund);
+billRoutes.get("/refunds", getRefunds);
+billRoutes.post("/print-logs", logPrint);
+
+// ../server/src/routes/holdBillRoutes.js
+var import_express4 = __toESM(require_express2(), 1);
+var holdBillRoutes = import_express4.default.Router();
+holdBillRoutes.use(protect);
+holdBillRoutes.post("/", holdBill);
+holdBillRoutes.get("/", getHeldBills);
+holdBillRoutes.get("/:id", resumeHeldBill);
+holdBillRoutes.delete("/:id", deleteHeldBill);
+
+// ../server/src/routes/categoryRoutes.js
+var import_express5 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/categoryController.js
 var import_express_validator3 = __toESM(require_lib4(), 1);
@@ -351674,13 +352052,13 @@ var deleteCategory = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/categoryRoutes.js
-var categoryRoutes = import_express3.default.Router();
+var categoryRoutes = import_express5.default.Router();
 categoryRoutes.use(protect);
 categoryRoutes.route("/").get(listCategories).post(authorize("admin", "manager"), categoryRules, validate, createCategory);
 categoryRoutes.route("/:id").patch(authorize("admin", "manager"), categoryRules, validate, updateCategory).delete(authorize("admin"), deleteCategory);
 
 // ../server/src/routes/customerRoutes.js
-var import_express4 = __toESM(require_express2(), 1);
+var import_express6 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/customerController.js
 var import_express_validator4 = __toESM(require_lib4(), 1);
@@ -351714,14 +352092,14 @@ var customerHistory = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/customerRoutes.js
-var customerRoutes = import_express4.default.Router();
+var customerRoutes = import_express6.default.Router();
 customerRoutes.use(protect);
 customerRoutes.route("/").get(listCustomers).post(customerRules, validate, createCustomer);
 customerRoutes.get("/:id/history", customerHistory);
 customerRoutes.route("/:id").patch(customerRules, validate, updateCustomer).delete(authorize("admin", "manager"), deleteCustomer);
 
 // ../server/src/routes/inventoryRoutes.js
-var import_express5 = __toESM(require_express2(), 1);
+var import_express7 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/inventoryController.js
 var import_express_validator5 = __toESM(require_lib4(), 1);
@@ -351756,13 +352134,13 @@ var adjustStock = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/inventoryRoutes.js
-var inventoryRoutes = import_express5.default.Router();
+var inventoryRoutes = import_express7.default.Router();
 inventoryRoutes.use(protect);
 inventoryRoutes.get("/logs", listInventoryLogs);
 inventoryRoutes.post("/adjust", authorize("admin", "manager"), adjustmentRules, validate, adjustStock);
 
 // ../server/src/routes/productRoutes.js
-var import_express6 = __toESM(require_express2(), 1);
+var import_express8 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/productController.js
 var import_express_validator6 = __toESM(require_lib4(), 1);
@@ -351861,6 +352239,43 @@ var generateSku = asyncHandler(async (req, res) => {
   res.json({ sku: makeSku(req.query.name || "Product", total) });
 });
 
+// ../server/src/controllers/productSearchController.js
+var escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+var searchProducts = asyncHandler(async (req, res) => {
+  const query2 = String(req.query.q || "").trim();
+  const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
+  console.log(`Product search request: q=${query2} limit=${limit}`);
+  if (!query2) {
+    return res.json({ products: [] });
+  }
+  const regex = new RegExp(escapeRegex(query2), "i");
+  const filter = {
+    active: true,
+    $or: [{ name: regex }, { sku: regex }, { barcode: regex }]
+  };
+  const products = await Product.find(filter, {
+    name: 1,
+    sku: 1,
+    barcode: 1,
+    sellingPrice: 1,
+    stock: 1,
+    taxRate: 1
+  }).sort({ name: 1 }).limit(limit);
+  const payload = products.map((product) => ({
+    _id: product._id,
+    productName: product.name,
+    name: product.name,
+    sku: product.sku,
+    barcode: product.barcode,
+    sellingPrice: product.sellingPrice,
+    stock: product.stock,
+    taxRate: product.taxRate || 0,
+    tax: product.taxRate || 0,
+    available: product.stock > 0
+  }));
+  res.json({ products: payload });
+});
+
 // ../server/src/middleware/upload.js
 var import_multer = __toESM(require_multer(), 1);
 var import_path = __toESM(require("path"), 1);
@@ -351883,14 +352298,15 @@ var upload = (0, import_multer.default)({
 });
 
 // ../server/src/routes/productRoutes.js
-var productRoutes = import_express6.default.Router();
+var productRoutes = import_express8.default.Router();
 productRoutes.use(protect);
 productRoutes.get("/sku", generateSku);
+productRoutes.get("/search", searchProducts);
 productRoutes.route("/").get(productQueryRules, validate, listProducts).post(authorize("admin", "manager"), upload.single("image"), productRules, validate, createProduct);
 productRoutes.route("/:id").patch(authorize("admin", "manager"), upload.single("image"), updateProduct).delete(authorize("admin"), deleteProduct);
 
 // ../server/src/routes/purchaseRoutes.js
-var import_express7 = __toESM(require_express2(), 1);
+var import_express9 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/purchaseController.js
 var import_express_validator7 = __toESM(require_lib4(), 1);
@@ -351945,12 +352361,12 @@ var createPurchase = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/purchaseRoutes.js
-var purchaseRoutes = import_express7.default.Router();
+var purchaseRoutes = import_express9.default.Router();
 purchaseRoutes.use(protect, authorize("admin", "manager"));
 purchaseRoutes.route("/").get(listPurchases).post(purchaseRules, validate, createPurchase);
 
 // ../server/src/routes/reportRoutes.js
-var import_express8 = __toESM(require_express2(), 1);
+var import_express10 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/reportController.js
 var import_exceljs = __toESM(require_excel(), 1);
@@ -352060,7 +352476,7 @@ var stockValuation = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/reportRoutes.js
-var reportRoutes = import_express8.default.Router();
+var reportRoutes = import_express10.default.Router();
 reportRoutes.use(protect, authorize("admin", "manager"));
 reportRoutes.get("/sales", salesReport);
 reportRoutes.get("/profit-loss", profitLossReport);
@@ -352070,7 +352486,7 @@ reportRoutes.get("/sales/export.xlsx", exportSalesExcel);
 reportRoutes.get("/sales/export.pdf", exportSalesPdf);
 
 // ../server/src/routes/saleRoutes.js
-var import_express9 = __toESM(require_express2(), 1);
+var import_express11 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/saleController.js
 var import_express_validator8 = __toESM(require_lib4(), 1);
@@ -352174,13 +352590,13 @@ var createSale = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/saleRoutes.js
-var saleRoutes = import_express9.default.Router();
+var saleRoutes = import_express11.default.Router();
 saleRoutes.use(protect);
 saleRoutes.route("/").get(listSales).post(saleRules, validate, createSale);
 saleRoutes.get("/:id", getSale);
 
 // ../server/src/routes/settingsRoutes.js
-var import_express10 = __toESM(require_express2(), 1);
+var import_express12 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/settingsController.js
 async function getSingleton() {
@@ -352200,13 +352616,13 @@ var updateSettings = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/settingsRoutes.js
-var settingsRoutes = import_express10.default.Router();
+var settingsRoutes = import_express12.default.Router();
 settingsRoutes.use(protect);
 settingsRoutes.get("/", getSettings);
 settingsRoutes.patch("/", authorize("admin"), updateSettings);
 
 // ../server/src/routes/supplierRoutes.js
-var import_express11 = __toESM(require_express2(), 1);
+var import_express13 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/supplierController.js
 var import_express_validator9 = __toESM(require_lib4(), 1);
@@ -352231,13 +352647,13 @@ var deleteSupplier = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/supplierRoutes.js
-var supplierRoutes = import_express11.default.Router();
+var supplierRoutes = import_express13.default.Router();
 supplierRoutes.use(protect, authorize("admin", "manager"));
 supplierRoutes.route("/").get(listSuppliers).post(supplierRules, validate, createSupplier);
 supplierRoutes.route("/:id").patch(supplierRules, validate, updateSupplier).delete(deleteSupplier);
 
 // ../server/src/routes/userRoutes.js
-var import_express12 = __toESM(require_express2(), 1);
+var import_express14 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/userController.js
 var import_express_validator10 = __toESM(require_lib4(), 1);
@@ -352275,7 +352691,7 @@ var deleteUser = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/userRoutes.js
-var userRoutes = import_express12.default.Router();
+var userRoutes = import_express14.default.Router();
 userRoutes.use(protect, authorize("admin"));
 userRoutes.route("/").get(listUsers).post(userRules, validate, createUser);
 userRoutes.route("/:id").patch(userRules, validate, updateUser).delete(deleteUser);
@@ -352319,8 +352735,8 @@ var getDashboard = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/index.js
-var apiRoutes = import_express13.default.Router();
-apiRoutes.get("/health", (req, res) => res.json({ ok: true, service: "supermarket-api" }));
+var apiRoutes = import_express15.default.Router();
+apiRoutes.get("/health", (req, res) => res.json({ success: true, message: "Server running" }));
 apiRoutes.use("/auth", authRoutes);
 apiRoutes.get("/dashboard", protect, getDashboard);
 apiRoutes.use("/users", userRoutes);
@@ -352334,28 +352750,40 @@ apiRoutes.use("/inventory", inventoryRoutes);
 apiRoutes.use("/reports", reportRoutes);
 apiRoutes.use("/settings", settingsRoutes);
 apiRoutes.use("/backup", backupRoutes);
+apiRoutes.use("/bills", billRoutes);
+apiRoutes.use("/hold-bills", holdBillRoutes);
 
 // ../server/src/app.js
 var allowedOrigins = new Set(env2.clientUrl.split(",").map((origin) => origin.trim()).filter(Boolean));
-var app = (0, import_express14.default)();
+function isAllowedOrigin(origin) {
+  if (!origin || origin === "null") return true;
+  if (origin.startsWith("file://")) return true;
+  if (allowedOrigins.has(origin)) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+  return false;
+}
+var app = (0, import_express16.default)();
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use((0, import_cors.default)({
+var corsOptions = {
   origin(origin, callback) {
-    if (!origin || origin === "null" || origin.startsWith("file://") || allowedOrigins.has(origin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
     callback(new Error("Not allowed by CORS"));
   },
-  credentials: true
-}));
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+};
+app.use((0, import_cors.default)(corsOptions));
+app.options("*", (0, import_cors.default)(corsOptions));
 app.use((0, import_compression.default)());
 app.use((0, import_morgan.default)(env2.nodeEnv === "production" ? "combined" : "dev"));
-app.use(import_express14.default.json({ limit: "10mb" }));
-app.use(import_express14.default.urlencoded({ extended: true, limit: "10mb" }));
+app.use(import_express16.default.json({ limit: "10mb" }));
+app.use(import_express16.default.urlencoded({ extended: true, limit: "10mb" }));
 app.use((0, import_express_mongo_sanitize.default)());
 app.use(lib_default({ windowMs: 15 * 60 * 1e3, limit: 500 }));
-app.use("/uploads", import_express14.default.static(import_path2.default.resolve(env2.uploadDir)));
+app.use("/uploads", import_express16.default.static(import_path2.default.resolve(env2.uploadDir)));
 app.use("/api", apiRoutes);
 app.use(notFound);
 app.use(errorHandler);
@@ -352394,11 +352822,11 @@ async function ensureDefaultData() {
 }
 
 // ../server/src/config/db.js
-var import_mongoose10 = __toESM(require_mongoose2(), 1);
+var import_mongoose16 = __toESM(require_mongoose2(), 1);
 async function connectDB() {
-  import_mongoose10.default.set("strictQuery", true);
-  await import_mongoose10.default.connect(env2.mongoUri);
-  console.log(`MongoDB connected: ${import_mongoose10.default.connection.host}`);
+  import_mongoose16.default.set("strictQuery", true);
+  await import_mongoose16.default.connect(env2.mongoUri);
+  console.log(`MongoDB connected: ${import_mongoose16.default.connection.host}`);
 }
 
 // ../server/src/server.js

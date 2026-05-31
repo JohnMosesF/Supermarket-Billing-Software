@@ -15,16 +15,24 @@ export const createBill = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Bill must have at least one item');
   }
 
+  // Auto-generate invoice number if not provided
+  let finalInvoiceNo = invoiceNo;
+  if (!finalInvoiceNo) {
+    const lastBill = await Bill.findOne().sort({ createdAt: -1 }).lean();
+    const lastNumber = lastBill ? parseInt(lastBill.invoiceNo.replace(/\D/g, '') || 0) : 0;
+    finalInvoiceNo = `INV${String(lastNumber + 1).padStart(6, '0')}`;
+  }
+
   const bill = await Bill.create({
-    invoiceNo,
+    invoiceNo: finalInvoiceNo,
     items,
     subtotal,
     taxTotal,
     discount,
     total,
-    paymentMethod,
-    customerMobile,
-    customerName,
+    paymentMethod: paymentMethod || 'cash',
+    customerMobile: customerMobile || null,
+    customerName: customerName || 'Walk-in Customer',
     staff: req.user?._id,
   });
 
@@ -154,21 +162,21 @@ export const getTodaysSales = asyncHandler(async (req, res) => {
 
 // Hold bill
 export const holdBill = asyncHandler(async (req, res) => {
-  const { invoiceNo, items, subtotal, discount, total, paymentMethod, customerName, customerMobile } = req.body;
+  const { items, subtotal, taxTotal, discount, total, paymentMethod, customerName, customerMobile } = req.body;
 
   if (!items || items.length === 0) {
     throw new ApiError(400, 'Held bill must contain at least one item');
   }
 
   const heldBill = await HoldBill.create({
-    invoiceNo,
     items,
     subtotal,
-    discount,
+    taxTotal: taxTotal || 0,
+    discount: discount || 0,
     total,
-    paymentMethod,
-    customerName,
-    customerMobile,
+    paymentMethod: paymentMethod || 'cash',
+    customerName: customerName || 'Walk-in Customer',
+    customerMobile: customerMobile || null,
     heldBy: req.user?._id,
   });
 
@@ -177,7 +185,8 @@ export const holdBill = asyncHandler(async (req, res) => {
 
 // Get held bills
 export const getHeldBills = asyncHandler(async (req, res) => {
-  const heldBills = await HoldBill.find().sort({ createdAt: -1 });
+  const heldBills = await HoldBill.find({ expiresAt: { $gt: new Date() } })
+    .sort({ createdAt: -1 });
   res.json({ heldBills });
 });
 
@@ -185,12 +194,27 @@ export const getHeldBills = asyncHandler(async (req, res) => {
 export const resumeHeldBill = asyncHandler(async (req, res) => {
   const heldBill = await HoldBill.findById(req.params.id);
   if (!heldBill) throw new ApiError(404, 'Held bill not found');
-  res.json({ heldBill });
+  
+  // Return the complete held bill data for restoration
+  res.json({
+    heldBill: {
+      _id: heldBill._id,
+      items: heldBill.items,
+      subtotal: heldBill.subtotal,
+      taxTotal: heldBill.taxTotal,
+      discount: heldBill.discount,
+      total: heldBill.total,
+      paymentMethod: heldBill.paymentMethod,
+      customerName: heldBill.customerName,
+      customerMobile: heldBill.customerMobile,
+    }
+  });
 });
 
 // Delete held bill
 export const deleteHeldBill = asyncHandler(async (req, res) => {
-  await HoldBill.findByIdAndDelete(req.params.id);
+  const result = await HoldBill.findByIdAndDelete(req.params.id);
+  if (!result) throw new ApiError(404, 'Held bill not found');
   res.json({ message: 'Held bill discarded' });
 });
 

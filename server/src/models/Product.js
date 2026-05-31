@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema(
   {
+    // Numeric product ID (auto-generated, primary identifier for POS)
+    productId: { type: Number, required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true, index: true },
     sku: { type: String, required: true, unique: true, uppercase: true, trim: true },
     barcode: { type: String, trim: true, sparse: true, index: true },
@@ -18,6 +20,9 @@ const productSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes for fast searching
 productSchema.index({ name: 'text', sku: 'text', barcode: 'text' });
+productSchema.index({ productId: 1 });
+productSchema.index({ active: 1 });
 
 export const Product = mongoose.model('Product', productSchema);

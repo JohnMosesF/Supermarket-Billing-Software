@@ -54,37 +54,42 @@ export default function BillHistoryModal({ isOpen, onClose }) {
         <div className="p-6 space-y-4">
           {/* Filters */}
           <div className="grid grid-cols-4 gap-3">
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="input text-sm"
-              placeholder="Start date"
-            />
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="input text-sm"
-              placeholder="End date"
-            />
-            <select
-              value={filters.paymentMethod}
-              onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
-              className="input text-sm"
-            >
-              <option value="">All Payment Methods</option>
-              <option value="cash">Cash</option>
-              <option value="upi">UPI</option>
-              <option value="card">Card</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Customer mobile"
-              value={filters.customerMobile}
-              onChange={(e) => setFilters({ ...filters, customerMobile: e.target.value })}
-              className="input text-sm"
-            />
+            <div className="col-span-4 grid grid-cols-4 gap-3">
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="input text-sm"
+                placeholder="Start date"
+              />
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="input text-sm"
+                placeholder="End date"
+              />
+              <select
+                value={filters.paymentMethod}
+                onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
+                className="input text-sm"
+              >
+                <option value="">All Payment Methods</option>
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+                <option value="cheque">Cheque</option>
+                <option value="wallet">Wallet</option>
+                <option value="online">Online</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Customer mobile"
+                value={filters.customerMobile}
+                onChange={(e) => setFilters({ ...filters, customerMobile: e.target.value })}
+                className="input text-sm"
+              />
+            </div>
           </div>
           <button onClick={handleSearch} className="btn-primary w-full">
             <Search size={16} /> Search Bills
@@ -112,8 +117,8 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                       <tr key={bill._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         <td className="px-4 py-2 font-semibold">{bill.invoiceNo}</td>
                         <td className="px-4 py-2">{new Date(bill.createdAt).toLocaleDateString()}</td>
-                        <td className="px-4 py-2">{bill.customerMobile || '-'}</td>
-                        <td className="text-right px-4 py-2 font-bold">{currency(bill.total)}</td>
+                        <td className="px-4 py-2">{bill.customerName || '-'}</td>
+                        <td className="text-right px-4 py-2 font-bold">${(bill.total || 0).toFixed(2)}</td>
                         <td className="px-4 py-2 capitalize">{bill.paymentMethod}</td>
                         <td className="text-center px-4 py-2">
                           <button

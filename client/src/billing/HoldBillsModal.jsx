@@ -26,13 +26,21 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
     }
   };
 
-  const handleResume = async (heldBillId) => {
+  const handleResume = async (heldBill) => {
     try {
-      const { data } = await holdBillAPI.resumeHeldBill(heldBillId);
-      toast.success('Bill resumed');
-      onResumeHeldBill(data.heldBill);
-      setHeldBills(heldBills.filter((b) => b._id !== heldBillId));
+      // Restore the bill to cart
+      onResumeHeldBill(heldBill);
+      
+      // Delete the held bill from database
+      await holdBillAPI.deleteHeldBill(heldBill._id);
+      
+      toast.success('Bill resumed successfully');
+      
+      // Remove from list and close
+      setHeldBills(heldBills.filter((b) => b._id !== heldBill._id));
+      onClose();
     } catch (err) {
+      console.error(err);
       toast.error('Failed to resume bill');
     }
   };
@@ -83,7 +91,7 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleResume(heldBill._id)}
+                      onClick={() => handleResume(heldBill)}
                       className="btn-primary flex items-center gap-1"
                       title="Resume bill"
                     >

@@ -1,10 +1,22 @@
 import { api } from '../api/http.js';
 
-// Bills API
-export const billingAPI = {
+// Product API
+export const productAPI = {
+  // Search products with fuzzy matching
   searchProducts: (query, limit = 12) =>
     api.get('/products/search', { params: { q: query, limit } }),
 
+  // Get product by numeric ID
+  getProductById: (productId) =>
+    api.get(`/products/id/${productId}`),
+
+  // Get next available product ID
+  getNextProductId: () =>
+    api.get('/products/next-id'),
+};
+
+// Bills API
+export const billingAPI = {
   // Create new bill
   createBill: (data) => api.post('/bills', data),
 

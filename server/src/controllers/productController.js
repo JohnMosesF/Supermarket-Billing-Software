@@ -45,8 +45,14 @@ export const listProducts = asyncHandler(async (req, res) => {
 
 export const createProduct = asyncHandler(async (req, res) => {
   const total = await Product.countDocuments();
+  
+  // Auto-generate numeric productId
+  const lastProduct = await Product.findOne().sort({ productId: -1 }).lean();
+  const nextProductId = (lastProduct?.productId || 1000) + 1;
+
   const payload = {
     ...req.body,
+    productId: nextProductId,
     sku: req.body.sku || makeSku(req.body.name, total),
     imageUrl: req.file ? `/uploads/${req.file.filename}` : req.body.imageUrl
   };
