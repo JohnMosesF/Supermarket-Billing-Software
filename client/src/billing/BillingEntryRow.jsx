@@ -1,6 +1,8 @@
 import React, { useState, useImperativeHandle, forwardRef, useRef, useEffect } from 'react';
 import { api } from '../api/http.js';
+import { productAPI } from './billingService.js';
 import toast from 'react-hot-toast';
+import { currency } from '../utils/format.js';
 
 /**
  * BillingEntryRow - Advanced POS-style product entry with fuzzy search
@@ -21,11 +23,14 @@ import toast from 'react-hot-toast';
  */
 const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocusCustomer }, ref) {
   // Form state
-  const [productId, setProductId] = useState('');
+  const [mongoId, setMongoId] = useState(null); // MongoDB ObjectId (_id)
+  const [productId, setProductId] = useState(''); // Numeric product ID
   const [name, setName] = useState('');
+  const [sku, setSku] = useState('');
   const [rate, setRate] = useState('0');
   const [qty, setQty] = useState('1');
   const [gst, setGst] = useState('0');
+  const [stock, setStock] = useState(null);
   
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
@@ -48,6 +53,7 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     focusProductId: () => {
+      setMongoId(null);
       setProductId('');
       setName('');
       setRate('0');
@@ -71,10 +77,13 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
    * Clear entire entry row and reset focus to product ID
    */
   const clearRow = () => {
+    setMongoId(null);
     setProductId('');
+    setSku('');
     setName('');
     setRate('0');
     setQty('1');
+    setStock(null);
     setGst('0');
     setSuggestions([]);
     setShowSuggestions(false);
@@ -99,12 +108,15 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
       const found = res.data?.product;
       
       if (found) {
-        // Fill in product details
+        // Fill in product details - PRESERVE MongoDB ObjectId (_id)
+        setMongoId(found._id || null);
         setProductId(String(found.productId || ''));
-        setName(found.name || '');
+        setSku(found.sku || '');
+        setName(found.productName || found.name || '');
         setRate(String(found.sellingPrice ?? 0));
         setGst(String(found.taxRate ?? 0));
         setQty('1');
+        setStock(found.stock ?? null);
         setSuggestions([]);
         setShowSuggestions(false);
         
@@ -137,7 +149,7 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
     }
 
     try {
-      const res = await api.get(`/products/search?q=${encodeURIComponent(q)}&limit=8`, { silent: true });
+      const res = await productAPI.searchProducts(q, 8);
       const products = res.data?.products || [];
       setSuggestions(products);
       setShowSuggestions(products.length > 0);
@@ -150,18 +162,23 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
 
   /**
    * Select a product from suggestions
+   * CRITICAL: Preserve MongoDB ObjectId (_id) from product object
    */
   const selectSuggestion = (product) => {
+    console.log('Selected product from autocomplete:', product);
+    setMongoId(product._id || null); // PRESERVE MongoDB ObjectId
     setProductId(String(product.productId || ''));
-    setName(product.name || '');
+    setName(product.productName || product.name || '');
     setRate(String(product.sellingPrice ?? 0));
-    setGst(String(product.taxRate ?? 0));
+    setGst(String(product.taxRate || product.tax || 0));
     setQty('1');
+    setStock(product.stock ?? null);
     setSuggestions([]);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
     setSearchQuery('');
-    
+    setSku(product.sku || '');
+
     // Move to quantity field
     setTimeout(() => qtyRef.current?.focus(), 0);
   };
@@ -242,26 +259,43 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
 
   /**
    * Add or update item in cart
+   * CRITICAL: Use MongoDB ObjectId (_id) as productId, NOT product name
    */
   const handleAddItem = () => {
-    if (!name && !productId) {
+    if (!name && !mongoId) {
       toast.error('Please select a product');
+      return;
+    }
+
+    if (!mongoId) {
+      toast.error('Invalid product: missing ObjectId');
       return;
     }
 
     const amount = Number(rate || 0) * Number(qty || 1);
     const gstAmount = (amount * Number(gst || 0)) / 100;
 
-    onAddItem({
-      productId: productId || name,
+    // Validate stock before adding
+    if (stock != null && Number(qty || 0) > Number(stock)) {
+      toast.error('Quantity exceeds available stock');
+      return;
+    }
+
+    const cartItem = {
+      _id: mongoId, // MongoDB ObjectId - use for bill productId on save
+      productId: productId || mongoId,
+      sku,
+      productName: name,
       name,
       rate: Number(rate || 0),
       qty: Number(qty || 1),
       gst: Number(gst || 0),
       amount,
       gstAmount
-    });
+    };
 
+    console.log('Adding item to cart with MongoDB ObjectId:', cartItem);
+    onAddItem(cartItem);
     clearRow();
   };
 
@@ -409,9 +443,10 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
                   onMouseDown={() => selectSuggestion(product)}
                   onMouseEnter={() => setSelectedSuggestionIndex(idx)}
                 >
-                  <span className="font-semibold">{product.name}</span>
+                  <span className="font-semibold">{product.productName || product.name}</span>
                   <span className="text-xs opacity-70">
-                    ID:{product.productId} SKU:{product.sku}
+                    {product.productId ? `ID:${product.productId}` : ''}
+                    {product.sku ? ` SKU:${product.sku}` : ''}
                   </span>
                 </li>
               ))}
@@ -456,22 +491,30 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
 
         {/* Amount */}
         <div className="col-span-1 text-right text-xs font-semibold pr-2">
-          {amount.toFixed(2)}
+          {currency(amount)}
         </div>
 
         {/* Net Amount */}
         <div className="col-span-1 text-right text-xs font-bold pr-2 bg-blue-50 p-1 rounded">
-          {netAmount.toFixed(2)}
+          {currency(netAmount)}
+        </div>
+
+        {/* Stock */}
+        <div className="col-span-1 text-center text-sm">
+          {stock == null ? '-' : (stock <= 0 ? <span className="text-red-600">Out of Stock</span> : <span>Stock: {stock} pcs</span>)}
         </div>
 
         {/* Action Button */}
-        <button
-          onClick={handleAddItem}
-          className="col-span-1 p-2 bg-green-600 text-white rounded-sm text-xs hover:bg-green-700 font-semibold"
-          title="Add item to cart"
-        >
-          Add
-        </button>
+        <div className="col-span-1 p-2">
+          <button
+            onClick={handleAddItem}
+            className="w-full bg-green-600 text-white rounded-sm text-xs hover:bg-green-700 font-semibold py-2"
+            title="Add item to cart"
+            disabled={!mongoId || (stock != null && stock <= 0) || (stock != null && Number(qty || 0) > Number(stock))}
+          >
+            Add
+          </button>
+        </div>
       </div>
 
       {/* Quick help */}

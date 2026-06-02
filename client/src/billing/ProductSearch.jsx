@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, X } from 'lucide-react';
-import { billingAPI } from './billingService.js';
+import { productAPI } from './billingService.js';
 
 export default function ProductSearch({ onAddProduct }) {
   const [query, setQuery] = useState('');
@@ -20,8 +20,9 @@ export default function ProductSearch({ onAddProduct }) {
     setLoading(true);
 
     try {
-      const response = await billingAPI.searchProducts(searchTerm, 12);
-      setResults(response.data.products || []);
+      const response = await productAPI.searchProducts(searchTerm, 12);
+      const products = (response.data && (response.data.products || response.data)) || [];
+      setResults(products || []);
       setSelectedIndex(-1);
     } catch (error) {
       setResults([]);
@@ -132,7 +133,8 @@ export default function ProductSearch({ onAddProduct }) {
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-sm text-slate-900 dark:text-slate-100">{product.productName || product.name}</div>
                     <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      SKU: {product.sku}
+                      {product.productId ? `ID: ${product.productId}` : ''}
+                      {product.sku ? ` · SKU: ${product.sku}` : ''}
                       {product.barcode ? ` · Barcode: ${product.barcode}` : ''}
                     </div>
                   </div>

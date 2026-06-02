@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { billingAPI } from './billingService.js';
+import { productAPI } from './billingService.js';
 import { Search, X } from 'lucide-react';
 
 export default function ProductCodeSearch({ value, onChange, onSelect, placeholder = 'Product code / SKU / Barcode', autoFocus }) {
@@ -21,8 +21,9 @@ export default function ProductCodeSearch({ value, onChange, onSelect, placehold
     }
     setLoading(true);
     try {
-      const res = await billingAPI.searchProducts(q, 8);
-      setResults(res.data.products || []);
+      const res = await productAPI.searchProducts(q, 8);
+      const products = (res.data && (res.data.products || res.data)) || [];
+      setResults(products || []);
       setSelectedIndex(-1);
     } catch (err) {
       setResults([]);
@@ -38,7 +39,7 @@ export default function ProductCodeSearch({ value, onChange, onSelect, placehold
       setSelectedIndex(-1);
       return;
     }
-    debounceRef.current = setTimeout(() => search(value), 120);
+    debounceRef.current = setTimeout(() => search(value.trim()), 180);
     return () => clearTimeout(debounceRef.current);
   }, [value, search]);
 
@@ -92,7 +93,14 @@ export default function ProductCodeSearch({ value, onChange, onSelect, placehold
               className={`w-full px-3 py-2 text-left ${idx === selectedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
             >
               <div className="flex justify-between">
-                <div className="truncate">{p.productName || p.name} <span className="text-xs text-slate-500">· {p.sku || p.barcode}</span></div>
+                <div className="truncate">
+                  {p.productName || p.name}
+                  <span className="text-xs text-slate-500">
+                    {p.productId ? ` · ID: ${p.productId}` : ''}
+                    {p.sku ? ` · SKU: ${p.sku}` : ''}
+                    {(!p.productId && !p.sku && p.barcode) ? ` · Barcode: ${p.barcode}` : ''}
+                  </span>
+                </div>
                 <div className="font-semibold text-emerald-600">{p.sellingPrice}</div>
               </div>
             </button>

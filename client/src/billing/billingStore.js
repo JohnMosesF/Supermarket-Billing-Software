@@ -37,11 +37,14 @@ export function createBillingStore(windowId) {
           stock: product.stock || 0,
         };
 
-        const existing = state.cart.find((item) => item._id === normalizedProduct._id);
-        if (existing) {
+        // Merge only when same product AND same selling price
+        const existingIndex = state.cart.findIndex((item) =>
+          item._id === normalizedProduct._id && Number(item.sellingPrice || item.price || 0) === Number(normalizedProduct.sellingPrice || 0)
+        );
+        if (existingIndex >= 0) {
           return {
-            cart: state.cart.map((item) =>
-              item._id === normalizedProduct._id
+            cart: state.cart.map((item, idx) =>
+              idx === existingIndex
                 ? {
                     ...item,
                     quantity: Math.min(item.quantity + qtyToAdd, normalizedProduct.stock),

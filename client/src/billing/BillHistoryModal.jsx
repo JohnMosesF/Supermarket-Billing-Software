@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { X, Search, Eye, Printer, Trash2 } from 'lucide-react';
+import InvoicePreview from './InvoicePreview.jsx';
+import { currency } from '../utils/format.js';
 import toast from 'react-hot-toast';
 import { billingAPI } from './billingService.js';
-import { currency } from '../utils/format.js';
 
 export default function BillHistoryModal({ isOpen, onClose }) {
   const [bills, setBills] = useState([]);
@@ -15,13 +16,34 @@ export default function BillHistoryModal({ isOpen, onClose }) {
     customerMobile: '',
   });
   const [selectedBill, setSelectedBill] = useState(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(25);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const handleSearch = async () => {
+  const handleSearch = async (requestedPage = 1) => {
     setLoading(true);
     try {
-      const { data } = await billingAPI.getBills(filters);
-      setBills(data.bills || []);
+      let data;
+      if (searchQuery && searchQuery.trim().length > 0) {
+        const res = await billingAPI.searchBills(searchQuery.trim());
+        data = res.data;
+        // search endpoint returns matching bills (no pagination)
+        setBills(data.bills || []);
+        setTotalPages(1);
+        setTotalCount(data.bills?.length || 0);
+        setPage(1);
+      } else {
+        const params = { ...filters, page: requestedPage, limit };
+        const res = await billingAPI.getBills(params);
+        data = res.data;
+        setBills(data.bills || []);
+        setTotalPages(data.pagination?.pages || 1);
+        setTotalCount(data.pagination?.total || (data.bills || []).length);
+        setPage(Number(data.pagination?.page || requestedPage));
+      }
     } catch (err) {
+      console.error(err);
       toast.error('Failed to fetch bills');
     } finally {
       setLoading(false);
@@ -31,12 +53,64 @@ export default function BillHistoryModal({ isOpen, onClose }) {
   const handleReprint = async (billId) => {
     try {
       const { data } = await billingAPI.reprintBill(billId);
-      // In real app, generate print HTML from data
+      // If server returns a print-ready HTML or PDF URL, handle accordingly.
+      // Fallback: open print dialog for current window (user can implement print iframe).
       window.print();
       toast.success('Bill reprinted');
     } catch (err) {
+      console.error(err);
       toast.error('Failed to reprint bill');
     }
+  };
+
+  const handleView = async (bill) => {
+    try {
+      setLoading(true);
+      const { data } = await billingAPI.getBill(bill._id);
+      setSelectedBill(data.bill || bill);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load bill');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openBillInEditor = async (bill) => {
+    try {
+      const { data } = await billingAPI.getBill(bill._id);
+      const b = data.bill || bill;
+      const payload = {
+        items: (b.items || []).map((it) => ({
+          productId: it.product || it.productId || it._id,
+          productName: it.name || it.productName,
+          quantity: it.quantity || it.qty || 1,
+          price: it.sellingPrice || it.price || it.rate || 0,
+          gst: it.taxRate || it.gst || 0,
+          total: it.total || (it.sellingPrice || it.price || 0) * (it.quantity || 0)
+        })),
+        subtotal: b.subtotal || 0,
+        taxTotal: b.taxTotal || 0,
+        discount: b.discount || 0,
+        total: b.total || 0,
+        paymentMethod: b.paymentMethod || 'Cash',
+        customerName: b.customerName || '',
+        customerMobile: b.customerMobile || null,
+        invoiceNo: b.invoiceNo
+      };
+      payload.invoiceAt = b.createdAt || b.invoiceAt || null;
+      console.log('Opening billing editor from history for bill', bill._id);
+      await window.electronAPI.createBillingWindow({ invoiceNo: b.invoiceNo, resumeBill: payload });
+      toast.success('Opened billing editor');
+    } catch (err) {
+      console.error('Failed to open billing editor', err);
+      toast.error('Failed to open billing editor');
+    }
+  };
+
+  const handlePage = (newPage) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    handleSearch(newPage);
   };
 
   if (!isOpen) return null;
@@ -91,9 +165,59 @@ export default function BillHistoryModal({ isOpen, onClose }) {
               />
             </div>
           </div>
-          <button onClick={handleSearch} className="btn-primary w-full">
-            <Search size={16} /> Search Bills
-          </button>
+          {/* Selected bill preview */}
+          {selectedBill && (
+            <div className="mt-4 border-t pt-4">
+              <div className="flex items-start gap-4">
+                <div className="flex-1">
+                  <h3 className="font-bold">Invoice Preview</h3>
+                  <div className="mt-2">
+                    {/* Reuse InvoicePreview component by lazy props */}
+                    <InvoicePreview
+                      state={{
+                        invoiceNumber: selectedBill.invoiceNo || selectedBill.invoiceNumber,
+                        customerName: selectedBill.customerName,
+                      }}
+                      cart={selectedBill.items || selectedBill.items || []}
+                      totals={{ subtotal: selectedBill.subtotal, taxTotal: selectedBill.taxTotal, discount: selectedBill.discount, total: selectedBill.total }}
+                    />
+                  </div>
+                </div>
+                <div className="w-48 flex flex-col gap-2">
+                  <button
+                    onClick={() => handleReprint(selectedBill._id)}
+                    className="btn-primary"
+                  >
+                    <Printer size={14} /> Print
+                  </button>
+                  <button
+                    onClick={() => openBillInEditor(selectedBill)}
+                    className="btn-muted"
+                  >
+                    Open in Billing Editor
+                  </button>
+                  <button
+                    onClick={() => { setSelectedBill(null); }}
+                    className="btn-muted"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => handleSearch(1)} className="btn-primary flex-1">
+              <Search size={16} /> Search Bills
+            </button>
+            <input
+              type="text"
+              placeholder="Invoice # or customer mobile"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input w-48"
+            />
+          </div>
 
           {/* Bills List */}
           <div className="mt-6">
@@ -118,11 +242,11 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                         <td className="px-4 py-2 font-semibold">{bill.invoiceNo}</td>
                         <td className="px-4 py-2">{new Date(bill.createdAt).toLocaleDateString()}</td>
                         <td className="px-4 py-2">{bill.customerName || '-'}</td>
-                        <td className="text-right px-4 py-2 font-bold">${(bill.total || 0).toFixed(2)}</td>
+                        <td className="text-right px-4 py-2 font-bold">{currency(bill.total || 0)}</td>
                         <td className="px-4 py-2 capitalize">{bill.paymentMethod}</td>
                         <td className="text-center px-4 py-2">
                           <button
-                            onClick={() => setSelectedBill(bill)}
+                            onClick={() => handleView(bill)}
                             className="text-blue-600 hover:text-blue-800 mr-2"
                             title="View"
                           >
@@ -140,6 +264,16 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {/* Pagination controls */}
+            {!loading && totalPages > 1 && (
+              <div className="mt-3 flex items-center justify-between">
+                <div className="text-sm text-slate-600">{totalCount} bills — page {page} of {totalPages}</div>
+                <div className="flex gap-2">
+                  <button onClick={() => handlePage(page - 1)} className="btn-muted">Prev</button>
+                  <button onClick={() => handlePage(page + 1)} className="btn-muted">Next</button>
+                </div>
               </div>
             )}
           </div>

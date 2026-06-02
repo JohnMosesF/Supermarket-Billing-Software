@@ -33,8 +33,10 @@ export default class KeyboardManager {
 
   _handler(e) {
     // Don't trigger on input fields except for special keys
-    const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName);
-    const isEditable = document.activeElement.contentEditable === 'true';
+    const activeEl = document.activeElement || null;
+    const tagName = activeEl?.tagName || '';
+    const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tagName);
+    const isEditable = activeEl?.contentEditable === 'true';
 
     // Function keys (F1-F8)
     if (e.key === 'F1') {
@@ -100,14 +102,18 @@ export default class KeyboardManager {
         this.actions.deleteItem?.();
         return;
       }
+      // Ctrl+Enter to save quickly
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this.actions.save?.();
+        return;
+      }
     }
 
-    // Escape key - clear entry
+    // Escape key - clear entry (allow from anywhere in POS)
     if (e.key === 'Escape') {
-      if (isInput || isEditable) {
-        e.preventDefault();
-        this.actions.clearRow?.();
-      }
+      e.preventDefault();
+      this.actions.clearRow?.();
       return;
     }
 
@@ -116,6 +122,20 @@ export default class KeyboardManager {
       e.preventDefault();
       this.actions.deleteItem?.();
       return;
+    }
+
+    // Arrow navigation for POS table/selection when focus is not inside an input
+    if (!isInput && !isEditable) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.actions.selectNext?.();
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        this.actions.selectPrev?.();
+        return;
+      }
     }
   }
 }

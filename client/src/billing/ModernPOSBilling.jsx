@@ -5,7 +5,8 @@ import BillingSummaryPanel from './BillingSummaryPanel.jsx';
 import InvoicePreview from './InvoicePreview.jsx';
 import HoldBillsModal from './HoldBillsModal.jsx';
 import KeyboardManager from './KeyboardManager.js';
-import { billingAPI, holdBillAPI } from './billingService.js';
+import { billingAPI, holdBillAPI, customerAPI } from './billingService.js';
+import { currency, dateTime } from '../utils/format.js';
 import toast from 'react-hot-toast';
 
 /**
@@ -37,76 +38,144 @@ export default function ModernPOSBilling() {
   const [customerMobile, setCustomerMobile] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [customerSuggestionIndex, setCustomerSuggestionIndex] = useState(-1);
+  const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   
   // UI state
   const [showCustomerPanel, setShowCustomerPanel] = useState(false);
   const [showHoldBillsModal, setShowHoldBillsModal] = useState(false);
+  // Invoice date/time (editable)
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const defaultDate = now.toISOString().slice(0, 10);
+  const defaultTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const [invoiceDate, setInvoiceDate] = useState(defaultDate);
+  const [invoiceTime, setInvoiceTime] = useState(defaultTime);
+  const [resumedHoldId, setResumedHoldId] = useState(null);
+  const [lastManualEdit, setLastManualEdit] = useState(0);
+
+  // Live date/time update: tick every second unless user edited recently
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const sysDate = now.toISOString().slice(0, 10);
+      const sysTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      // if user edited within last 5 seconds, avoid overwriting immediate manual edits
+      if (Date.now() - lastManualEdit < 5000) return;
+      setInvoiceDate((d) => (d === sysDate ? d : sysDate));
+      setInvoiceTime((t) => (t === sysTime ? t : sysTime));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lastManualEdit]);
   
   // Refs
   const entryRef = useRef(null);
   const customerNameRef = useRef(null);
   const customerMobileRef = useRef(null);
+  const kmRef = useRef(null);
+  const actionsRef = useRef({});
+  const latestCartLenRef = useRef(0);
+  const removeSelectedRef = useRef(() => {});
+  const handleSaveRef = useRef(() => {});
+  const handleHoldRef = useRef(() => {});
+  const handlePrintRef = useRef(() => {});
+  const handleNewBillRef = useRef(() => {});
+  const handleResumeRef = useRef(() => {});
 
   /**
    * Initialize keyboard shortcuts
    */
+  // KeyboardManager setup moved below after handler definitions to avoid TDZ
+
+  // Listen for resume payload sent from main window (electron)
   useEffect(() => {
-    const km = new KeyboardManager({
-      focusProduct: () => {
-        entryRef.current?.focusProductId();
-      },
-      focusCustomer: () => {
-        customerNameRef.current?.focus();
-        setShowCustomerPanel(true);
-      },
-      newBill: () => {
-        handleNewBill();
-      },
-      resumeHoldBill: () => {
-        setShowHoldBillsModal(true);
-      },
-      deleteItem: () => {
-        removeSelectedItem();
-      },
-      save: () => {
-        handleSave();
-      },
-      hold: () => {
-        handleHold();
-      },
-      print: () => {
-        handlePrint();
-      },
-      printInvoice: () => {
-        handlePrint();
-      },
-      clearRow: () => {
-        entryRef.current?.focusProductId();
-      },
-    });
-    km.start();
-    return () => km.stop();
-  }, [cart, customerName, customerMobile, paymentMethod, discountPercent]);
+    if (window?.electronAPI?.onBillingEvent) {
+      const handler = (data) => {
+        console.log('Resume payload received in billing window', data);
+        if (data) handleResumeHeldBill(data);
+      };
+      window.electronAPI.onBillingEvent('resume-bill', handler);
+      return () => {};
+    }
+  }, [cart]);
+
+  const fetchCustomerSuggestions = async (query) => {
+    if (!query || String(query).trim().length < 2) {
+      setCustomerSuggestions([]);
+      return;
+    }
+
+    try {
+      setCustomerSearchLoading(true);
+      const res = await customerAPI.searchCustomers(query.trim());
+      setCustomerSuggestions(res.data?.customers || []);
+      setCustomerSuggestionIndex(-1);
+    } catch (err) {
+      console.error('Customer search failed', err);
+      setCustomerSuggestions([]);
+    } finally {
+      setCustomerSearchLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const query = customerMobile?.trim() || customerName?.trim();
+    if (!query || query.length < 2) {
+      setCustomerSuggestions([]);
+      return;
+    }
+
+    const timer = window.setTimeout(() => fetchCustomerSuggestions(query), 250);
+    return () => clearTimeout(timer);
+  }, [customerMobile, customerName]);
+
+  const selectCustomerSuggestion = (customer) => {
+    setCustomerName(customer.name || '');
+    setCustomerMobile(customer.mobile || '');
+    setCustomerSuggestions([]);
+    setCustomerSuggestionIndex(-1);
+    customerMobileRef.current?.focus();
+  };
+
+  const ensureCustomerProfile = async () => {
+    const mobile = customerMobile?.trim();
+    const name = customerName?.trim() || 'Walk-in Customer';
+    if (!mobile) return;
+
+    try {
+      const res = await customerAPI.searchCustomers(mobile);
+      const existing = (res.data?.customers || []).find((c) => String(c.mobile || '').trim() === mobile);
+      if (!existing) {
+        await customerAPI.createCustomer({ name, mobile });
+        toast.success('Customer profile saved for future checkout');
+      }
+    } catch (err) {
+      console.debug('Customer auto-save skipped', err?.message || err);
+    }
+  };
 
   /**
    * Add item to cart or update quantity if already exists
    */
   const handleAddItem = (item) => {
     setCart((prev) => {
-      const productId = item.productId || item.name;
-      const existing = prev.findIndex((r) => r.productId === productId);
-      
+      const productId = item.productId || item._id || item.name;
+      // Merge only if same product AND same selling price
+      const existing = prev.findIndex((r) => (r.productId || r._id || r.name) === productId && Number(r.rate || r.price || r.sellingPrice || 0) === Number(item.rate || item.price || item.sellingPrice || 0));
+
       if (existing >= 0) {
-        // Item exists, update quantity
+        // Item exists with same price, update quantity
         const copy = [...prev];
         copy[existing] = {
           ...copy[existing],
-          qty: Number(copy[existing].qty) + Number(item.qty)
+          qty: Number(copy[existing].qty || 0) + Number(item.qty || 0)
         };
         return copy;
       }
-      
-      // New item
+
+      // New item (different product or different price)
       return [...prev, item];
     });
     
@@ -126,6 +195,8 @@ export default function ModernPOSBilling() {
     setCart((prev) => prev.filter((_, i) => i !== selectedIndex));
     setSelectedIndex(-1);
     toast.success('Item removed');
+    // return focus to product entry and ensure totals refresh
+    setTimeout(() => entryRef.current?.focusProductId(), 50);
   };
 
   /**
@@ -156,24 +227,44 @@ export default function ModernPOSBilling() {
     const discount = (subtotal * Number(discountPercent || 0)) / 100;
     const total = subtotal + taxTotal - discount;
 
-    const items = cart.map((it) => ({
-      productId: it.productId,
-      name: it.name,
-      quantity: Number(it.qty || 1),
-      sellingPrice: Number(it.rate || 0),
-      taxRate: Number(it.gst || 0)
-    }));
+    /**
+     * CRITICAL: Map cart items to server-expected format
+     * Server expects: { _id (or productId), productName, quantity, price, gst, total }
+     * where _id or productId is MongoDB ObjectId
+     */
+    const items = cart.map((it) => {
+      const pid = it._id || it.productId;
+      if (!pid) {
+        throw new Error(`Cart item missing MongoDB ObjectId: ${JSON.stringify(it)}`);
+      }
+      return {
+        _id: pid,
+        productId: pid,
+        productName: it.productName || it.name || '',
+        quantity: Number(it.qty || it.quantity || 1),
+        price: Number(it.rate || it.sellingPrice || it.price || 0),
+        gst: Number(it.gst || it.taxRate || it.tax || 0),
+        total: Number(it.amount != null ? it.amount : (Number(it.rate || it.sellingPrice || it.price || 0) * Number(it.qty || it.quantity || 1)))
+      };
+    });
 
-    return {
+    const payload = {
       items,
       subtotal,
       taxTotal,
       discount,
       total,
-      paymentMethod: paymentMethod || 'cash',
+      paymentMethod: paymentMethod || 'Cash',
       customerName: customerName || 'Walk-in Customer',
       customerMobile: customerMobile || null
     };
+    // include editable invoice date/time
+    try {
+      const at = new Date(`${invoiceDate}T${invoiceTime}`);
+      if (!isNaN(at.getTime())) payload.invoiceAt = at.toISOString();
+    } catch (e) {}
+
+    return payload;
   };
 
   /**
@@ -188,9 +279,42 @@ export default function ModernPOSBilling() {
 
       const payload = makeBillPayload();
       
-      await billingAPI.createBill(payload);
+      // DEBUG: Log final payload before saving
+      console.log('Final Bill Payload:', {
+        itemCount: payload.items.length,
+        items: payload.items.map(it => ({
+          productId: it.productId,
+          productName: it.productName,
+          quantity: it.quantity,
+          price: it.price,
+          gst: it.gst
+        })),
+        subtotal: payload.subtotal,
+        total: payload.total
+      });
+
+      // Verify all items have valid ObjectId
+      const invalidItems = payload.items.filter(it => !it.productId);
+      if (invalidItems.length > 0) {
+        toast.error('Cart has items with invalid product references');
+        console.error('Invalid items:', invalidItems);
+        return;
+      }
       
+      await billingAPI.createBill(payload);
+      await ensureCustomerProfile();
       toast.success('Bill saved successfully');
+      console.log('Save successful', { invoiceNo: payload.invoiceNo, items: payload.items.length });
+      // delete old held bill if we resumed from one
+      if (resumedHoldId) {
+        try {
+          await holdBillAPI.deleteHeldBill(resumedHoldId);
+          console.log('Deleted held bill after save:', resumedHoldId);
+          setResumedHoldId(null);
+        } catch (e) {
+          console.error('Failed to delete held bill after save', e);
+        }
+      }
       
       // Reset after successful save
       setCart([]);
@@ -204,7 +328,7 @@ export default function ModernPOSBilling() {
       // Focus product ID for next entry
       entryRef.current?.focusProductId();
     } catch (err) {
-      console.error(err);
+      console.error('Save bill error:', err);
       toast.error(err.response?.data?.message || 'Failed to save bill');
     }
   };
@@ -220,6 +344,7 @@ export default function ModernPOSBilling() {
       }
 
       const payload = makeBillPayload();
+      console.log('Holding bill payload', payload);
       
       await holdBillAPI.holdBill(payload);
       
@@ -278,38 +403,106 @@ export default function ModernPOSBilling() {
    * Resume a held bill
    */
   const handleResumeHeldBill = (heldBill) => {
-    // Check if current cart has items
+    // Support multiple payload shapes: heldBill, resumeBill or direct items list
+    const payload = heldBill.heldBill || heldBill.resumeBill || heldBill || null;
+    if (!payload) return;
+
+    // Confirm replace if cart not empty
     if (cart.length > 0) {
-      const confirmed = window.confirm('Replace current cart with held bill?');
+      const confirmed = window.confirm('Replace current cart with resumed bill?');
       if (!confirmed) return;
     }
 
-    // Restore cart from held bill
-    const restoredCart = heldBill.items.map((item) => ({
+    const items = (payload.items && payload.items.length) ? payload.items : (payload.fullBill?.items || []);
+    const restoredCart = (items || []).map((item) => ({
+      _id: item.productId,
       productId: item.productId,
-      name: item.name,
-      rate: item.sellingPrice,
-      qty: item.quantity,
-      gst: item.taxRate,
-      amount: item.sellingPrice * item.quantity,
-      gstAmount: (item.sellingPrice * item.quantity * item.taxRate) / 100
+      name: item.productName || item.name || item.productName || item.name || '',
+      rate: item.price || item.sellingPrice || item.rate || 0,
+      qty: item.quantity || item.qty || 0,
+      gst: item.gst || item.tax || item.taxRate || 0,
+      amount: item.total != null ? item.total : (Number(item.price || item.sellingPrice || item.rate || 0) * Number(item.quantity || item.qty || 0)),
+      gstAmount: ((Number(item.price || item.sellingPrice || item.rate || 0) * Number(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100
     }));
 
     setCart(restoredCart);
-    setCustomerName(heldBill.customerName || '');
-    setCustomerMobile(heldBill.customerMobile || '');
-    setPaymentMethod(heldBill.paymentMethod || 'cash');
+    setCustomerName(payload.customerName || payload.customer || '');
+    setCustomerMobile(payload.customerMobile || payload.customerMobile || payload.customer?.mobile || '');
+    setPaymentMethod(payload.paymentMethod || 'cash');
     setDiscountPercent(
-      heldBill.subtotal > 0
-        ? (heldBill.discount / heldBill.subtotal) * 100
+      payload.subtotal > 0
+        ? (payload.discount / payload.subtotal) * 100
         : 0
     );
+    setResumedHoldId(payload._id || payload.id || null);
+
+    // restore invoice date/time if present
+    if (payload.invoiceAt) {
+      try {
+        const at = new Date(payload.invoiceAt);
+        if (!isNaN(at.getTime())) {
+          setInvoiceDate(at.toISOString().slice(0,10));
+          setInvoiceTime(`${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}`);
+        }
+      } catch (e) {}
+    }
+
     setShowHoldBillsModal(false);
     setSelectedIndex(-1);
 
     entryRef.current?.focusProductId();
+    console.log('Billing state restored from held bill', { items: restoredCart.length, total: payload.total });
     toast.success('Held bill restored');
   };
+
+  // Setup KeyboardManager and keep mutable refs pointing to latest handlers
+  useEffect(() => {
+    latestCartLenRef.current = cart.length;
+    removeSelectedRef.current = removeSelectedItem;
+    handleSaveRef.current = handleSave;
+    handleHoldRef.current = handleHold;
+    handlePrintRef.current = handlePrint;
+    handleNewBillRef.current = handleNewBill;
+    handleResumeRef.current = (payload) => handleResumeHeldBill(payload);
+
+    actionsRef.current = {
+      focusProduct: () => entryRef.current?.focusProductId(),
+      focusCustomer: () => { customerNameRef.current?.focus(); setShowCustomerPanel(true); },
+      newBill: () => handleNewBillRef.current?.(),
+      resumeHoldBill: () => setShowHoldBillsModal(true),
+      deleteItem: () => removeSelectedRef.current?.(),
+      save: () => handleSaveRef.current?.(),
+      hold: () => handleHoldRef.current?.(),
+      print: () => handlePrintRef.current?.(),
+      printInvoice: () => handlePrintRef.current?.(),
+      clearRow: () => entryRef.current?.focusProductId(),
+      selectNext: () => setSelectedIndex(i => Math.min(Math.max(0, i + 1), Math.max(0, latestCartLenRef.current - 1))),
+      selectPrev: () => setSelectedIndex(i => Math.max(0, i - 1))
+    };
+
+    if (!kmRef.current) {
+      const km = new KeyboardManager({
+        focusProduct: (...args) => actionsRef.current.focusProduct?.(...args),
+        focusCustomer: (...args) => actionsRef.current.focusCustomer?.(...args),
+        newBill: (...args) => actionsRef.current.newBill?.(...args),
+        resumeHoldBill: (...args) => actionsRef.current.resumeHoldBill?.(...args),
+        deleteItem: (...args) => actionsRef.current.deleteItem?.(...args),
+        save: (...args) => actionsRef.current.save?.(...args),
+        hold: (...args) => actionsRef.current.hold?.(...args),
+        print: (...args) => actionsRef.current.print?.(...args),
+        printInvoice: (...args) => actionsRef.current.printInvoice?.(...args),
+        clearRow: (...args) => actionsRef.current.clearRow?.(...args),
+        selectNext: (...args) => actionsRef.current.selectNext?.(...args),
+        selectPrev: (...args) => actionsRef.current.selectPrev?.(...args)
+      });
+      kmRef.current = km;
+      km.start();
+    }
+
+    return () => {
+      kmRef.current?.stop();
+    };
+  }, [cart.length, customerName, customerMobile, paymentMethod, discountPercent]);
 
   /**
    * Calculate totals
@@ -334,8 +527,18 @@ export default function ModernPOSBilling() {
             <p className="text-blue-100 text-sm">Keyboard-First Modern Interface</p>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold">${total.toFixed(2)}</div>
-            <div className="text-blue-100 text-sm">{itemCount} items • {quantity} qty</div>
+            <div className="text-3xl font-bold">{currency(total)}</div>
+              <div className="text-blue-100 text-sm">{itemCount} items • {quantity} qty</div>
+            <div className="mt-2 flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-blue-100">Date</label>
+                <input type="date" value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setLastManualEdit(Date.now()); }} className="p-1 rounded text-sm text-black" />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-blue-100">Time</label>
+                <input type="time" value={invoiceTime} onChange={(e) => { setInvoiceTime(e.target.value); setLastManualEdit(Date.now()); }} className="p-1 rounded text-sm text-black" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -361,6 +564,7 @@ export default function ModernPOSBilling() {
                 onRemove={(i) => {
                   setCart((p) => p.filter((_, idx) => idx !== i));
                   setSelectedIndex(-1);
+                  setTimeout(() => entryRef.current?.focusProductId(), 50);
                 }}
               />
             </div>
@@ -377,6 +581,7 @@ export default function ModernPOSBilling() {
               taxTotal={taxTotal}
               discount={discount}
               total={total}
+              invoiceAt={`${invoiceDate}T${invoiceTime}`}
               onSave={handleSave}
               onHold={handleHold}
               onPrint={handlePrint}
@@ -405,7 +610,7 @@ export default function ModernPOSBilling() {
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div>
+                <div className="relative">
                   <label className="text-sm font-semibold">Mobile</label>
                   <input
                     ref={customerMobileRef}
@@ -415,6 +620,25 @@ export default function ModernPOSBilling() {
                     onChange={(e) => setCustomerMobile(e.target.value)}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+                  {showCustomerPanel && (customerSuggestions.length > 0 || customerSearchLoading) && (
+                    <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+                      {customerSearchLoading ? (
+                        <div className="p-2 text-sm text-slate-500">Searching customers...</div>
+                      ) : (
+                        customerSuggestions.map((customer, idx) => (
+                          <button
+                            key={customer._id || `${customer.mobile}-${idx}`}
+                            type="button"
+                            onClick={() => selectCustomerSuggestion(customer)}
+                            className={`w-full px-3 py-2 text-left text-sm ${idx === customerSuggestionIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                          >
+                            <div className="font-medium">{customer.name || customer.mobile}</div>
+                            <div className="text-xs text-slate-500">{customer.mobile}</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-semibold">Payment Method</label>
@@ -464,6 +688,13 @@ export default function ModernPOSBilling() {
           </div>
         </div>
       </div>
+
+      {/* Hold Bills modal */}
+      <HoldBillsModal
+        isOpen={showHoldBillsModal}
+        onClose={() => setShowHoldBillsModal(false)}
+        onResumeHeldBill={handleResumeHeldBill}
+      />
 
       {/* Keyboard shortcuts help */}
       <div className="bg-gray-100 border-t px-4 py-2 text-xs text-gray-600">

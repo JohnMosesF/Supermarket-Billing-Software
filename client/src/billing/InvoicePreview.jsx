@@ -1,5 +1,5 @@
 import React from 'react';
-import { currency } from '../utils/format.js';
+import { currency, dateTime } from '../utils/format.js';
 
 export default function InvoicePreview({
   state = {},
@@ -66,12 +66,16 @@ export default function InvoicePreview({
             {state.invoiceNumber || 'N/A'}
           </span>
         </div>
-
         <div className="flex justify-between">
           <span>Customer</span>
           <span>
             {state.customerName || 'Walk-in'}
           </span>
+        </div>
+
+        <div className="flex justify-between">
+          <span>Date</span>
+          <span>{state.invoiceAt ? dateTime(state.invoiceAt) : '-'}</span>
         </div>
       </div>
 

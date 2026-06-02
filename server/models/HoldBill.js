@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const HoldBillItemSchema = new mongoose.Schema({
-  productId: { type: Number, required: true },
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
   name: String,
   quantity: { type: Number, required: true, min: 1 },

@@ -1,5 +1,5 @@
 import { Product } from '../models/Product.js';
-import { Sale } from '../models/Sale.js';
+import Bill from '../models/Bill.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 function startOfToday() {
@@ -15,14 +15,14 @@ export const getDashboard = asyncHandler(async (req, res) => {
   monthStart.setHours(0, 0, 0, 0);
 
   const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart] = await Promise.all([
-    Sale.aggregate([{ $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } }]),
-    Sale.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } }]),
+    Bill.aggregate([{ $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } }]),
+    Bill.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } }]),
     Product.countDocuments({ active: true }),
-    Product.find({ $expr: { $lte: ['$stock', '$lowStockThreshold'] }, active: true }).sort({ stock: 1 }).limit(10),
-    Sale.find().populate('cashier', 'name').sort({ createdAt: -1 }).limit(8),
-    Sale.aggregate([
+    Product.find({ $expr: { $lte: ['$stock', '$lowStockThreshold'] }, active: true }).sort({ stock: 1 }).limit(10).lean(),
+    Bill.find().sort({ createdAt: -1 }).limit(8).lean(),
+    Bill.aggregate([
       { $match: { createdAt: { $gte: monthStart } } },
-      { $group: { _id: { $dayOfMonth: '$createdAt' }, revenue: { $sum: '$total' }, profit: { $sum: '$profit' } } },
+      { $group: { _id: { $dayOfMonth: '$createdAt' }, revenue: { $sum: '$total' } } },
       { $sort: { _id: 1 } }
     ])
   ]);
@@ -38,6 +38,6 @@ export const getDashboard = asyncHandler(async (req, res) => {
     },
     lowStock,
     recentTransactions,
-    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue, profit: item.profit }))
+    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue }))
   });
 });

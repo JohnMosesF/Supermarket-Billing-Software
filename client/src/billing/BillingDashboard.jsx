@@ -8,6 +8,8 @@ import HoldBillsModal from './HoldBillsModal.jsx';
 import RefundBillModal from './RefundBillModal.jsx';
 import TodaysSalesModal from './TodaysSalesModal.jsx';
 import { PageHeader } from '../components/PageHeader.jsx';
+import { productAPI } from './billingService.js';
+import { useEffect } from 'react';
 
 export default function BillingDashboard() {
   const [modals, setModals] = useState({
@@ -36,6 +38,20 @@ export default function BillingDashboard() {
       ...prev,
       [modalName]: !prev[modalName],
     }));
+  };
+
+  const handleResumeHeldBill = async (heldBill) => {
+    try {
+      console.log('Resume triggered from dashboard', heldBill?._id || heldBill);
+      // Open a new billing window and pass resume data
+      const opts = { invoiceNo: heldBill?.invoiceNo || undefined, resumeBill: heldBill };
+      const res = await window.electronAPI.createBillingWindow(opts);
+      console.log('Created billing window for resume', res);
+      toast.success('Billing window opened for resume');
+    } catch (err) {
+      console.error('Failed to open billing window for resume', err);
+      toast.error('Failed to open billing window');
+    }
   };
 
   return (
@@ -117,13 +133,64 @@ export default function BillingDashboard() {
         </button>
       </div>
 
+      {/* Low Stock Panel */}
+      <div className="mt-6 bg-white p-4 rounded shadow">
+        <h3 className="text-lg font-semibold mb-2">Low Stock Items</h3>
+        <LowStockList />
+      </div>
+
       {/* Modals */}
       <BillHistoryModal isOpen={modals.history} onClose={() => toggleModal('history')} />
       <ModifyBillModal isOpen={modals.modify} onClose={() => toggleModal('modify')} />
       <DeleteBillModal isOpen={modals.delete} onClose={() => toggleModal('delete')} />
-      <HoldBillsModal isOpen={modals.hold} onClose={() => toggleModal('hold')} onResumeHeldBill={() => {}} />
+      <HoldBillsModal isOpen={modals.hold} onClose={() => toggleModal('hold')} onResumeHeldBill={handleResumeHeldBill} />
       <RefundBillModal isOpen={modals.refund} onClose={() => toggleModal('refund')} />
       <TodaysSalesModal isOpen={modals.sales} onClose={() => toggleModal('sales')} />
+    </div>
+  );
+}
+
+function LowStockList() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await productAPI.listLowStock(100);
+      const payload = (res?.data && (res.data.products || res.data)) || [];
+      setItems(Array.isArray(payload) ? payload : []);
+    } catch (e) {
+      console.error('Failed to load low stock', e);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (loading && items.length === 0) return <div className="text-sm text-slate-500">Loading low stock items...</div>;
+  if (!loading && items.length === 0) return <div className="text-sm text-slate-500">No low stock items</div>;
+
+  return (
+    <div className="space-y-2">
+      {items.map((p) => (
+        <div key={p?._id || Math.random()} className={`flex items-center justify-between p-2 rounded ${Number(p?.stock || 0) <= 0 ? 'bg-red-50' : 'bg-yellow-50'}`}>
+          <div>
+            <div className="font-medium">{p?.productName || p?.name || 'Unknown Product'}</div>
+            <div className="text-xs text-slate-500">SKU: {p?.sku || '-'} • Threshold: {p?.lowStockThreshold ?? '-'}</div>
+          </div>
+          <div className="text-right">
+            <div className="font-semibold">{p?.stock ?? '-'}</div>
+            {Number(p?.stock || 0) <= 0 ? <span className="text-xs text-red-600 font-semibold">Out of Stock</span> : <span className="text-xs text-yellow-800">Low Stock</span>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

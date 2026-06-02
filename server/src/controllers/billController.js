@@ -3,6 +3,8 @@ import DraftBill from '../models/DraftBill.js';
 import DeletedBill from '../models/DeletedBill.js';
 import PrintLog from '../models/PrintLog.js';
 import HoldBill from '../models/HoldBill.js';
+import { Product } from '../models/Product.js';
+import mongoose from 'mongoose';
 import Refund from '../models/Refund.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
@@ -15,6 +17,46 @@ export const createBill = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Bill must have at least one item');
   }
 
+  // Normalize and validate items - CRITICAL: Ensure productId is MongoDB ObjectId
+  const normalizedItems = [];
+  for (const it of items) {
+    let pid = it.productId || it._id || null;
+
+    // If pid is not a valid ObjectId, try to resolve it
+    if (pid && !mongoose.Types.ObjectId.isValid(String(pid))) {
+      const pidStr = String(pid);
+      // Try numeric productId (handle number or numeric string)
+      if (/^[0-9]+$/.test(pidStr)) {
+        const prod = await Product.findOne({ productId: Number(pidStr), active: true }).lean();
+        if (prod) {
+          pid = prod._id;
+        }
+      } else if (it.productName) {
+        const prod = await Product.findOne({ name: it.productName }).lean();
+        if (prod) {
+          pid = prod._id;
+        }
+      }
+    }
+
+    if (!pid || !mongoose.Types.ObjectId.isValid(String(pid))) {
+      throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}. Expected MongoDB ObjectId, got: ${pid}`);
+    }
+
+    const productIdObj = new mongoose.Types.ObjectId(String(pid));
+
+    const normalized = {
+      productId: productIdObj,
+      productName: it.productName || it.name || '',
+      quantity: Number(it.quantity || it.qty || 1),
+      price: Number(it.price || it.sellingPrice || it.rate || 0),
+      tax: Number(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1)))
+    };
+
+    normalizedItems.push(normalized);
+  }
+
   // Auto-generate invoice number if not provided
   let finalInvoiceNo = invoiceNo;
   if (!finalInvoiceNo) {
@@ -23,18 +65,50 @@ export const createBill = asyncHandler(async (req, res) => {
     finalInvoiceNo = `INV${String(lastNumber + 1).padStart(6, '0')}`;
   }
 
-  const bill = await Bill.create({
+  const billPayload = {
     invoiceNo: finalInvoiceNo,
-    items,
-    subtotal,
-    taxTotal,
-    discount,
-    total,
-    paymentMethod: paymentMethod || 'cash',
+    items: normalizedItems,
+    subtotal: subtotal || 0,
+    taxTotal: taxTotal || 0,
+    discount: discount || 0,
+    total: total || 0,
+    paymentMethod: paymentMethod || 'Cash',
     customerMobile: customerMobile || null,
     customerName: customerName || 'Walk-in Customer',
-    staff: req.user?._id,
+    staff: req.user?._id
+  };
+  // honor editable invoice date/time if supplied
+  if (req.body.invoiceAt) {
+    const at = new Date(req.body.invoiceAt);
+    if (!isNaN(at.getTime())) billPayload.invoiceAt = at;
+  }
+
+  console.log('Creating bill with normalized items:', {
+    itemCount: normalizedItems.length,
+    items: normalizedItems.map(it => ({
+      productId: String(it.productId),
+      productName: it.productName,
+      quantity: it.quantity,
+      price: it.price
+    })),
+    total: billPayload.total
   });
+
+  // Deduct stock for each item (ensure availability)
+  for (const it of normalizedItems) {
+    const prod = await Product.findById(it.productId);
+    if (!prod) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
+    if (prod.stock < it.quantity) {
+      throw new ApiError(400, `Insufficient stock for ${prod.name || prod.sku}. Available ${prod.stock}, requested ${it.quantity}`);
+    }
+  }
+
+  // Apply stock deduction
+  for (const it of normalizedItems) {
+    await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
+  }
+
+  const bill = await Bill.create(billPayload);
 
   res.status(201).json({ bill, message: 'Bill created successfully' });
 });
@@ -53,7 +127,49 @@ export const updateBill = asyncHandler(async (req, res) => {
 
   if (!bill) throw new ApiError(404, 'Bill not found');
 
-  bill.items = items;
+  // Restore stock from old bill items
+  for (const old of bill.items || []) {
+    try {
+      await Product.updateOne({ _id: old.productId }, { $inc: { stock: Math.abs(old.quantity) } });
+    } catch (e) {
+      console.warn('Failed to restore stock for', old.productId, e);
+    }
+  }
+
+  // Normalize incoming items similar to create
+  const normalizedItems = [];
+  for (const it of items) {
+    let pid = it.productId || it._id || null;
+    if (!pid || !mongoose.Types.ObjectId.isValid(String(pid))) {
+      throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}`);
+    }
+    const productIdObj = new mongoose.Types.ObjectId(String(pid));
+    normalizedItems.push({
+      productId: productIdObj,
+      productName: it.productName || it.name || '',
+      quantity: Number(it.quantity || it.qty || 1),
+      price: Number(it.price || it.sellingPrice || it.rate || 0),
+      tax: Number(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1)))
+    });
+  }
+
+  // Check availability for new items
+  for (const it of normalizedItems) {
+    const prod = await Product.findById(it.productId);
+    if (!prod) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
+    if (prod.stock < it.quantity) {
+      throw new ApiError(400, `Insufficient stock for ${prod.name || prod.sku}. Available ${prod.stock}, requested ${it.quantity}`);
+    }
+  }
+
+  // Apply stock deduction for new items
+  for (const it of normalizedItems) {
+    await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
+  }
+
+  // Update bill fields
+  bill.items = normalizedItems;
   bill.subtotal = subtotal;
   bill.taxTotal = taxTotal;
   bill.discount = discount;
@@ -78,6 +194,14 @@ export const deleteBill = asyncHandler(async (req, res) => {
     reason,
     originalData: bill.toObject(),
   });
+  // Restore stock for all items before deleting
+  for (const it of bill.items || []) {
+    try {
+      await Product.updateOne({ _id: it.productId }, { $inc: { stock: Math.abs(it.quantity) } });
+    } catch (e) {
+      console.warn('Failed to restore stock for', it.productId, e);
+    }
+  }
 
   // Delete bill
   await Bill.findByIdAndDelete(req.params.id);
@@ -162,23 +286,85 @@ export const getTodaysSales = asyncHandler(async (req, res) => {
 
 // Hold bill
 export const holdBill = asyncHandler(async (req, res) => {
-  const { items, subtotal, taxTotal, discount, total, paymentMethod, customerName, customerMobile } = req.body;
+  const { items, subtotal, taxTotal, discount, total, paymentMethod, customerName, customerMobile, invoiceNo } = req.body;
 
   if (!items || items.length === 0) {
     throw new ApiError(400, 'Held bill must contain at least one item');
   }
 
-  const heldBill = await HoldBill.create({
-    items,
-    subtotal,
+  // Normalize and validate items
+  const normalizedItems = [];
+  for (const it of items) {
+    let pid = it.productId || it._id || null;
+    // If pid is present but not a valid ObjectId, try to resolve by numeric productId or name
+    if (pid && !mongoose.Types.ObjectId.isValid(String(pid))) {
+      // Try numeric productId (handle number or numeric string)
+      const pidStr = String(pid);
+      if (/^[0-9]+$/.test(pidStr)) {
+        let prod = await Product.findOne({ productId: Number(pidStr) }).lean();
+        if (prod) {
+          pid = prod._id;
+        } else {
+          // create a minimal product record so we have an ObjectId reference
+          const newProd = await Product.create({
+            productId: Number(pidStr),
+            name: it.productName || it.name || `Prod ${pidStr}`,
+            sku: `AUTO${Date.now()}${Math.floor(Math.random() * 1000)}`,
+            barcode: null,
+            purchasePrice: 0,
+            sellingPrice: Number(it.price || it.sellingPrice || it.rate || 0) || 0,
+            taxRate: Number(it.gst || it.taxRate || it.tax || 0) || 0,
+            stock: 0,
+            active: true
+          });
+          pid = newProd._id;
+        }
+      } else if (it.productName) {
+        const prod = await Product.findOne({ name: it.productName }).lean();
+        if (prod) pid = prod._id;
+      }
+    }
+
+    if (!pid || !mongoose.Types.ObjectId.isValid(String(pid))) {
+      throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}`);
+    }
+
+    const productIdObj = new mongoose.Types.ObjectId(String(pid));
+
+    const normalized = {
+      productId: productIdObj,
+      productName: it.productName || it.name || '',
+      quantity: Number(it.quantity || it.qty || 1),
+      price: Number(it.price || it.sellingPrice || it.rate || 0),
+      gst: Number(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1)))
+    };
+
+    normalizedItems.push(normalized);
+  }
+
+  const payload = {
+    items: normalizedItems,
+    subtotal: subtotal || 0,
     taxTotal: taxTotal || 0,
     discount: discount || 0,
-    total,
-    paymentMethod: paymentMethod || 'cash',
+    total: total || 0,
+    paymentMethod: paymentMethod || 'Cash',
     customerName: customerName || 'Walk-in Customer',
     customerMobile: customerMobile || null,
-    heldBy: req.user?._id,
-  });
+    invoiceNo: invoiceNo || null,
+    heldBy: req.user?._id
+  };
+
+  // include invoice date/time if provided
+  if (req.body.invoiceAt) {
+    const at = new Date(req.body.invoiceAt);
+    if (!isNaN(at.getTime())) payload.invoiceAt = at;
+  }
+
+  console.log('Saving hold bill', payload);
+
+  const heldBill = await HoldBill.create(payload);
 
   res.status(201).json({ heldBill, message: 'Bill held successfully' });
 });
@@ -192,23 +378,12 @@ export const getHeldBills = asyncHandler(async (req, res) => {
 
 // Resume held bill
 export const resumeHeldBill = asyncHandler(async (req, res) => {
-  const heldBill = await HoldBill.findById(req.params.id);
+  console.log('Resume held bill requested:', req.params.id);
+  const heldBill = await HoldBill.findById(req.params.id).lean();
   if (!heldBill) throw new ApiError(404, 'Held bill not found');
-  
+
   // Return the complete held bill data for restoration
-  res.json({
-    heldBill: {
-      _id: heldBill._id,
-      items: heldBill.items,
-      subtotal: heldBill.subtotal,
-      taxTotal: heldBill.taxTotal,
-      discount: heldBill.discount,
-      total: heldBill.total,
-      paymentMethod: heldBill.paymentMethod,
-      customerName: heldBill.customerName,
-      customerMobile: heldBill.customerMobile,
-    }
-  });
+  res.json({ heldBill });
 });
 
 // Delete held bill
@@ -229,6 +404,18 @@ export const createRefund = asyncHandler(async (req, res) => {
     reason,
     processedBy: req.user?._id,
   });
+
+  // Restore stock for refunded items
+  for (const it of items || []) {
+    try {
+      const pid = it.productId || it._id || it.product;
+      if (pid && mongoose.Types.ObjectId.isValid(String(pid))) {
+        await Product.updateOne({ _id: pid }, { $inc: { stock: Math.abs(it.quantity || it.qty || 0) } });
+      }
+    } catch (e) {
+      console.warn('Failed to restore stock for refund item', it, e);
+    }
+  }
 
   res.status(201).json({ refund, message: 'Refund created successfully' });
 });

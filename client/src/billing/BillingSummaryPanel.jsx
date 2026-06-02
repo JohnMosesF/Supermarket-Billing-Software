@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { currency, dateTime } from '../utils/format.js';
 
 /**
  * BillingSummaryPanel - Shows bill summary and totals
@@ -10,6 +11,7 @@ export default function BillingSummaryPanel({
   taxTotal = 0,
   discount = 0,
   total = 0,
+  invoiceAt = null,
   onSave = () => {},
   onHold = () => {},
   onPrint = () => {}
@@ -37,7 +39,7 @@ export default function BillingSummaryPanel({
           <span className="ml-2 text-blue-600">AUTO</span>
         </div>
         <div className="text-sm text-gray-600">
-          {new Date().toLocaleString()}
+          {invoiceAt ? dateTime(invoiceAt) : dateTime(new Date().toISOString())}
         </div>
       </div>
 
@@ -52,21 +54,21 @@ export default function BillingSummaryPanel({
         </div>
         <div className="flex justify-between border-t pt-2">
           <span>Subtotal:</span>
-          <span className="font-semibold">${summary.subtotal.toFixed(2)}</span>
+          <span className="font-semibold">{currency(summary.subtotal)}</span>
         </div>
         <div className="flex justify-between">
           <span>Tax:</span>
-          <span className="font-semibold">${summary.totalGst.toFixed(2)}</span>
+          <span className="font-semibold">{currency(summary.totalGst)}</span>
         </div>
         {summary.discountAmt > 0 && (
           <div className="flex justify-between text-orange-600">
             <span>Discount:</span>
-            <span className="font-semibold">-${summary.discountAmt.toFixed(2)}</span>
+            <span className="font-semibold">-{currency(summary.discountAmt)}</span>
           </div>
         )}
         <div className="flex justify-between border-t pt-2 text-lg font-bold bg-blue-50 p-2 rounded">
           <span>Total:</span>
-          <span className="text-blue-600">${summary.billAmount.toFixed(2)}</span>
+          <span className="text-blue-600">{currency(summary.billAmount)}</span>
         </div>
       </div>
 

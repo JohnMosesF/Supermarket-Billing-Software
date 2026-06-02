@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { billingAPI } from './billingService.js';
+import { productAPI } from './billingService.js';
 import { Search, X } from 'lucide-react';
 
 export default function ProductNameSearch({ value, onChange, onSelect, placeholder = 'Product name', autoFocus }) {
@@ -13,6 +13,9 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
+  const listRef = useRef(null);
+  const itemRefs = useRef({});
+
   const search = useCallback(async (q) => {
     if (!q) {
       setResults([]);
@@ -21,8 +24,10 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
     }
     setLoading(true);
     try {
-      const res = await billingAPI.searchProducts(q, 8);
-      setResults(res.data.products || []);
+      // Use productAPI which is explicitly for products
+      const res = await productAPI.searchProducts(q, 12);
+      const products = (res.data && (res.data.products || res.data)) || [];
+      setResults(products || []);
       setSelectedIndex(-1);
     } catch (err) {
       setResults([]);
@@ -38,7 +43,7 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
       setSelectedIndex(-1);
       return;
     }
-    debounceRef.current = setTimeout(() => search(value), 120);
+    debounceRef.current = setTimeout(() => search(value.trim()), 180);
     return () => clearTimeout(debounceRef.current);
   }, [value, search]);
 
@@ -59,6 +64,13 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
       setSelectedIndex(-1);
     }
   };
+
+  useEffect(() => {
+    // scroll selected into view
+    if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
+      try { itemRefs.current[selectedIndex].scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    }
+  }, [selectedIndex]);
 
   return (
     <div className="relative w-full">
@@ -83,17 +95,25 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
       </div>
 
       {results.length > 0 && (
-        <div className="absolute left-0 right-0 z-30 mt-2 overflow-hidden rounded border bg-white shadow-lg">
+        <div ref={listRef} className="absolute left-0 right-0 z-30 mt-2 max-h-64 overflow-auto rounded border bg-white shadow-lg">
           {results.map((p, idx) => (
             <button
-              key={p._id}
+              ref={(el) => (itemRefs.current[idx] = el)}
+              key={p._id || p.sku || idx}
               type="button"
               onClick={() => onSelect(p)}
               className={`w-full px-3 py-2 text-left ${idx === selectedIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
             >
-              <div className="flex justify-between">
-                <div className="truncate">{p.productName || p.name} <span className="text-xs text-slate-500">· {p.sku || p.barcode}</span></div>
-                <div className="font-semibold text-emerald-600">{p.sellingPrice}</div>
+              <div className="flex justify-between items-center gap-2">
+                <div className="truncate">
+                  <div className="font-medium">{p.productName || p.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {p.productId ? `ID: ${p.productId}` : ''}
+                    {p.sku ? ` · SKU: ${p.sku}` : ''}
+                    {(!p.productId && !p.sku && p.barcode) ? `Barcode: ${p.barcode}` : ''}
+                  </div>
+                </div>
+                <div className="font-semibold text-emerald-600">{p.sellingPrice != null ? p.sellingPrice : ''}</div>
               </div>
             </button>
           ))}

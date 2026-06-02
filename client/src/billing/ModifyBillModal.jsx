@@ -80,6 +80,40 @@ export default function ModifyBillModal({ isOpen, onClose }) {
     }
   };
 
+  const openInBillingEditor = async () => {
+    if (!bill) return;
+    try {
+      const payload = {
+        items: (bill.items || []).map((it) => ({
+          productId: it.product || it.productId || it._id,
+          productName: it.name,
+          quantity: it.quantity,
+          price: it.sellingPrice || it.price || 0,
+          gst: it.taxRate || it.gst || 0,
+          total: (it.sellingPrice || it.price || 0) * (it.quantity || 0)
+        })),
+        subtotal: bill.subtotal || 0,
+        taxTotal: bill.taxTotal || 0,
+        discount: bill.discount || 0,
+        total: bill.total || 0,
+        paymentMethod: bill.paymentMethod || 'Cash',
+        customerName: bill.customerName || '',
+        customerMobile: bill.customerMobile || null,
+        invoiceNo: bill.invoiceNo,
+        // include original bill for full fidelity
+        fullBill: bill
+      };
+      payload.invoiceAt = bill.createdAt || bill.invoiceAt || null;
+      console.log('Opening billing editor with bill for modify', bill._id);
+      await window.electronAPI.createBillingWindow({ invoiceNo: bill.invoiceNo, resumeBill: payload });
+      onClose();
+      toast.success('Opened billing editor');
+    } catch (err) {
+      console.error('Failed to open billing editor', err);
+      toast.error('Failed to open billing editor');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -168,6 +202,7 @@ export default function ModifyBillModal({ isOpen, onClose }) {
                 >
                   <Save size={16} /> Save Changes
                 </button>
+                <button onClick={openInBillingEditor} className="btn-muted">Open in Billing Editor</button>
                 <button onClick={() => setBill(null)} className="btn-muted">
                   Cancel
                 </button>

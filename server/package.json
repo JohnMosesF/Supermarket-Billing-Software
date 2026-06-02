@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "migrate:product-ids": "node scripts/migrate-product-ids.js",
+    "test:e2e:hold": "node tests/holdBill.e2e.js",
+    "test:e2e": "npm run test:e2e:hold"
   },
   "dependencies": {
     "archiver": "^7.0.1",
@@ -28,7 +31,8 @@
     "supermarket-billing-software": "file:.."
   },
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "mongodb-memory-server": "^8.13.1"
   },
   "overrides": {
     "uuid": "^11.1.1"

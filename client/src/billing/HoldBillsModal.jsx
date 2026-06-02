@@ -28,16 +28,16 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
 
   const handleResume = async (heldBill) => {
     try {
-      // Restore the bill to cart
-      onResumeHeldBill(heldBill);
-      
-      // Delete the held bill from database
-      await holdBillAPI.deleteHeldBill(heldBill._id);
-      
-      toast.success('Bill resumed successfully');
-      
-      // Remove from list and close
-      setHeldBills(heldBills.filter((b) => b._id !== heldBill._id));
+      // Fetch full held bill from server (ensures latest normalized shape)
+      const { data } = await holdBillAPI.resumeHeldBill(heldBill._id);
+      const full = data.heldBill || data;
+      console.log('Hold bill fetched for resume', full?._id || full);
+
+      // Restore the bill to cart / open billing window
+      onResumeHeldBill(full);
+
+      // Do not delete held bill here; billing editor will remove on save to prevent accidental loss
+      toast.success('Bill resumed (open in editor)');
       onClose();
     } catch (err) {
       console.error(err);
