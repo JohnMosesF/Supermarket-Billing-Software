@@ -1,4 +1,5 @@
 import Bill from '../models/Bill.js';
+import { Customer } from '../models/Customer.js';
 import DraftBill from '../models/DraftBill.js';
 import DeletedBill from '../models/DeletedBill.js';
 import PrintLog from '../models/PrintLog.js';
@@ -9,9 +10,41 @@ import Refund from '../models/Refund.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 
+function normalizePaymentMethod(value) {
+  const normalized = String(value || 'Cash').trim().toLowerCase();
+  if (normalized === 'upi') return 'UPI';
+  if (normalized === 'card') return 'Card';
+  if (normalized === 'credit') return 'Credit';
+  return 'Cash';
+}
+
+function paymentStatusFromAmounts(total, paid) {
+  if (paid >= total) return 'Paid';
+  if (paid > 0) return 'Partial';
+  return 'Unpaid';
+}
+
+async function resolveBillCustomer({ customerId, customerMobile, customerName, customerAddress }) {
+  if (customerId) return Customer.findById(customerId);
+  const mobile = String(customerMobile || '').trim();
+  if (!mobile) return null;
+
+  const name = String(customerName || '').trim() || 'Walk-in Customer';
+  let customer = await Customer.findOne({ mobile });
+  if (!customer) {
+    customer = await Customer.create({ name, mobile, address: customerAddress || '' });
+  } else {
+    if (name && name !== 'Walk-in Customer') customer.name = name;
+    if (customerAddress) customer.address = customerAddress;
+    await customer.save();
+  }
+  return customer;
+}
+
 // Create bill
 export const createBill = asyncHandler(async (req, res) => {
-  const { invoiceNo, items, subtotal, taxTotal, discount, total, paymentMethod, customerMobile, customerName } = req.body;
+  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, total, customerMobile, customerName, customerAddress, notes } = req.body;
+  const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
 
   if (!items || items.length === 0) {
     throw new ApiError(400, 'Bill must have at least one item');
@@ -65,16 +98,49 @@ export const createBill = asyncHandler(async (req, res) => {
     finalInvoiceNo = `INV${String(lastNumber + 1).padStart(6, '0')}`;
   }
 
+  const billTotal = Number(total || 0);
+  const paidAmount = paymentMethod === 'Credit'
+    ? Number(req.body.paidAmount || 0)
+    : Number(req.body.paidAmount ?? billTotal);
+
+  if (paidAmount < 0) {
+    throw new ApiError(400, 'Amount paid cannot be negative');
+  }
+  if (paymentMethod === 'Credit' && paidAmount > billTotal) {
+    throw new ApiError(400, 'Amount paid cannot exceed bill total for credit sales');
+  }
+
+  const dueAmount = Math.max(billTotal - paidAmount, 0);
+  const paymentStatus = paymentStatusFromAmounts(billTotal, paidAmount);
+  const customer = await resolveBillCustomer({
+    customerId: req.body.customer,
+    customerMobile,
+    customerName,
+    customerAddress
+  });
+
+  if (paymentMethod === 'Credit' && !customer) {
+    throw new ApiError(400, 'Customer name and mobile number are required for credit bills');
+  }
+
   const billPayload = {
     invoiceNo: finalInvoiceNo,
+    customer: customer?._id,
     items: normalizedItems,
     subtotal: subtotal || 0,
     taxTotal: taxTotal || 0,
     discount: discount || 0,
-    total: total || 0,
-    paymentMethod: paymentMethod || 'Cash',
+    discountPercent: discountPercent || 0,
+    total: billTotal,
+    paidAmount,
+    balanceAmount: dueAmount,
+    dueAmount,
+    paymentStatus,
+    paymentMethod,
     customerMobile: customerMobile || null,
     customerName: customerName || 'Walk-in Customer',
+    customerAddress: customerAddress || '',
+    notes: notes || '',
     staff: req.user?._id
   };
   // honor editable invoice date/time if supplied
@@ -109,6 +175,42 @@ export const createBill = asyncHandler(async (req, res) => {
   }
 
   const bill = await Bill.create(billPayload);
+
+  if (customer) {
+    const loyaltyPoints = Math.floor(bill.total / 100);
+    customer.totalSpent += bill.total;
+    customer.loyaltyPoints += loyaltyPoints;
+
+    if (paymentMethod === 'Credit') {
+      const tx = {
+        billId: bill._id,
+        billModel: 'Bill',
+        invoiceNo: bill.invoiceNo,
+        billAmount: bill.total,
+        paidAmount: bill.paidAmount,
+        dueAmount: bill.dueAmount,
+        paymentMethod: 'Credit',
+        paymentStatus: bill.paymentStatus,
+        date: bill.createdAt
+      };
+      customer.totalCredit += bill.total;
+      customer.totalCreditSales += bill.total;
+      customer.totalPaid += bill.paidAmount;
+      customer.totalPaidAmount += bill.paidAmount;
+      customer.outstandingBalance += bill.dueAmount;
+      customer.creditBalance += bill.dueAmount;
+      customer.lastCreditDate = bill.createdAt;
+      if (bill.paidAmount > 0) customer.lastPaymentDate = bill.createdAt;
+      customer.creditTransactions.push(tx);
+      customer.creditHistory.push(tx);
+    } else if (bill.paidAmount > 0) {
+      customer.totalPaid += bill.paidAmount;
+      customer.totalPaidAmount += bill.paidAmount;
+      customer.lastPaymentDate = bill.createdAt;
+    }
+
+    await customer.save();
+  }
 
   res.status(201).json({ bill, message: 'Bill created successfully' });
 });

@@ -16,6 +16,7 @@ const billSchema = new mongoose.Schema(
   {
     invoiceNo: { type: String, required: true, unique: true, trim: true },
     invoiceNumber: { type: String, trim: true },
+    customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer' },
     customerName: { type: String, trim: true, default: 'Walk-in Customer' },
     customerMobile: { type: String, trim: true },
     customerEmail: { type: String, trim: true },
@@ -24,6 +25,8 @@ const billSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     taxTotal: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
+    discountPercent: { type: Number, min: 0, default: 0 },
+    notes: { type: String, trim: true },
     total: { type: Number, required: true, min: 0 },
     paidAmount: { type: Number, required: true, min: 0, default: 0 },
     balanceAmount: { type: Number, required: true, min: 0, default: 0 },
@@ -37,7 +40,7 @@ const billSchema = new mongoose.Schema(
     invoiceAt: { type: Date },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'UPI', 'Card', 'Cheque', 'Wallet', 'Online', 'Bank Transfer', 'Credit'],
+      enum: ['Cash', 'UPI', 'Card', 'Credit'],
       required: true,
       default: 'Cash',
       set: (value) => {
@@ -45,10 +48,6 @@ const billSchema = new mongoose.Schema(
         if (normalized === 'upi') return 'UPI';
         if (normalized === 'cash') return 'Cash';
         if (normalized === 'card') return 'Card';
-        if (normalized === 'cheque') return 'Cheque';
-        if (normalized === 'wallet') return 'Wallet';
-        if (normalized === 'online') return 'Online';
-        if (normalized === 'bank transfer' || normalized === 'banktransfer' || normalized === 'bank_transfer') return 'Bank Transfer';
         if (normalized === 'credit') return 'Credit';
         return value;
       }

@@ -1,5 +1,6 @@
 import { body } from 'express-validator';
 import { Customer } from '../models/Customer.js';
+import Bill from '../models/Bill.js';
 import { Sale } from '../models/Sale.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -75,15 +76,25 @@ export const recordCollection = asyncHandler(async (req, res) => {
     remaining -= applied;
     appliedTo.push({ billId: tx.billId, invoiceNo: tx.invoiceNo, amount: applied });
 
-    await Sale.findByIdAndUpdate(tx.billId, {
-      $inc: { paidAmount: applied, balanceAmount: -applied },
-      $set: { paymentStatus: tx.dueAmount <= 0 ? 'paid' : 'partial' }
-    });
+    if (tx.billModel === 'Bill') {
+      await Bill.findByIdAndUpdate(tx.billId, {
+        $inc: { paidAmount: applied, balanceAmount: -applied, dueAmount: -applied },
+        $set: { paymentStatus: tx.dueAmount <= 0 ? 'Paid' : 'Partial' }
+      });
+    } else {
+      await Sale.findByIdAndUpdate(tx.billId, {
+        $inc: { paidAmount: applied, balanceAmount: -applied },
+        $set: { paymentStatus: tx.dueAmount <= 0 ? 'paid' : 'partial' }
+      });
+    }
   }
 
   customer.creditTransactions = transactions;
+  customer.creditHistory = transactions;
   customer.totalPaid += amount;
+  customer.totalPaidAmount += amount;
   customer.outstandingBalance = Math.max(customer.outstandingBalance - amount, 0);
+  customer.creditBalance = Math.max(customer.creditBalance - amount, 0);
   customer.lastPaymentDate = new Date();
   customer.paymentHistory.push({
     amount,

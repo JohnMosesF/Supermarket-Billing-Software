@@ -240,13 +240,22 @@ export function Billing() {
     if (!saleToPrint) {
       saleToPrint = await checkout();
     }
+    if (!saleToPrint || !saleToPrint.items?.length) {
+      toast.error('No printable invoice data found');
+      return;
+    }
 
-    // Generate print HTML and log it for debugging
-    const html = makeInvoiceHtmlFromSale(saleToPrint, settings);
-    console.log('Generated print HTML:', html);
+    const invoiceHtml = makeInvoiceHtmlFromSale(
+      saleToPrint,
+      settings
+    );
 
-    // Use electron printing if available. Use thermal formatter on main if supported.
-    const result = await printInvoice(html, { useThermalFormatter: true, meta: { storeName: settings?.storeName, gst: settings?.gstNumber, invoiceNo: saleToPrint.invoiceNumber || saleToPrint.invoiceNo }, silent: true, deviceName: settings?.printerName });
+    const result = await printInvoice(invoiceHtml, {
+      silent: true,
+      printBackground: true,
+      deviceName: settings?.printerName || undefined,
+      meta: { storeName: settings?.storeName, gst: settings?.gstNumber, invoiceNo: saleToPrint.invoiceNumber || saleToPrint.invoiceNo }
+    });
     if (!result || !result.ok) {
       console.error('Print failed:', result && result.error ? result.error : result);
       toast.error(`Printing failed: ${result && result.error ? result.error : 'Unknown error'}`);

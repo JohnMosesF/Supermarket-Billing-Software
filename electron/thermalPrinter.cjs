@@ -3,6 +3,10 @@ function escapeHtml(s) {
 }
 
 function formatInvoiceHTML(meta, bodyHtml) {
+  if (typeof bodyHtml === 'string' && /<html[\s>]/i.test(bodyHtml)) {
+    return bodyHtml;
+  }
+
   const storeName = escapeHtml(meta.storeName || 'StoreDesk POS');
   const gst = escapeHtml(meta.gst || '');
   const invoice = escapeHtml(meta.invoiceNo || '');
@@ -22,7 +26,7 @@ function formatInvoiceHTML(meta, bodyHtml) {
     <div class="center">Invoice: ${invoice}</div>
     <div class="center">${date}</div>
     <div class="line"></div>
-    ${bodyHtml || ''}
+    ${bodyHtml || '<div class="center">No invoice data</div>'}
     <div class="line"></div>
     <div class="center">Thank you for shopping!</div>
   </div>

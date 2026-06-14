@@ -380255,6 +380255,47 @@ var Category = import_mongoose2.default.model("Category", categorySchema);
 
 // ../server/src/models/Customer.js
 var import_mongoose3 = __toESM(require_mongoose2(), 1);
+var creditTransactionSchema = new import_mongoose3.default.Schema(
+  {
+    billId: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "Sale", required: true },
+    billModel: { type: String, enum: ["Sale", "Bill"], default: "Sale" },
+    invoiceNo: { type: String, required: true, trim: true },
+    billAmount: { type: Number, required: true, min: 0 },
+    paidAmount: { type: Number, required: true, min: 0 },
+    dueAmount: { type: Number, required: true, min: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ["Cash", "UPI", "Card", "Bank Transfer", "Credit", "Cheque", "Wallet", "Online"],
+      required: true
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["Paid", "Partial", "Unpaid"],
+      required: true
+    },
+    date: { type: Date, default: Date.now }
+  }
+);
+var creditPaymentSchema = new import_mongoose3.default.Schema(
+  {
+    amount: { type: Number, required: true, min: 0 },
+    paymentMethod: {
+      type: String,
+      enum: ["Cash", "UPI", "Card", "Bank Transfer"],
+      required: true
+    },
+    notes: String,
+    receiptNo: { type: String, required: true, trim: true },
+    date: { type: Date, default: Date.now },
+    appliedTo: [
+      {
+        billId: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "Sale" },
+        invoiceNo: String,
+        amount: { type: Number, min: 0 }
+      }
+    ]
+  }
+);
 var customerSchema = new import_mongoose3.default.Schema(
   {
     name: { type: String, required: true, trim: true },
@@ -380262,7 +380303,13 @@ var customerSchema = new import_mongoose3.default.Schema(
     email: { type: String, trim: true, lowercase: true },
     address: String,
     loyaltyPoints: { type: Number, default: 0 },
-    totalSpent: { type: Number, default: 0 }
+    totalSpent: { type: Number, default: 0 },
+    totalCredit: { type: Number, default: 0 },
+    totalPaid: { type: Number, default: 0 },
+    outstandingBalance: { type: Number, default: 0 },
+    lastPaymentDate: Date,
+    creditTransactions: { type: [creditTransactionSchema], default: [] },
+    paymentHistory: { type: [creditPaymentSchema], default: [] }
   },
   { timestamps: true }
 );
@@ -380367,8 +380414,8 @@ var saleSchema = new import_mongoose7.default.Schema(
     taxTotal: { type: Number, default: 0 },
     total: { type: Number, required: true },
     profit: { type: Number, default: 0 },
-    paymentMethod: { type: String, enum: ["cash", "upi", "card", "credit"], required: true },
-    paymentStatus: { type: String, enum: ["paid", "pending", "refunded"], default: "paid" },
+    paymentMethod: { type: String, enum: ["cash", "upi", "card", "bank_transfer", "credit"], required: true },
+    paymentStatus: { type: String, enum: ["paid", "partial", "unpaid", "pending", "refunded"], default: "paid" },
     paidAmount: { type: Number, default: 0 },
     balanceAmount: { type: Number, default: 0 },
     changeReturn: { type: Number, default: 0 },
@@ -380485,10 +380532,19 @@ var billSchema = new import_mongoose10.default.Schema(
     taxTotal: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0 },
+    paidAmount: { type: Number, required: true, min: 0, default: 0 },
+    balanceAmount: { type: Number, required: true, min: 0, default: 0 },
+    dueAmount: { type: Number, required: true, min: 0, default: 0 },
+    paymentStatus: {
+      type: String,
+      enum: ["Paid", "Partial", "Unpaid"],
+      required: true,
+      default: "Paid"
+    },
     invoiceAt: { type: Date },
     paymentMethod: {
       type: String,
-      enum: ["Cash", "UPI", "Card", "Cheque", "Wallet", "Online"],
+      enum: ["Cash", "UPI", "Card", "Cheque", "Wallet", "Online", "Bank Transfer", "Credit"],
       required: true,
       default: "Cash",
       set: (value) => {
@@ -380499,6 +380555,8 @@ var billSchema = new import_mongoose10.default.Schema(
         if (normalized === "cheque") return "Cheque";
         if (normalized === "wallet") return "Wallet";
         if (normalized === "online") return "Online";
+        if (normalized === "bank transfer" || normalized === "banktransfer" || normalized === "bank_transfer") return "Bank Transfer";
+        if (normalized === "credit") return "Credit";
         return value;
       }
     },
@@ -381047,6 +381105,11 @@ var customerRules = [
   (0, import_express_validator4.body)("name").trim().notEmpty(),
   (0, import_express_validator4.body)("mobile").trim().notEmpty()
 ];
+var collectionRules = [
+  (0, import_express_validator4.body)("amount").isFloat({ min: 0.01 }),
+  (0, import_express_validator4.body)("paymentMethod").isIn(["Cash", "UPI", "Card", "Bank Transfer"]),
+  (0, import_express_validator4.body)("notes").optional().trim()
+];
 var listCustomers = asyncHandler(async (req, res) => {
   const search = req.query.search?.trim();
   const filter = search ? { $or: [{ name: new RegExp(search, "i") }, { mobile: new RegExp(search, "i") }, { email: new RegExp(search, "i") }] } : {};
@@ -381056,6 +381119,11 @@ var listCustomers = asyncHandler(async (req, res) => {
 var createCustomer = asyncHandler(async (req, res) => {
   const customer = await Customer.create(req.body);
   res.status(201).json({ customer });
+});
+var getCustomer = asyncHandler(async (req, res) => {
+  const customer = await Customer.findById(req.params.id);
+  if (!customer) throw new ApiError(404, "Customer not found");
+  res.json({ customer });
 });
 var updateCustomer = asyncHandler(async (req, res) => {
   const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
@@ -381071,12 +381139,56 @@ var customerHistory = asyncHandler(async (req, res) => {
   const sales = await Sale.find({ customer: req.params.id }).sort({ createdAt: -1 }).limit(50);
   res.json({ sales });
 });
+var recordCollection = asyncHandler(async (req, res) => {
+  const customer = await Customer.findById(req.params.id);
+  if (!customer) throw new ApiError(404, "Customer not found");
+  const amount = Number(req.body.amount);
+  if (amount <= 0) throw new ApiError(400, "Collection amount must be greater than zero");
+  if (amount > customer.outstandingBalance) {
+    throw new ApiError(400, "Collection amount cannot exceed outstanding balance");
+  }
+  let remaining = amount;
+  const appliedTo = [];
+  const transactions = [...customer.creditTransactions].sort((a6, b6) => new Date(a6.date) - new Date(b6.date));
+  for (const tx of transactions) {
+    if (remaining <= 0 || tx.dueAmount <= 0) continue;
+    const applied = Math.min(tx.dueAmount, remaining);
+    tx.paidAmount += applied;
+    tx.dueAmount -= applied;
+    tx.paymentStatus = tx.dueAmount <= 0 ? "Paid" : "Partial";
+    remaining -= applied;
+    appliedTo.push({ billId: tx.billId, invoiceNo: tx.invoiceNo, amount: applied });
+    await Sale.findByIdAndUpdate(tx.billId, {
+      $inc: { paidAmount: applied, balanceAmount: -applied },
+      $set: { paymentStatus: tx.dueAmount <= 0 ? "paid" : "partial" }
+    });
+  }
+  customer.creditTransactions = transactions;
+  customer.totalPaid += amount;
+  customer.outstandingBalance = Math.max(customer.outstandingBalance - amount, 0);
+  customer.lastPaymentDate = /* @__PURE__ */ new Date();
+  customer.paymentHistory.push({
+    amount,
+    paymentMethod: req.body.paymentMethod,
+    notes: req.body.notes,
+    receiptNo: `RCPT-${Date.now()}`,
+    appliedTo
+  });
+  await customer.save();
+  res.status(201).json({
+    message: "Collection recorded",
+    customer,
+    receipt: customer.paymentHistory[customer.paymentHistory.length - 1]
+  });
+});
 
 // ../server/src/routes/customerRoutes.js
 var customerRoutes = import_express6.default.Router();
 customerRoutes.use(protect);
 customerRoutes.route("/").get(listCustomers).post(customerRules, validate, createCustomer);
+customerRoutes.get("/:id", getCustomer);
 customerRoutes.get("/:id/history", customerHistory);
+customerRoutes.post("/:id/collections", collectionRules, validate, recordCollection);
 customerRoutes.route("/:id").patch(customerRules, validate, updateCustomer).delete(authorize("admin", "manager"), deleteCustomer);
 
 // ../server/src/routes/inventoryRoutes.js
@@ -381648,6 +381760,69 @@ var stockValuation = asyncHandler(async (req, res) => {
   );
   res.json({ totals, products });
 });
+var customerDueReport = asyncHandler(async (req, res) => {
+  const customers = await Customer.find({ outstandingBalance: { $gt: 0 } }).select("name mobile totalCredit totalPaid outstandingBalance lastPaymentDate creditTransactions").sort({ outstandingBalance: -1 });
+  res.json({ customers });
+});
+var outstandingBalanceReport = asyncHandler(async (req, res) => {
+  const summary = await Customer.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalOutstanding: { $sum: "$outstandingBalance" },
+        totalCredit: { $sum: "$totalCredit" },
+        totalPaid: { $sum: "$totalPaid" },
+        customersWithDue: { $sum: { $cond: [{ $gt: ["$outstandingBalance", 0] }, 1, 0] } }
+      }
+    }
+  ]);
+  res.json(summary[0] || { totalOutstanding: 0, totalCredit: 0, totalPaid: 0, customersWithDue: 0 });
+});
+var creditSalesReport = asyncHandler(async (req, res) => {
+  const filter = { ...dateFilter(req), paymentMethod: "credit" };
+  const [summary, sales] = await Promise.all([
+    Sale.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: "$paymentStatus",
+          billAmount: { $sum: "$total" },
+          paidAmount: { $sum: "$paidAmount" },
+          dueAmount: { $sum: "$balanceAmount" },
+          invoices: { $sum: 1 }
+        }
+      }
+    ]),
+    Sale.find(filter).populate("customer", "name mobile outstandingBalance").sort({ createdAt: -1 }).limit(500)
+  ]);
+  res.json({ summary, sales });
+});
+var paymentCollectionReport = asyncHandler(async (req, res) => {
+  const from = req.query.from ? new Date(req.query.from) : null;
+  const to = req.query.to ? new Date(req.query.to) : null;
+  const customers = await Customer.find({ "paymentHistory.0": { $exists: true } }).select("name mobile paymentHistory");
+  const collections2 = [];
+  customers.forEach((customer) => {
+    customer.paymentHistory.forEach((payment) => {
+      const date2 = new Date(payment.date);
+      if (from && date2 < from) return;
+      if (to && date2 > to) return;
+      collections2.push({
+        customer: { id: customer._id, name: customer.name, mobile: customer.mobile },
+        receiptNo: payment.receiptNo,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        date: payment.date,
+        appliedTo: payment.appliedTo
+      });
+    });
+  });
+  collections2.sort((a6, b6) => new Date(b6.date) - new Date(a6.date));
+  res.json({
+    totalCollected: collections2.reduce((sum, item) => sum + item.amount, 0),
+    collections: collections2
+  });
+});
 
 // ../server/src/routes/reportRoutes.js
 var reportRoutes = import_express10.default.Router();
@@ -381656,6 +381831,10 @@ reportRoutes.get("/sales", salesReport);
 reportRoutes.get("/profit-loss", profitLossReport);
 reportRoutes.get("/products", productAnalytics);
 reportRoutes.get("/stock-valuation", stockValuation);
+reportRoutes.get("/customer-due", customerDueReport);
+reportRoutes.get("/outstanding-balances", outstandingBalanceReport);
+reportRoutes.get("/credit-sales", creditSalesReport);
+reportRoutes.get("/payment-collections", paymentCollectionReport);
 reportRoutes.get("/sales/export.xlsx", exportSalesExcel);
 reportRoutes.get("/sales/export.pdf", exportSalesPdf);
 
@@ -381664,13 +381843,28 @@ var import_express11 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/saleController.js
 var import_express_validator8 = __toESM(require_lib4(), 1);
+async function resolveCustomerForSale(req) {
+  if (req.body.customer) return req.body.customer;
+  const mobile = String(req.body.customerMobile || "").trim();
+  const name = String(req.body.customerName || "Walk-in Customer").trim() || "Walk-in Customer";
+  if (!mobile) return null;
+  let customer = await Customer.findOne({ mobile });
+  if (!customer) {
+    customer = await Customer.create({ mobile, name });
+  } else if (customer.name !== name && name !== "Walk-in Customer") {
+    customer.name = name;
+    if (req.body.customerAddress) customer.address = req.body.customerAddress;
+    await customer.save();
+  }
+  return customer._id;
+}
 var saleRules = [
   (0, import_express_validator8.body)("items").isArray({ min: 1 }),
   (0, import_express_validator8.body)("items.*.product").isMongoId(),
   (0, import_express_validator8.body)("items.*.quantity").isInt({ min: 1 }),
   (0, import_express_validator8.body)("items.*.price").optional().isFloat({ min: 0 }),
   (0, import_express_validator8.body)("items.*.discount").optional().isFloat({ min: 0 }),
-  (0, import_express_validator8.body)("paymentMethod").isIn(["cash", "upi", "card", "credit"])
+  (0, import_express_validator8.body)("paymentMethod").isIn(["cash", "upi", "card", "bank_transfer", "credit"])
 ];
 var listSales = asyncHandler(async (req, res) => {
   const filter = {};
@@ -381688,6 +381882,11 @@ var getSale = asyncHandler(async (req, res) => {
   res.json({ sale });
 });
 var createSale = asyncHandler(async (req, res) => {
+  const resolvedCustomer = await resolveCustomerForSale(req);
+  if (req.body.paymentMethod === "credit" && !resolvedCustomer) {
+    throw new ApiError(400, "Customer account is required for credit sales");
+  }
+  req.body.customer = resolvedCustomer || void 0;
   const productIds = req.body.items.map((item) => item.product);
   const products = await Product.find({ _id: { $in: productIds }, active: true });
   const productMap = new Map(products.map((product) => [String(product._id), product]));
@@ -381725,7 +381924,18 @@ var createSale = asyncHandler(async (req, res) => {
   const discount = Number(req.body.discount || 0);
   const count = await Sale.countDocuments();
   const total = Math.max(subtotal + taxTotal - discount, 0);
-  const paidAmount = Number(req.body.paidAmount ?? total);
+  const paidAmount = Number(req.body.paidAmount ?? (req.body.paymentMethod === "credit" ? 0 : total));
+  if (paidAmount < 0) {
+    throw new ApiError(400, "Paid amount cannot be negative");
+  }
+  if (req.body.paymentMethod === "credit" && paidAmount > total) {
+    throw new ApiError(400, "Amount paid cannot exceed bill total for credit sales");
+  }
+  const balanceAmount = Math.max(total - paidAmount, 0);
+  const paymentStatus = req.body.paymentStatus || (balanceAmount <= 0 ? "paid" : paidAmount > 0 ? "partial" : "unpaid");
+  if (req.body.paymentMethod === "credit" && !req.body.customer) {
+    throw new ApiError(400, "Customer account is required for credit sales");
+  }
   const sale = await Sale.create({
     invoiceNumber: req.body.invoiceNumber || makeInvoiceNumber(count),
     customer: req.body.customer || void 0,
@@ -381738,9 +381948,9 @@ var createSale = asyncHandler(async (req, res) => {
     total,
     profit: Math.max(profit - discount, 0),
     paymentMethod: req.body.paymentMethod,
-    paymentStatus: req.body.paymentStatus || (req.body.paymentMethod === "credit" ? "pending" : "paid"),
+    paymentStatus,
     paidAmount,
-    balanceAmount: Math.max(total - paidAmount, 0),
+    balanceAmount,
     changeReturn: Math.max(paidAmount - total, 0),
     cashier: req.user._id,
     notes: req.body.notes
@@ -381764,8 +381974,36 @@ var createSale = asyncHandler(async (req, res) => {
   }
   if (req.body.customer) {
     const loyaltyPoints = Math.floor(sale.total / 100);
-    await Customer.findByIdAndUpdate(req.body.customer, {
+    const customerUpdates = {
       $inc: { totalSpent: sale.total, loyaltyPoints }
+    };
+    if (req.body.paymentMethod === "credit") {
+      const creditStatus = sale.balanceAmount <= 0 ? "Paid" : sale.paidAmount > 0 ? "Partial" : "Unpaid";
+      customerUpdates.$inc.totalCredit = sale.total;
+      customerUpdates.$inc.outstandingBalance = sale.balanceAmount;
+      customerUpdates.$inc.totalPaid = sale.paidAmount;
+      customerUpdates.$push = {
+        creditTransactions: {
+          billId: sale._id,
+          billModel: "Sale",
+          invoiceNo: sale.invoiceNumber,
+          billAmount: sale.total,
+          paidAmount: sale.paidAmount,
+          dueAmount: sale.balanceAmount,
+          paymentMethod: "Credit",
+          paymentStatus: creditStatus
+        }
+      };
+      if (sale.paidAmount > 0) {
+        customerUpdates.$set = { lastPaymentDate: /* @__PURE__ */ new Date() };
+      }
+    } else if (sale.paidAmount > 0) {
+      customerUpdates.$inc.totalPaid = sale.paidAmount;
+      customerUpdates.$set = { lastPaymentDate: /* @__PURE__ */ new Date() };
+    }
+    await Customer.findByIdAndUpdate(req.body.customer, customerUpdates, {
+      new: true,
+      runValidators: true
     });
   }
   res.status(201).json({ sale });
@@ -381889,17 +382127,22 @@ var getDashboard = asyncHandler(async (req, res) => {
   const monthStart = /* @__PURE__ */ new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
-  const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart] = await Promise.all([
-    Bill_default.aggregate([{ $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
-    Bill_default.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
+  const overdueDate = /* @__PURE__ */ new Date();
+  overdueDate.setDate(overdueDate.getDate() - 30);
+  const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart, receivableAgg, customersWithDue, overdueCreditBills] = await Promise.all([
+    Sale.aggregate([{ $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
+    Sale.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
     Product.countDocuments({ active: true }),
     Product.find({ $expr: { $lte: ["$stock", "$lowStockThreshold"] }, active: true }).sort({ stock: 1 }).limit(10).lean(),
-    Bill_default.find().sort({ createdAt: -1 }).limit(8).lean(),
-    Bill_default.aggregate([
+    Sale.find().populate("customer", "name mobile outstandingBalance").sort({ createdAt: -1 }).limit(8).lean(),
+    Sale.aggregate([
       { $match: { createdAt: { $gte: monthStart } } },
-      { $group: { _id: { $dayOfMonth: "$createdAt" }, revenue: { $sum: "$total" } } },
+      { $group: { _id: { $dayOfMonth: "$createdAt" }, revenue: { $sum: "$total" }, profit: { $sum: "$profit" } } },
       { $sort: { _id: 1 } }
-    ])
+    ]),
+    Customer.aggregate([{ $group: { _id: null, total: { $sum: "$outstandingBalance" } } }]),
+    Customer.countDocuments({ outstandingBalance: { $gt: 0 } }),
+    Sale.countDocuments({ paymentMethod: "credit", balanceAmount: { $gt: 0 }, createdAt: { $lte: overdueDate } })
   ]);
   res.json({
     totals: {
@@ -381908,11 +382151,14 @@ var getDashboard = asyncHandler(async (req, res) => {
       todaySales: todaySalesAgg[0]?.total || 0,
       todayInvoices: todaySalesAgg[0]?.count || 0,
       productCount,
-      lowStockCount: lowStock.length
+      lowStockCount: lowStock.length,
+      totalOutstandingReceivables: receivableAgg[0]?.total || 0,
+      customersWithDue,
+      overdueCreditBills
     },
     lowStock,
     recentTransactions,
-    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue }))
+    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue, profit: item.profit || 0 }))
   });
 });
 

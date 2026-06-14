@@ -138,6 +138,10 @@ ipcMain.handle('create-billing-window', async (event, opts = {}) => {
 });
 
 ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
+  if (!invoiceHtml || typeof invoiceHtml !== 'string' || invoiceHtml.trim().length < 50) {
+    return { ok: false, error: 'Invoice HTML is empty' };
+  }
+
   // use thermal formatter if asked
   const html = options.useThermalFormatter ? formatInvoiceHTML(options.meta || {}, invoiceHtml) : invoiceHtml;
 

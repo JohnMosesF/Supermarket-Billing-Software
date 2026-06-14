@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const creditTransactionSchema = new mongoose.Schema(
   {
-    billId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale', required: true },
+    billId: { type: mongoose.Schema.Types.ObjectId, required: true },
     billModel: { type: String, enum: ['Sale', 'Bill'], default: 'Sale' },
     invoiceNo: { type: String, required: true, trim: true },
     billAmount: { type: Number, required: true, min: 0 },
@@ -54,8 +54,13 @@ const customerSchema = new mongoose.Schema(
     totalCredit: { type: Number, default: 0 },
     totalPaid: { type: Number, default: 0 },
     outstandingBalance: { type: Number, default: 0 },
+    creditBalance: { type: Number, default: 0 },
+    totalCreditSales: { type: Number, default: 0 },
+    totalPaidAmount: { type: Number, default: 0 },
+    lastCreditDate: Date,
     lastPaymentDate: Date,
     creditTransactions: { type: [creditTransactionSchema], default: [] },
+    creditHistory: { type: [creditTransactionSchema], default: [] },
     paymentHistory: { type: [creditPaymentSchema], default: [] }
   },
   { timestamps: true }

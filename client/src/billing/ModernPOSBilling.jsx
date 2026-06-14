@@ -6,8 +6,10 @@ import InvoicePreview from './InvoicePreview.jsx';
 import HoldBillsModal from './HoldBillsModal.jsx';
 import KeyboardManager from './KeyboardManager.js';
 import { billingAPI, holdBillAPI, customerAPI } from './billingService.js';
+import { api } from '../api/http.js';
 import { currency, dateTime } from '../utils/format.js';
 import toast from 'react-hot-toast';
+import { printInvoice, makeInvoiceHtmlFromSale } from '../utils/print';
 
 /**
  * ModernPOSBilling - Complete keyboard-first billing interface
@@ -54,9 +56,11 @@ export default function ModernPOSBilling() {
   const [invoiceTime, setInvoiceTime] = useState(defaultTime);
   const [resumedHoldId, setResumedHoldId] = useState(null);
   const [lastManualEdit, setLastManualEdit] = useState(0);
+  const [settings, setSettings] = useState(null);
 
   // Live date/time update: tick every second unless user edited recently
   useEffect(() => {
+    api.get('/settings', { silent: true }).then((res) => setSettings(res.data.settings)).catch(() => {});
     const id = setInterval(() => {
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
@@ -369,13 +373,55 @@ export default function ModernPOSBilling() {
   /**
    * Print current bill
    */
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
     }
-    
-    window.print();
+
+    try {
+      const payload = makeBillPayload();
+      if (!payload.items?.length || Number(payload.total || 0) <= 0) {
+        toast.error('Invoice has no printable items or total is invalid');
+        return;
+      }
+
+      const saleToPrint = {
+        ...payload,
+        invoiceNumber: payload.invoiceNo || payload.invoiceNumber || 'AUTO',
+        invoiceAt: payload.invoiceAt || `${invoiceDate}T${invoiceTime}`,
+        paymentMethod,
+        items: payload.items
+      };
+      const html = makeInvoiceHtmlFromSale(saleToPrint, settings || {});
+
+      if (!html || html.trim().length < 50) {
+        toast.error('Invoice preview is empty. Nothing was printed.');
+        return;
+      }
+
+      const result = await printInvoice(html, {
+        silent: true,
+        printBackground: true,
+        deviceName: settings?.printerName || undefined,
+        meta: {
+          storeName: settings?.storeName,
+          gst: settings?.gstNumber,
+          invoiceNo: saleToPrint.invoiceNumber,
+          date: saleToPrint.invoiceAt
+        }
+      });
+
+      if (!result?.ok) {
+        toast.error(`Printing failed: ${result?.error || 'Unknown printer error'}`);
+        return;
+      }
+
+      toast.success('Invoice sent to printer');
+    } catch (err) {
+      console.error('Print bill error:', err);
+      toast.error(err.response?.data?.message || err.message || 'Failed to print invoice');
+    }
   };
 
   /**
@@ -516,6 +562,18 @@ export default function ModernPOSBilling() {
   const total = subtotal + taxTotal - discount;
   const itemCount = cart.length;
   const quantity = cart.reduce((sum, it) => sum + Number(it.qty || 0), 0);
+  const liveInvoiceSale = {
+    invoiceNumber: 'AUTO',
+    invoiceAt: `${invoiceDate}T${invoiceTime}`,
+    customerName: customerName || 'Walk-in Customer',
+    customerMobile,
+    paymentMethod,
+    items: cart,
+    subtotal,
+    taxTotal,
+    discount,
+    total
+  };
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
@@ -675,15 +733,7 @@ export default function ModernPOSBilling() {
           <div className="flex-1 bg-white shadow-md rounded-lg p-3 min-h-0 overflow-hidden flex flex-col">
             <h2 className="text-lg font-bold mb-2">Invoice Preview</h2>
             <div className="flex-1 overflow-auto">
-              <InvoicePreview
-                cart={cart}
-                subtotal={subtotal}
-                taxTotal={taxTotal}
-                discount={discount}
-                total={total}
-                customerName={customerName}
-                customerMobile={customerMobile}
-              />
+              <InvoicePreview sale={liveInvoiceSale} settings={settings || {}} />
             </div>
           </div>
         </div>
