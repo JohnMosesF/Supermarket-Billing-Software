@@ -115,22 +115,23 @@ export const billingAPI = {
 // Customer API
 export const customerAPI = {
   searchCustomers: (search) => api.get('/customers', { params: { search } }),
+  getCustomer: (customerId) => api.get(`/customers/${customerId}`),
   createCustomer: (customer) => api.post('/customers', customer),
 };
 
-// Hold Bills API
+// Hold Bills API (aligned with server routes under /bills)
 export const holdBillAPI = {
   // Save held bill
-  holdBill: (data) => api.post('/hold-bills', data),
+  holdBill: (data) => api.post('/bills/hold', data),
 
   // Get held bills
-  getHeldBills: () => api.get('/hold-bills'),
+  getHeldBills: () => api.get('/bills/hold/all'),
 
   // Resume held bill
-  resumeHeldBill: (heldBillId) => api.get(`/hold-bills/${heldBillId}`),
+  resumeHeldBill: (heldBillId) => api.get(`/bills/hold/${heldBillId}`),
 
   // Delete held bill
-  deleteHeldBill: (heldBillId) => api.delete(`/hold-bills/${heldBillId}`),
+  deleteHeldBill: (heldBillId) => api.delete(`/bills/hold/${heldBillId}`),
 };
 
 // Refund API

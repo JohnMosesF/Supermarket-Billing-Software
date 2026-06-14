@@ -9,6 +9,12 @@ export const customerRules = [
   body('mobile').trim().notEmpty()
 ];
 
+export const collectionRules = [
+  body('amount').isFloat({ min: 0.01 }),
+  body('paymentMethod').isIn(['Cash', 'UPI', 'Card', 'Bank Transfer']),
+  body('notes').optional().trim()
+];
+
 export const listCustomers = asyncHandler(async (req, res) => {
   const search = req.query.search?.trim();
   const filter = search
@@ -21,6 +27,12 @@ export const listCustomers = asyncHandler(async (req, res) => {
 export const createCustomer = asyncHandler(async (req, res) => {
   const customer = await Customer.create(req.body);
   res.status(201).json({ customer });
+});
+
+export const getCustomer = asyncHandler(async (req, res) => {
+  const customer = await Customer.findById(req.params.id);
+  if (!customer) throw new ApiError(404, 'Customer not found');
+  res.json({ customer });
 });
 
 export const updateCustomer = asyncHandler(async (req, res) => {
@@ -38,4 +50,53 @@ export const deleteCustomer = asyncHandler(async (req, res) => {
 export const customerHistory = asyncHandler(async (req, res) => {
   const sales = await Sale.find({ customer: req.params.id }).sort({ createdAt: -1 }).limit(50);
   res.json({ sales });
+});
+
+export const recordCollection = asyncHandler(async (req, res) => {
+  const customer = await Customer.findById(req.params.id);
+  if (!customer) throw new ApiError(404, 'Customer not found');
+
+  const amount = Number(req.body.amount);
+  if (amount <= 0) throw new ApiError(400, 'Collection amount must be greater than zero');
+  if (amount > customer.outstandingBalance) {
+    throw new ApiError(400, 'Collection amount cannot exceed outstanding balance');
+  }
+
+  let remaining = amount;
+  const appliedTo = [];
+  const transactions = [...customer.creditTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  for (const tx of transactions) {
+    if (remaining <= 0 || tx.dueAmount <= 0) continue;
+    const applied = Math.min(tx.dueAmount, remaining);
+    tx.paidAmount += applied;
+    tx.dueAmount -= applied;
+    tx.paymentStatus = tx.dueAmount <= 0 ? 'Paid' : 'Partial';
+    remaining -= applied;
+    appliedTo.push({ billId: tx.billId, invoiceNo: tx.invoiceNo, amount: applied });
+
+    await Sale.findByIdAndUpdate(tx.billId, {
+      $inc: { paidAmount: applied, balanceAmount: -applied },
+      $set: { paymentStatus: tx.dueAmount <= 0 ? 'paid' : 'partial' }
+    });
+  }
+
+  customer.creditTransactions = transactions;
+  customer.totalPaid += amount;
+  customer.outstandingBalance = Math.max(customer.outstandingBalance - amount, 0);
+  customer.lastPaymentDate = new Date();
+  customer.paymentHistory.push({
+    amount,
+    paymentMethod: req.body.paymentMethod,
+    notes: req.body.notes,
+    receiptNo: `RCPT-${Date.now()}`,
+    appliedTo
+  });
+  await customer.save();
+
+  res.status(201).json({
+    message: 'Collection recorded',
+    customer,
+    receipt: customer.paymentHistory[customer.paymentHistory.length - 1]
+  });
 });

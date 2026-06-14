@@ -33,16 +33,17 @@ export default function ModifyBillModal({ isOpen, onClose }) {
 
   const handleAddProduct = (product) => {
     if (!bill) return;
-    const existing = bill.items.find((it) => it.product === product._id);
+    const existing = bill.items.find((it) => String(it.productId || it.product || it._id) === String(product._id));
     if (existing) {
       existing.quantity = Math.min(existing.quantity + 1, product.stock);
     } else {
       bill.items.push({
-        product: product._id,
-        name: product.name,
+        productId: product._id,
+        productName: product.name,
         quantity: 1,
-        sellingPrice: product.sellingPrice,
-        taxRate: product.taxRate,
+        price: product.sellingPrice,
+        tax: product.taxRate,
+        total: product.sellingPrice
       });
     }
     setBill({ ...bill });
@@ -50,12 +51,12 @@ export default function ModifyBillModal({ isOpen, onClose }) {
 
   const handleRemoveItem = (productId) => {
     if (!bill) return;
-    setBill({ ...bill, items: bill.items.filter((it) => it.product !== productId) });
+    setBill({ ...bill, items: bill.items.filter((it) => String(it.productId || it.product || it._id) !== String(productId)) });
   };
 
   const handleChangeQty = (productId, delta) => {
     if (!bill) return;
-    const item = bill.items.find((it) => it.product === productId);
+    const item = bill.items.find((it) => String(it.productId || it.product || it._id) === String(productId));
     if (item) {
       item.quantity = Math.max(1, item.quantity + delta);
       setBill({ ...bill });
@@ -162,35 +163,38 @@ export default function ModifyBillModal({ isOpen, onClose }) {
               <div className="mt-4">
                 <h3 className="font-semibold mb-2 text-sm">Items</h3>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {bill.items?.map((item) => (
-                    <div key={item.product} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                      <div className="flex-1">
-                        <div className="font-semibold text-sm">{item.name}</div>
-                        <div className="text-xs text-slate-500">{currency(item.sellingPrice)}</div>
-                      </div>
-                      <div className="flex items-center gap-1 border rounded">
-                        <button
-                          className="p-1"
-                          onClick={() => handleChangeQty(item.product, -1)}
-                        >
-                          <Minus size={14} />
-                        </button>
-                        <span className="w-6 text-center text-sm">{item.quantity}</span>
-                        <button
-                          className="p-1"
-                          onClick={() => handleChangeQty(item.product, 1)}
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveItem(item.product)}
-                        className="text-red-600 hover:text-red-800 p-1"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
+                  {bill.items?.map((item) => {
+                      const pid = item.productId || item.product || item._id;
+                      return (
+                        <div key={pid} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                          <div className="flex-1">
+                            <div className="font-semibold text-sm">{item.productName || item.name}</div>
+                            <div className="text-xs text-slate-500">{currency(item.price || item.sellingPrice)}</div>
+                          </div>
+                          <div className="flex items-center gap-1 border rounded">
+                            <button
+                              className="p-1"
+                              onClick={() => handleChangeQty(pid, -1)}
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="w-6 text-center text-sm">{item.quantity}</span>
+                            <button
+                              className="p-1"
+                              onClick={() => handleChangeQty(pid, 1)}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveItem(pid)}
+                            className="text-red-600 hover:text-red-800 p-1"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
 

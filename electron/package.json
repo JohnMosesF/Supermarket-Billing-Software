@@ -26,9 +26,8 @@
       "output": "release"
     },
     "files": [
-      "main.cjs",
-      "preload.cjs",
-      "assets/**/*"
+      "**/*",
+      "!node_modules/.cache/**/*"
     ],
     "extraResources": [
       {

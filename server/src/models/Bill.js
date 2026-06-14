@@ -25,10 +25,19 @@ const billSchema = new mongoose.Schema(
     taxTotal: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0 },
+    paidAmount: { type: Number, required: true, min: 0, default: 0 },
+    balanceAmount: { type: Number, required: true, min: 0, default: 0 },
+    dueAmount: { type: Number, required: true, min: 0, default: 0 },
+    paymentStatus: {
+      type: String,
+      enum: ['Paid', 'Partial', 'Unpaid'],
+      required: true,
+      default: 'Paid'
+    },
     invoiceAt: { type: Date },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'UPI', 'Card', 'Cheque', 'Wallet', 'Online'],
+      enum: ['Cash', 'UPI', 'Card', 'Cheque', 'Wallet', 'Online', 'Bank Transfer', 'Credit'],
       required: true,
       default: 'Cash',
       set: (value) => {
@@ -39,6 +48,8 @@ const billSchema = new mongoose.Schema(
         if (normalized === 'cheque') return 'Cheque';
         if (normalized === 'wallet') return 'Wallet';
         if (normalized === 'online') return 'Online';
+        if (normalized === 'bank transfer' || normalized === 'banktransfer' || normalized === 'bank_transfer') return 'Bank Transfer';
+        if (normalized === 'credit') return 'Credit';
         return value;
       }
     },

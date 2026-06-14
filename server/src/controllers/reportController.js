@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import { Customer } from '../models/Customer.js';
 import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -114,4 +115,75 @@ export const stockValuation = asyncHandler(async (req, res) => {
     { purchaseValue: 0, sellingValue: 0 }
   );
   res.json({ totals, products });
+});
+
+export const customerDueReport = asyncHandler(async (req, res) => {
+  const customers = await Customer.find({ outstandingBalance: { $gt: 0 } })
+    .select('name mobile totalCredit totalPaid outstandingBalance lastPaymentDate creditTransactions')
+    .sort({ outstandingBalance: -1 });
+  res.json({ customers });
+});
+
+export const outstandingBalanceReport = asyncHandler(async (req, res) => {
+  const summary = await Customer.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalOutstanding: { $sum: '$outstandingBalance' },
+        totalCredit: { $sum: '$totalCredit' },
+        totalPaid: { $sum: '$totalPaid' },
+        customersWithDue: { $sum: { $cond: [{ $gt: ['$outstandingBalance', 0] }, 1, 0] } }
+      }
+    }
+  ]);
+  res.json(summary[0] || { totalOutstanding: 0, totalCredit: 0, totalPaid: 0, customersWithDue: 0 });
+});
+
+export const creditSalesReport = asyncHandler(async (req, res) => {
+  const filter = { ...dateFilter(req), paymentMethod: 'credit' };
+  const [summary, sales] = await Promise.all([
+    Sale.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$paymentStatus',
+          billAmount: { $sum: '$total' },
+          paidAmount: { $sum: '$paidAmount' },
+          dueAmount: { $sum: '$balanceAmount' },
+          invoices: { $sum: 1 }
+        }
+      }
+    ]),
+    Sale.find(filter).populate('customer', 'name mobile outstandingBalance').sort({ createdAt: -1 }).limit(500)
+  ]);
+  res.json({ summary, sales });
+});
+
+export const paymentCollectionReport = asyncHandler(async (req, res) => {
+  const from = req.query.from ? new Date(req.query.from) : null;
+  const to = req.query.to ? new Date(req.query.to) : null;
+  const customers = await Customer.find({ 'paymentHistory.0': { $exists: true } }).select('name mobile paymentHistory');
+  const collections = [];
+
+  customers.forEach((customer) => {
+    customer.paymentHistory.forEach((payment) => {
+      const date = new Date(payment.date);
+      if (from && date < from) return;
+      if (to && date > to) return;
+      collections.push({
+        customer: { id: customer._id, name: customer.name, mobile: customer.mobile },
+        receiptNo: payment.receiptNo,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        date: payment.date,
+        appliedTo: payment.appliedTo
+      });
+    });
+  });
+
+  collections.sort((a, b) => new Date(b.date) - new Date(a.date));
+  res.json({
+    totalCollected: collections.reduce((sum, item) => sum + item.amount, 0),
+    collections
+  });
 });

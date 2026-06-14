@@ -7,11 +7,32 @@ import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { makeInvoiceNumber } from '../utils/invoice.js';
 
+async function resolveCustomerForSale(req) {
+  if (req.body.customer) return req.body.customer;
+
+  const mobile = String(req.body.customerMobile || '').trim();
+  const name = String(req.body.customerName || 'Walk-in Customer').trim() || 'Walk-in Customer';
+  if (!mobile) return null;
+
+  let customer = await Customer.findOne({ mobile });
+  if (!customer) {
+    customer = await Customer.create({ mobile, name });
+  } else if (customer.name !== name && name !== 'Walk-in Customer') {
+    customer.name = name;
+    if (req.body.customerAddress) customer.address = req.body.customerAddress;
+    await customer.save();
+  }
+
+  return customer._id;
+}
+
 export const saleRules = [
   body('items').isArray({ min: 1 }),
   body('items.*.product').isMongoId(),
   body('items.*.quantity').isInt({ min: 1 }),
-  body('paymentMethod').isIn(['cash', 'upi', 'card'])
+  body('items.*.price').optional().isFloat({ min: 0 }),
+  body('items.*.discount').optional().isFloat({ min: 0 }),
+  body('paymentMethod').isIn(['cash', 'upi', 'card', 'bank_transfer', 'credit'])
 ];
 
 export const listSales = asyncHandler(async (req, res) => {
@@ -38,6 +59,12 @@ export const getSale = asyncHandler(async (req, res) => {
 });
 
 export const createSale = asyncHandler(async (req, res) => {
+  const resolvedCustomer = await resolveCustomerForSale(req);
+  if (req.body.paymentMethod === 'credit' && !resolvedCustomer) {
+    throw new ApiError(400, 'Customer account is required for credit sales');
+  }
+  req.body.customer = resolvedCustomer || undefined;
+
   const productIds = req.body.items.map((item) => item.product);
   const products = await Product.find({ _id: { $in: productIds }, active: true });
   const productMap = new Map(products.map((product) => [String(product._id), product]));
@@ -54,21 +81,22 @@ export const createSale = asyncHandler(async (req, res) => {
       throw new ApiError(400, `${product.name} has only ${product.stock} in stock`);
     }
 
+    const price = Number(item.price ?? product.sellingPrice);
     const discount = Number(item.discount || 0);
-    const base = product.sellingPrice * item.quantity;
+    const base = price * item.quantity;
     const taxable = Math.max(base - discount, 0);
     const tax = taxable * (product.taxRate || 0) / 100;
     const lineTotal = taxable + tax;
 
     subtotal += base;
     taxTotal += tax;
-    profit += (product.sellingPrice - product.purchasePrice) * item.quantity - discount;
+    profit += (price - product.purchasePrice) * item.quantity - discount;
     saleItems.push({
       product: product._id,
       name: product.name,
       sku: product.sku,
       quantity: item.quantity,
-      price: product.sellingPrice,
+      price,
       purchasePrice: product.purchasePrice,
       taxRate: product.taxRate,
       discount,
@@ -78,6 +106,21 @@ export const createSale = asyncHandler(async (req, res) => {
 
   const discount = Number(req.body.discount || 0);
   const count = await Sale.countDocuments();
+  const total = Math.max(subtotal + taxTotal - discount, 0);
+  const paidAmount = Number(req.body.paidAmount ?? (req.body.paymentMethod === 'credit' ? 0 : total));
+  if (paidAmount < 0) {
+    throw new ApiError(400, 'Paid amount cannot be negative');
+  }
+  if (req.body.paymentMethod === 'credit' && paidAmount > total) {
+    throw new ApiError(400, 'Amount paid cannot exceed bill total for credit sales');
+  }
+  const balanceAmount = Math.max(total - paidAmount, 0);
+  const paymentStatus = req.body.paymentStatus || (balanceAmount <= 0 ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid');
+
+  if (req.body.paymentMethod === 'credit' && !req.body.customer) {
+    throw new ApiError(400, 'Customer account is required for credit sales');
+  }
+
   const sale = await Sale.create({
     invoiceNumber: req.body.invoiceNumber || makeInvoiceNumber(count),
     customer: req.body.customer || undefined,
@@ -87,10 +130,13 @@ export const createSale = asyncHandler(async (req, res) => {
     subtotal,
     discount,
     taxTotal,
-    total: Math.max(subtotal + taxTotal - discount, 0),
+    total,
     profit: Math.max(profit - discount, 0),
     paymentMethod: req.body.paymentMethod,
-    paymentStatus: req.body.paymentStatus || 'paid',
+    paymentStatus,
+    paidAmount,
+    balanceAmount,
+    changeReturn: Math.max(paidAmount - total, 0),
     cashier: req.user._id,
     notes: req.body.notes
   });
@@ -115,8 +161,38 @@ export const createSale = asyncHandler(async (req, res) => {
 
   if (req.body.customer) {
     const loyaltyPoints = Math.floor(sale.total / 100);
-    await Customer.findByIdAndUpdate(req.body.customer, {
+    const customerUpdates = {
       $inc: { totalSpent: sale.total, loyaltyPoints }
+    };
+
+    if (req.body.paymentMethod === 'credit') {
+      const creditStatus = sale.balanceAmount <= 0 ? 'Paid' : sale.paidAmount > 0 ? 'Partial' : 'Unpaid';
+      customerUpdates.$inc.totalCredit = sale.total;
+      customerUpdates.$inc.outstandingBalance = sale.balanceAmount;
+      customerUpdates.$inc.totalPaid = sale.paidAmount;
+      customerUpdates.$push = {
+        creditTransactions: {
+          billId: sale._id,
+          billModel: 'Sale',
+          invoiceNo: sale.invoiceNumber,
+          billAmount: sale.total,
+          paidAmount: sale.paidAmount,
+          dueAmount: sale.balanceAmount,
+          paymentMethod: 'Credit',
+          paymentStatus: creditStatus
+        }
+      };
+      if (sale.paidAmount > 0) {
+        customerUpdates.$set = { lastPaymentDate: new Date() };
+      }
+    } else if (sale.paidAmount > 0) {
+      customerUpdates.$inc.totalPaid = sale.paidAmount;
+      customerUpdates.$set = { lastPaymentDate: new Date() };
+    }
+
+    await Customer.findByIdAndUpdate(req.body.customer, customerUpdates, {
+      new: true,
+      runValidators: true
     });
   }
 

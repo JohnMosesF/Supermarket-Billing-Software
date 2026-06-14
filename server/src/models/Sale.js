@@ -27,8 +27,11 @@ const saleSchema = new mongoose.Schema(
     taxTotal: { type: Number, default: 0 },
     total: { type: Number, required: true },
     profit: { type: Number, default: 0 },
-    paymentMethod: { type: String, enum: ['cash', 'upi', 'card'], required: true },
-    paymentStatus: { type: String, enum: ['paid', 'pending', 'refunded'], default: 'paid' },
+    paymentMethod: { type: String, enum: ['cash', 'upi', 'card', 'bank_transfer', 'credit'], required: true },
+    paymentStatus: { type: String, enum: ['paid', 'partial', 'unpaid', 'pending', 'refunded'], default: 'paid' },
+    paidAmount: { type: Number, default: 0 },
+    balanceAmount: { type: Number, default: 0 },
+    changeReturn: { type: Number, default: 0 },
     cashier: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     notes: String
   },
