@@ -380257,7 +380257,7 @@ var Category = import_mongoose2.default.model("Category", categorySchema);
 var import_mongoose3 = __toESM(require_mongoose2(), 1);
 var creditTransactionSchema = new import_mongoose3.default.Schema(
   {
-    billId: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "Sale", required: true },
+    billId: { type: import_mongoose3.default.Schema.Types.ObjectId, required: true },
     billModel: { type: String, enum: ["Sale", "Bill"], default: "Sale" },
     invoiceNo: { type: String, required: true, trim: true },
     billAmount: { type: Number, required: true, min: 0 },
@@ -380307,8 +380307,13 @@ var customerSchema = new import_mongoose3.default.Schema(
     totalCredit: { type: Number, default: 0 },
     totalPaid: { type: Number, default: 0 },
     outstandingBalance: { type: Number, default: 0 },
+    creditBalance: { type: Number, default: 0 },
+    totalCreditSales: { type: Number, default: 0 },
+    totalPaidAmount: { type: Number, default: 0 },
+    lastCreditDate: Date,
     lastPaymentDate: Date,
     creditTransactions: { type: [creditTransactionSchema], default: [] },
+    creditHistory: { type: [creditTransactionSchema], default: [] },
     paymentHistory: { type: [creditPaymentSchema], default: [] }
   },
   { timestamps: true }
@@ -380523,6 +380528,7 @@ var billSchema = new import_mongoose10.default.Schema(
   {
     invoiceNo: { type: String, required: true, unique: true, trim: true },
     invoiceNumber: { type: String, trim: true },
+    customer: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "Customer" },
     customerName: { type: String, trim: true, default: "Walk-in Customer" },
     customerMobile: { type: String, trim: true },
     customerEmail: { type: String, trim: true },
@@ -380531,6 +380537,8 @@ var billSchema = new import_mongoose10.default.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     taxTotal: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
+    discountPercent: { type: Number, min: 0, default: 0 },
+    notes: { type: String, trim: true },
     total: { type: Number, required: true, min: 0 },
     paidAmount: { type: Number, required: true, min: 0, default: 0 },
     balanceAmount: { type: Number, required: true, min: 0, default: 0 },
@@ -380544,7 +380552,7 @@ var billSchema = new import_mongoose10.default.Schema(
     invoiceAt: { type: Date },
     paymentMethod: {
       type: String,
-      enum: ["Cash", "UPI", "Card", "Cheque", "Wallet", "Online", "Bank Transfer", "Credit"],
+      enum: ["Cash", "UPI", "Card", "Credit"],
       required: true,
       default: "Cash",
       set: (value) => {
@@ -380552,10 +380560,6 @@ var billSchema = new import_mongoose10.default.Schema(
         if (normalized === "upi") return "UPI";
         if (normalized === "cash") return "Cash";
         if (normalized === "card") return "Card";
-        if (normalized === "cheque") return "Cheque";
-        if (normalized === "wallet") return "Wallet";
-        if (normalized === "online") return "Online";
-        if (normalized === "bank transfer" || normalized === "banktransfer" || normalized === "bank_transfer") return "Bank Transfer";
         if (normalized === "credit") return "Credit";
         return value;
       }
@@ -380708,8 +380712,36 @@ var Refund = import_mongoose15.default.model("Refund", refundSchema);
 var Refund_default = Refund;
 
 // ../server/src/controllers/billController.js
+function normalizePaymentMethod(value) {
+  const normalized = String(value || "Cash").trim().toLowerCase();
+  if (normalized === "upi") return "UPI";
+  if (normalized === "card") return "Card";
+  if (normalized === "credit") return "Credit";
+  return "Cash";
+}
+function paymentStatusFromAmounts(total, paid) {
+  if (paid >= total) return "Paid";
+  if (paid > 0) return "Partial";
+  return "Unpaid";
+}
+async function resolveBillCustomer({ customerId, customerMobile, customerName, customerAddress }) {
+  if (customerId) return Customer.findById(customerId);
+  const mobile = String(customerMobile || "").trim();
+  if (!mobile) return null;
+  const name = String(customerName || "").trim() || "Walk-in Customer";
+  let customer = await Customer.findOne({ mobile });
+  if (!customer) {
+    customer = await Customer.create({ name, mobile, address: customerAddress || "" });
+  } else {
+    if (name && name !== "Walk-in Customer") customer.name = name;
+    if (customerAddress) customer.address = customerAddress;
+    await customer.save();
+  }
+  return customer;
+}
 var createBill = asyncHandler(async (req, res) => {
-  const { invoiceNo, items, subtotal, taxTotal, discount, total, paymentMethod, customerMobile, customerName } = req.body;
+  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, total, customerMobile, customerName, customerAddress, notes } = req.body;
+  const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
   if (!items || items.length === 0) {
     throw new ApiError(400, "Bill must have at least one item");
   }
@@ -380750,16 +380782,43 @@ var createBill = asyncHandler(async (req, res) => {
     const lastNumber = lastBill ? parseInt(lastBill.invoiceNo.replace(/\D/g, "") || 0) : 0;
     finalInvoiceNo = `INV${String(lastNumber + 1).padStart(6, "0")}`;
   }
+  const billTotal = Number(total || 0);
+  const paidAmount = paymentMethod === "Credit" ? Number(req.body.paidAmount || 0) : Number(req.body.paidAmount ?? billTotal);
+  if (paidAmount < 0) {
+    throw new ApiError(400, "Amount paid cannot be negative");
+  }
+  if (paymentMethod === "Credit" && paidAmount > billTotal) {
+    throw new ApiError(400, "Amount paid cannot exceed bill total for credit sales");
+  }
+  const dueAmount = Math.max(billTotal - paidAmount, 0);
+  const paymentStatus = paymentStatusFromAmounts(billTotal, paidAmount);
+  const customer = await resolveBillCustomer({
+    customerId: req.body.customer,
+    customerMobile,
+    customerName,
+    customerAddress
+  });
+  if (paymentMethod === "Credit" && !customer) {
+    throw new ApiError(400, "Customer name and mobile number are required for credit bills");
+  }
   const billPayload = {
     invoiceNo: finalInvoiceNo,
+    customer: customer?._id,
     items: normalizedItems,
     subtotal: subtotal || 0,
     taxTotal: taxTotal || 0,
     discount: discount || 0,
-    total: total || 0,
-    paymentMethod: paymentMethod || "Cash",
+    discountPercent: discountPercent || 0,
+    total: billTotal,
+    paidAmount,
+    balanceAmount: dueAmount,
+    dueAmount,
+    paymentStatus,
+    paymentMethod,
     customerMobile: customerMobile || null,
     customerName: customerName || "Walk-in Customer",
+    customerAddress: customerAddress || "",
+    notes: notes || "",
     staff: req.user?._id
   };
   if (req.body.invoiceAt) {
@@ -380787,6 +380846,39 @@ var createBill = asyncHandler(async (req, res) => {
     await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
   }
   const bill = await Bill_default.create(billPayload);
+  if (customer) {
+    const loyaltyPoints = Math.floor(bill.total / 100);
+    customer.totalSpent += bill.total;
+    customer.loyaltyPoints += loyaltyPoints;
+    if (paymentMethod === "Credit") {
+      const tx = {
+        billId: bill._id,
+        billModel: "Bill",
+        invoiceNo: bill.invoiceNo,
+        billAmount: bill.total,
+        paidAmount: bill.paidAmount,
+        dueAmount: bill.dueAmount,
+        paymentMethod: "Credit",
+        paymentStatus: bill.paymentStatus,
+        date: bill.createdAt
+      };
+      customer.totalCredit += bill.total;
+      customer.totalCreditSales += bill.total;
+      customer.totalPaid += bill.paidAmount;
+      customer.totalPaidAmount += bill.paidAmount;
+      customer.outstandingBalance += bill.dueAmount;
+      customer.creditBalance += bill.dueAmount;
+      customer.lastCreditDate = bill.createdAt;
+      if (bill.paidAmount > 0) customer.lastPaymentDate = bill.createdAt;
+      customer.creditTransactions.push(tx);
+      customer.creditHistory.push(tx);
+    } else if (bill.paidAmount > 0) {
+      customer.totalPaid += bill.paidAmount;
+      customer.totalPaidAmount += bill.paidAmount;
+      customer.lastPaymentDate = bill.createdAt;
+    }
+    await customer.save();
+  }
   res.status(201).json({ bill, message: "Bill created successfully" });
 });
 var getBill = asyncHandler(async (req, res) => {
@@ -381158,14 +381250,24 @@ var recordCollection = asyncHandler(async (req, res) => {
     tx.paymentStatus = tx.dueAmount <= 0 ? "Paid" : "Partial";
     remaining -= applied;
     appliedTo.push({ billId: tx.billId, invoiceNo: tx.invoiceNo, amount: applied });
-    await Sale.findByIdAndUpdate(tx.billId, {
-      $inc: { paidAmount: applied, balanceAmount: -applied },
-      $set: { paymentStatus: tx.dueAmount <= 0 ? "paid" : "partial" }
-    });
+    if (tx.billModel === "Bill") {
+      await Bill_default.findByIdAndUpdate(tx.billId, {
+        $inc: { paidAmount: applied, balanceAmount: -applied, dueAmount: -applied },
+        $set: { paymentStatus: tx.dueAmount <= 0 ? "Paid" : "Partial" }
+      });
+    } else {
+      await Sale.findByIdAndUpdate(tx.billId, {
+        $inc: { paidAmount: applied, balanceAmount: -applied },
+        $set: { paymentStatus: tx.dueAmount <= 0 ? "paid" : "partial" }
+      });
+    }
   }
   customer.creditTransactions = transactions;
+  customer.creditHistory = transactions;
   customer.totalPaid += amount;
+  customer.totalPaidAmount += amount;
   customer.outstandingBalance = Math.max(customer.outstandingBalance - amount, 0);
+  customer.creditBalance = Math.max(customer.creditBalance - amount, 0);
   customer.lastPaymentDate = /* @__PURE__ */ new Date();
   customer.paymentHistory.push({
     amount,
@@ -382124,25 +382226,33 @@ function startOfToday() {
 }
 var getDashboard = asyncHandler(async (req, res) => {
   const today = startOfToday();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
   const monthStart = /* @__PURE__ */ new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
   const overdueDate = /* @__PURE__ */ new Date();
   overdueDate.setDate(overdueDate.getDate() - 30);
-  const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart, receivableAgg, customersWithDue, overdueCreditBills] = await Promise.all([
-    Sale.aggregate([{ $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
-    Sale.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
+  const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart, receivableAgg, customersWithDue, overdueCreditBills, todayCreditSalesAgg, collectedTodayAgg] = await Promise.all([
+    Bill_default.aggregate([{ $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
+    Bill_default.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
     Product.countDocuments({ active: true }),
     Product.find({ $expr: { $lte: ["$stock", "$lowStockThreshold"] }, active: true }).sort({ stock: 1 }).limit(10).lean(),
-    Sale.find().populate("customer", "name mobile outstandingBalance").sort({ createdAt: -1 }).limit(8).lean(),
-    Sale.aggregate([
+    Bill_default.find().populate("customer", "name mobile outstandingBalance creditBalance").sort({ createdAt: -1 }).limit(8).lean(),
+    Bill_default.aggregate([
       { $match: { createdAt: { $gte: monthStart } } },
-      { $group: { _id: { $dayOfMonth: "$createdAt" }, revenue: { $sum: "$total" }, profit: { $sum: "$profit" } } },
+      { $group: { _id: { $dayOfMonth: "$createdAt" }, revenue: { $sum: "$total" } } },
       { $sort: { _id: 1 } }
     ]),
-    Customer.aggregate([{ $group: { _id: null, total: { $sum: "$outstandingBalance" } } }]),
-    Customer.countDocuments({ outstandingBalance: { $gt: 0 } }),
-    Sale.countDocuments({ paymentMethod: "credit", balanceAmount: { $gt: 0 }, createdAt: { $lte: overdueDate } })
+    Customer.aggregate([{ $group: { _id: null, total: { $sum: "$creditBalance" } } }]),
+    Customer.countDocuments({ creditBalance: { $gt: 0 } }),
+    Bill_default.countDocuments({ paymentMethod: "Credit", dueAmount: { $gt: 0 }, createdAt: { $lte: overdueDate } }),
+    Bill_default.aggregate([{ $match: { paymentMethod: "Credit", createdAt: { $gte: today, $lt: tomorrow } } }, { $group: { _id: null, total: { $sum: "$total" }, count: { $sum: 1 } } }]),
+    Customer.aggregate([
+      { $unwind: "$paymentHistory" },
+      { $match: { "paymentHistory.date": { $gte: today, $lt: tomorrow } } },
+      { $group: { _id: null, total: { $sum: "$paymentHistory.amount" }, count: { $sum: 1 } } }
+    ])
   ]);
   res.json({
     totals: {
@@ -382154,7 +382264,11 @@ var getDashboard = asyncHandler(async (req, res) => {
       lowStockCount: lowStock.length,
       totalOutstandingReceivables: receivableAgg[0]?.total || 0,
       customersWithDue,
-      overdueCreditBills
+      overdueCreditBills,
+      todayCreditSales: todayCreditSalesAgg[0]?.total || 0,
+      todayCreditBills: todayCreditSalesAgg[0]?.count || 0,
+      collectedToday: collectedTodayAgg[0]?.total || 0,
+      collectionCountToday: collectedTodayAgg[0]?.count || 0
     },
     lowStock,
     recentTransactions,

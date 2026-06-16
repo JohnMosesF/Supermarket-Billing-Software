@@ -21,6 +21,7 @@
     "react-router-dom": "^7.1.1",
     "recharts": "^2.15.0",
     "supermarket-billing-software": "file:..",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

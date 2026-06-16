@@ -34,6 +34,9 @@ export default function ModernPOSBilling() {
   // Cart state
   const [cart, setCart] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  useEffect(() => {
+    console.log("Selected Index:", selectedIndex);
+  }, [selectedIndex]);
   
   // Customer and payment info
   const [customerName, setCustomerName] = useState('');
@@ -43,10 +46,11 @@ export default function ModernPOSBilling() {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [customerSuggestionIndex, setCustomerSuggestionIndex] = useState(-1);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
+  const [amountPaid, setAmountPaid] = useState(0);
   
   // UI state
-  const [showCustomerPanel, setShowCustomerPanel] = useState(false);
-  const [showHoldBillsModal, setShowHoldBillsModal] = useState(false);
+    const [showHoldBillsModal, setShowHoldBillsModal] = useState(false);
+    const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   // Invoice date/time (editable)
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -258,9 +262,28 @@ export default function ModernPOSBilling() {
       taxTotal,
       discount,
       total,
+
       paymentMethod: paymentMethod || 'Cash',
+
       customerName: customerName || 'Walk-in Customer',
-      customerMobile: customerMobile || null
+      customerMobile: customerMobile || null,
+
+      // CREDIT SUPPORT
+      amountPaid:
+        paymentMethod === 'credit'
+          ? Number(amountPaid || 0)
+          : total,
+
+      balanceDue:
+        paymentMethod === 'credit'
+          ? Math.max(0, total - Number(amountPaid || 0))
+          : 0,
+
+      paymentStatus:
+        paymentMethod === 'credit' &&
+        Math.max(0, total - Number(amountPaid || 0)) > 0
+          ? 'PARTIAL'
+          : 'PAID'
     };
     // include editable invoice date/time
     try {
@@ -326,7 +349,6 @@ export default function ModernPOSBilling() {
       setCustomerMobile('');
       setDiscountPercent(0);
       setPaymentMethod('cash');
-      setShowCustomerPanel(false);
       setSelectedIndex(-1);
       
       // Focus product ID for next entry
@@ -360,7 +382,6 @@ export default function ModernPOSBilling() {
       setCustomerMobile('');
       setDiscountPercent(0);
       setPaymentMethod('cash');
-      setShowCustomerPanel(false);
       setSelectedIndex(-1);
       
       entryRef.current?.focusProductId();
@@ -438,7 +459,6 @@ export default function ModernPOSBilling() {
     setCustomerMobile('');
     setDiscountPercent(0);
     setPaymentMethod('cash');
-    setShowCustomerPanel(false);
     setSelectedIndex(-1);
     
     entryRef.current?.focusProductId();
@@ -513,7 +533,6 @@ export default function ModernPOSBilling() {
 
     actionsRef.current = {
       focusProduct: () => entryRef.current?.focusProductId(),
-      focusCustomer: () => { customerNameRef.current?.focus(); setShowCustomerPanel(true); },
       newBill: () => handleNewBillRef.current?.(),
       resumeHoldBill: () => setShowHoldBillsModal(true),
       deleteItem: () => removeSelectedRef.current?.(),
@@ -560,6 +579,10 @@ export default function ModernPOSBilling() {
   }, 0);
   const discount = (subtotal * Number(discountPercent || 0)) / 100;
   const total = subtotal + taxTotal - discount;
+  const balanceDue =
+    paymentMethod === 'credit'
+      ? Math.max(0, total - Number(amountPaid || 0))
+      : 0;
   const itemCount = cart.length;
   const quantity = cart.reduce((sum, it) => sum + Number(it.qty || 0), 0);
   const liveInvoiceSale = {
@@ -627,6 +650,29 @@ export default function ModernPOSBilling() {
               />
             </div>
           </div>
+          <div className="mt-4 flex gap-3">
+        <button
+          onClick={handleSave}
+          className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold"
+        >
+        💾Save Bill
+        </button>
+
+        <button
+          onClick={handleHold}
+          className="flex-1 bg-yellow-500 text-white py-3 rounded-lg font-semibold"
+        >
+        ⏸Hold
+        </button>
+
+        <button
+          onClick={handlePrint}
+          className="flex-1 bg-slate-700 text-white py-3 rounded-lg font-semibold"
+        >
+          🖨Print
+        </button>
+      </div>
+          
         </div>
 
         {/* Right side - Summary and Preview */}
@@ -648,15 +694,10 @@ export default function ModernPOSBilling() {
 
           {/* Customer info panel */}
           <div className="bg-white shadow-md rounded-lg p-3">
-            <button
-              onClick={() => setShowCustomerPanel(!showCustomerPanel)}
-              className="w-full p-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600"
-            >
-              {showCustomerPanel ? '▼' : '▶'} Customer Details
-            </button>
-            
-            {showCustomerPanel && (
-              <div className="mt-3 space-y-2">
+                <h2 className="text-lg font-bold mb-3">
+                  Customer Details
+                </h2>
+              <div className="space-y-2">
                 <div>
                   <label className="text-sm font-semibold">Name</label>
                   <input
@@ -678,7 +719,7 @@ export default function ModernPOSBilling() {
                     onChange={(e) => setCustomerMobile(e.target.value)}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
-                  {showCustomerPanel && (customerSuggestions.length > 0 || customerSearchLoading) && (
+                  {(customerSuggestions.length > 0 || customerSearchLoading) && (
                     <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
                       {customerSearchLoading ? (
                         <div className="p-2 text-sm text-slate-500">Searching customers...</div>
@@ -706,6 +747,7 @@ export default function ModernPOSBilling() {
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="cash">Cash</option>
+                    <option value="credit">Credit</option>
                     <option value="upi">UPI</option>
                     <option value="card">Card</option>
                     <option value="cheque">Cheque</option>
@@ -726,19 +768,75 @@ export default function ModernPOSBilling() {
                   />
                 </div>
               </div>
-            )}
+            
+            {paymentMethod === 'credit' && (
+              <div>
+                <label className="text-sm font-semibold">
+                  Amount Paid
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(Number(e.target.value))}
+                  className="w-full p-2 border rounded-lg text-sm"
+                />
+              </div>
+              )}
+              {paymentMethod === 'credit' && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
+                  <div className="text-sm font-semibold text-red-700">
+                    Outstanding Amount
+                  </div>
+
+                  <div className="text-2xl font-bold text-red-600">
+                    ₹{balanceDue.toFixed(2)}
+                  </div>
+                </div>
+              )}
           </div>
 
           {/* Invoice preview */}
-          <div className="flex-1 bg-white shadow-md rounded-lg p-3 min-h-0 overflow-hidden flex flex-col">
-            <h2 className="text-lg font-bold mb-2">Invoice Preview</h2>
-            <div className="flex-1 overflow-auto">
-              <InvoicePreview sale={liveInvoiceSale} settings={settings || {}} />
-            </div>
+          <div className="mt-3">
+            <button
+              onClick={() => setShowInvoicePreview(true)}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-semibold"
+            >
+              📄 View Invoice Preview
+            </button>
           </div>
         </div>
       </div>
 
+      {/* Invoice Preview Modal */}
+      {showInvoicePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl w-[900px] max-w-[95vw] h-[85vh] flex flex-col">
+
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-xl font-bold">
+                Invoice Preview
+              </h2>
+
+              <button
+                onClick={() => setShowInvoicePreview(false)}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg"
+              >
+                X
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-4">
+              <InvoicePreview
+                sale={liveInvoiceSale}
+                settings={settings || {}}
+              />
+            </div>
+
+          </div>
+        </div>
+      )}
       {/* Hold Bills modal */}
       <HoldBillsModal
         isOpen={showHoldBillsModal}

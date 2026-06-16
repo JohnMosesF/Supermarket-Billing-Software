@@ -6,6 +6,7 @@ import { api } from '../api/http.js';
 import { EmptyState } from '../components/EmptyState.jsx';
 import { PageHeader } from '../components/PageHeader.jsx';
 import { currency } from '../utils/format.js';
+import * as XLSX from 'xlsx';
 
 export function Products() {
   const [products, setProducts] = useState([]);
@@ -16,12 +17,24 @@ export function Products() {
   const { register, handleSubmit, reset } = useForm();
 
   async function load() {
-    const [productRes, categoryRes] = await Promise.all([
-      api.get('/products', { params: { search, limit: 100 } }),
-      api.get('/categories')
-    ]);
-    setProducts(productRes.data.products);
-    setCategories(categoryRes.data.categories);
+    try {
+      const [productRes, categoryRes] = await Promise.all([
+        api.get('/products', {
+          params: {
+            search,
+            limit: 100
+          }
+        }),
+        api.get('/categories')
+      ]);
+
+      setProducts(productRes.data.products || []);
+      setCategories(categoryRes.data.categories || []);
+
+    } catch (error) {
+      console.error('LOAD ERROR:', error);
+      toast.error('Failed to load products');
+    }
   }
 
   useEffect(() => {
@@ -30,26 +43,47 @@ export function Products() {
   }, [search]);
 
   async function save(values) {
-    const payload = {
-      ...values,
-      category: values.category || undefined,
-      purchasePrice: Number(values.purchasePrice),
-      sellingPrice: Number(values.sellingPrice),
-      stock: Number(values.stock || 0),
-      lowStockThreshold: Number(values.lowStockThreshold || 5),
-      taxRate: Number(values.taxRate || 0)
-    };
+    try {
+      console.log('Saving Product:', values);
 
-    if (editing) {
-      await api.patch(`/products/${editing._id}`, payload);
-      toast.success('Product updated');
-    } else {
-      await api.post('/products', payload);
-      toast.success('Product added');
+      const payload = {
+        ...values,
+        category: values.category || undefined,
+        purchasePrice: Number(values.purchasePrice),
+        sellingPrice: Number(values.sellingPrice),
+        stock: Number(values.stock || 0),
+        lowStockThreshold: Number(values.lowStockThreshold || 5),
+        taxRate: Number(values.taxRate || 0)
+      };
+
+      if (editing) {
+        await api.patch(`/products/${editing._id}`, payload);
+        toast.success('Product updated');
+      } else {
+        await api.post('/products', payload);
+        toast.success('Product added');
+      }
+
+      reset({
+        name: '',
+        sku: '',
+        category: '',
+        purchasePrice: '',
+        sellingPrice: '',
+        taxRate: '',
+        stock: '',
+        lowStockThreshold: '',
+        unit: ''
+      });
+
+      setEditing(null);
+
+      await load();
+
+    } catch (error) {
+      console.error('PRODUCT SAVE ERROR:', error);
+      toast.error(error?.response?.data?.message || error.message);
     }
-    reset({});
-    setEditing(null);
-    load();
   }
 
   function edit(product) {
@@ -82,6 +116,110 @@ export function Products() {
     load();
   }
 
+  function exportProducts() {
+    const worksheet = XLSX.utils.json_to_sheet(
+      products.map(product => ({
+        Name: product.name,
+        SKU: product.sku,
+        Category: product.category?.name,
+        PurchasePrice: product.purchasePrice,
+        SellingPrice: product.sellingPrice,
+        GST: product.taxRate,
+        Stock: product.stock
+      }))
+    );
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      'Products'
+    );
+
+    XLSX.writeFile(
+      workbook,
+      'products.xlsx'
+    );
+  }
+
+  function downloadTemplate() {
+    const worksheet = XLSX.utils.json_to_sheet([
+      {
+        Name: '',
+        SKU: '',
+        Category: '',
+        PurchasePrice: '',
+        SellingPrice: '',
+        GST: '',
+        Stock: ''
+      }
+    ]);
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+      workbook,
+      worksheet,
+      'Template'
+    );
+
+    XLSX.writeFile(
+      workbook,
+      'product_template.xlsx'
+    );
+  }
+
+  async function handleImport(event) {
+    try {
+      const file = event.target.files[0];
+
+      if (!file) return;
+
+      const data = await file.arrayBuffer();
+
+      const workbook = XLSX.read(data);
+
+      const sheet =
+        workbook.Sheets[
+          workbook.SheetNames[0]
+        ];
+
+      const rows =
+        XLSX.utils.sheet_to_json(sheet);
+
+      console.log(rows);
+
+      toast.success(
+        `${rows.length} products loaded`
+      );
+
+      // next step:
+      // send rows to backend bulk import API
+      console.log("Imported rows:", rows);
+
+      for (const row of rows) {
+        console.log("Sending row:", row);
+
+        const response = await api.post('/products', {
+          name: row.name,
+          sku: row.sku,
+          purchasePrice: Number(row.purchasePrice),
+          sellingPrice: Number(row.sellingPrice),
+          stock: Number(row.stock),
+          taxRate: Number(row.taxRate),
+          unit: row.unit
+        });
+
+        console.log("Server response:", response.data);
+      }
+
+    } catch (error) {
+      console.error(error);
+      toast.error('Import failed');
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Products" description="Manage product catalog, prices, GST, images, and stock levels." />
@@ -90,14 +228,17 @@ export function Products() {
           <h2 className="font-semibold">{editing ? 'Edit product' : 'Add product'}</h2>
           <input className="input" placeholder="Product name" {...register('name', { required: true })} />
           <input className="input" placeholder="SKU auto generated if blank" {...register('sku')} />
+          
+          <select className="input" {...register('category')}>
+            <option value="">No category</option>
+            {categories.map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}
+          </select>
+            
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <select className="input" {...register('category')}>
-              <option value="">No category</option>
-              {categories.map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}
-            </select>
+            <input className="input" placeholder="New category name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} />
             <button type="button" className="btn-muted" onClick={addCategory}>Add</button>
           </div>
-          <input className="input" placeholder="New category name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} />
+
           <div className="grid grid-cols-2 gap-3">
             <input className="input" type="number" step="0.01" placeholder="Purchase price" {...register('purchasePrice', { required: true })} />
             <input className="input" type="number" step="0.01" placeholder="Selling price" {...register('sellingPrice', { required: true })} />
@@ -113,6 +254,33 @@ export function Products() {
         </form>
 
         <div className="panel overflow-hidden">
+          <div className="flex gap-2 p-4 border-b">
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={exportProducts}
+            >
+              Export Excel
+            </button>
+
+            <button
+              type="button"
+              className="btn-muted"
+              onClick={downloadTemplate}
+            >
+              Download Template
+            </button>
+
+            <label className="btn-muted cursor-pointer">
+              Import Excel
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleImport}
+              />
+            </label>
+          </div>
           <div className="flex items-center gap-2 border-b border-slate-100 p-4 dark:border-slate-800">
             <Search size={18} className="text-slate-400" />
             <input className="w-full bg-transparent text-sm outline-none" placeholder="Search product, SKU, or barcode" value={search} onChange={(event) => setSearch(event.target.value)} />

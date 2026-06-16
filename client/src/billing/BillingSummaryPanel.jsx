@@ -71,33 +71,7 @@ export default function BillingSummaryPanel({
           <span className="text-blue-600">{currency(summary.billAmount)}</span>
         </div>
       </div>
-
-      <div className="space-y-2">
-        <button
-          onClick={onSave}
-          className="w-full py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition"
-          title="Save Bill (Ctrl+S)"
-        >
-          💾 Save Bill
-        </button>
-        
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={onHold}
-            className="py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 transition"
-            title="Hold Bill (Ctrl+H)"
-          >
-            ⏸ Hold
-          </button>
-          <button
-            onClick={onPrint}
-            className="py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition"
-            title="Print Bill (Ctrl+P)"
-          >
-            🖨 Print
-          </button>
-        </div>
-      </div>
+      
     </div>
   );
 }
