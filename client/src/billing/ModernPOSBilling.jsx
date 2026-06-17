@@ -178,7 +178,7 @@ export default function ModernPOSBilling() {
         const copy = [...prev];
         copy[existing] = {
           ...copy[existing],
-          qty: Number(copy[existing].qty || 0) + Number(item.qty || 0)
+          qty: parseFloat(copy[existing].qty || 0) + parseFloat(item.qty || 0)
         };
         return copy;
       }
@@ -226,9 +226,9 @@ export default function ModernPOSBilling() {
       throw new Error('Cart is empty');
     }
 
-    const subtotal = cart.reduce((s, it) => s + Number(it.rate || 0) * Number(it.qty || 0), 0);
+    const subtotal = cart.reduce((s, it) => s + Number(it.rate || 0) * parseFloat(it.qty || 0), 0);
     const taxTotal = cart.reduce((s, it) => {
-      const itemTotal = Number(it.rate || 0) * Number(it.qty || 0);
+      const itemTotal = Number(it.rate || 0) * parseFloat(it.qty || 0);
       return s + (itemTotal * Number(it.gst || 0)) / 100;
     }, 0);
     
@@ -249,10 +249,15 @@ export default function ModernPOSBilling() {
         _id: pid,
         productId: pid,
         productName: it.productName || it.name || '',
-        quantity: Number(it.qty || it.quantity || 1),
-        price: Number(it.rate || it.sellingPrice || it.price || 0),
-        gst: Number(it.gst || it.taxRate || it.tax || 0),
-        total: Number(it.amount != null ? it.amount : (Number(it.rate || it.sellingPrice || it.price || 0) * Number(it.qty || it.quantity || 1)))
+        quantity: parseFloat(it.qty ?? it.quantity ?? 1),
+        price: parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0),
+        gst: parseFloat(it.gst ?? it.taxRate ?? it.tax ?? 0),
+        total: Number(
+          it.amount != null
+            ? it.amount
+            : (parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0) *
+              parseFloat(it.qty ?? it.quantity ?? 1))
+        )
       };
     });
 
@@ -487,8 +492,8 @@ export default function ModernPOSBilling() {
       rate: item.price || item.sellingPrice || item.rate || 0,
       qty: item.quantity || item.qty || 0,
       gst: item.gst || item.tax || item.taxRate || 0,
-      amount: item.total != null ? item.total : (Number(item.price || item.sellingPrice || item.rate || 0) * Number(item.quantity || item.qty || 0)),
-      gstAmount: ((Number(item.price || item.sellingPrice || item.rate || 0) * Number(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100
+      amount: item.total != null ? item.total : (Number(item.price || item.sellingPrice || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)),
+      gstAmount: ((Number(item.price || item.sellingPrice || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100
     }));
 
     setCart(restoredCart);
@@ -572,9 +577,9 @@ export default function ModernPOSBilling() {
   /**
    * Calculate totals
    */
-  const subtotal = cart.reduce((s, it) => s + Number(it.rate || 0) * Number(it.qty || 0), 0);
+  const subtotal = cart.reduce((s, it) => s + Number(it.rate || 0) * parseFloat(it.qty || 0), 0);
   const taxTotal = cart.reduce((s, it) => {
-    const itemTotal = Number(it.rate || 0) * Number(it.qty || 0);
+    const itemTotal = Number(it.rate || 0) * parseFloat(it.qty || 0);
     return s + (itemTotal * Number(it.gst || 0)) / 100;
   }, 0);
   const discount = (subtotal * Number(discountPercent || 0)) / 100;
@@ -584,7 +589,7 @@ export default function ModernPOSBilling() {
       ? Math.max(0, total - Number(amountPaid || 0))
       : 0;
   const itemCount = cart.length;
-  const quantity = cart.reduce((sum, it) => sum + Number(it.qty || 0), 0);
+  const quantity = cart.reduce((sum, it) => sum + parseFloat(it.qty || 0), 0);
   const liveInvoiceSale = {
     invoiceNumber: 'AUTO',
     invoiceAt: `${invoiceDate}T${invoiceTime}`,
@@ -632,7 +637,7 @@ export default function ModernPOSBilling() {
           <div className="bg-white shadow-md rounded-lg p-3">
             <BillingEntryRow ref={entryRef} onAddItem={handleAddItem} />
           </div>
-
+          
           {/* Cart items table */}
           <div className="flex-1 bg-white shadow-md rounded-lg p-3 min-h-0 overflow-hidden flex flex-col">
             <h2 className="text-lg font-bold mb-2">Cart Items</h2>

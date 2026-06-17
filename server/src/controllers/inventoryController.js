@@ -26,7 +26,7 @@ export const adjustStock = asyncHandler(async (req, res) => {
   if (!product) throw new ApiError(404, 'Product not found');
 
   const stockBefore = product.stock;
-  const stockAfter = Math.max(stockBefore + Number(req.body.quantity), 0);
+  const stockAfter = Math.max(stockBefore + parseFloat(req.body.quantity), 0);
   product.stock = stockAfter;
   await product.save();
 

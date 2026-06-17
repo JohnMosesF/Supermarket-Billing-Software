@@ -4,6 +4,13 @@ import { currency } from '../utils/format.js';
 function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1, onUpdateItem = () => {}, onRemove = () => {} }) {
   const tableRef = useRef(null);
 
+  const formatQty = (qty, allowDecimalQty) => {
+    const value = parseFloat(qty || 0);
+    if (!Number.isFinite(value)) return '0';
+    if (!allowDecimalQty && Number.isInteger(value)) return value.toFixed(0);
+    return value.toFixed(3).replace(/\.?0+$/, '');
+  };
+
   useEffect(() => {
     const handler = (e) => {
       if (!tableRef.current) return;
@@ -23,15 +30,17 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
     return () => window.removeEventListener('keydown', handler);
   }, [cart, onSelectIndex, onRemove, selectedIndex]);
 
-  const total = cart.reduce((s, it) => s + (Number(it.rate || 0) * Number(it.qty || 0) + ((Number(it.rate || 0) * Number(it.qty || 0) * Number(it.gst || 0)) / 100)), 0);
+  const total = cart.reduce((s, it) => s + (Number(it.rate || 0) * parseFloat(it.qty || 0) + ((Number(it.rate || 0) * parseFloat(it.qty || 0) * Number(it.gst || 0)) / 100)), 0);
 
   return (
     <div ref={tableRef} className="text-sm" tabIndex={0}>
-      <div className="grid grid-cols-8 gap-1 font-semibold text-xs px-1 pb-1 border-b">
-        <div>Code</div>
-        <div className="col-span-2">Name</div>
+      <div className="grid grid-cols-10 gap-1 font-semibold text-xs px-1 pb-1 border-b">
+        <div>PID</div>
+        <div>SKU</div>
+        <div className="col-span-2">Product</div>
         <div className="text-right">Rate</div>
         <div className="text-right">Qty</div>
+        <div>Unit</div>
         <div className="text-right">GST%</div>
         <div className="text-right">GST</div>
         <div className="text-right">Amount</div>
@@ -39,21 +48,51 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
 
       <div>
         {cart.map((item, i) => {
-          const amount = Number(item.rate || 0) * Number(item.qty || 0);
+          console.log("TABLE ITEM", item);
+          const amount = Number(item.rate || 0) * parseFloat(item.qty || 0);
           const gstAmt = (amount * Number(item.gst || 0)) / 100;
           const net = amount + gstAmt;
           const code = item.productId && /^[0-9]+$/.test(String(item.productId))
             ? String(item.productId)
             : (item.sku || '');
           return (
-            <div key={i} className={`${i === selectedIndex ? 'bg-blue-100 ring-1 ring-blue-200' : ''} grid grid-cols-8 gap-1 items-center text-xs px-1 py-1 border-b cursor-default`} onClick={() => onSelectIndex(i)}>
-              <div className="truncate">{code}</div>
-              <div className="col-span-2 truncate">{item.name}</div>
-              <div className="text-right">{currency(Number(item.rate || 0))}</div>
-              <div className="text-right">{item.qty}</div>
-              <div className="text-right">{item.gst}</div>
-              <div className="text-right">{currency(gstAmt)}</div>
-              <div className="text-right">{currency(net)}</div>
+            <div key={i} className={`${i === selectedIndex ? 'bg-blue-100 ring-1 ring-blue-200' : ''} grid grid-cols-10 gap-1 items-center text-xs px-1 py-1 border-b cursor-pointer`} onClick={() => onSelectIndex(i)}>
+              <div className="truncate">
+                
+                {item.productId || '-'}
+                </div>
+
+                <div className="truncate">
+                {item.sku || '-'}
+                </div>
+
+                <div className="col-span-2 truncate font-medium">
+                {item.name}
+                </div>
+
+                <div className="text-right">
+                {currency(Number(item.rate || 0))}
+                </div>
+
+                <div className="text-right">
+                {formatQty(item.qty, item.allowDecimalQty)}
+                </div>
+
+                <div className="text-center">
+                {item.unit || 'pcs'}
+                </div>
+
+                <div className="text-right">
+                {item.gst || 0}
+                </div>
+
+                <div className="text-right">
+                {currency(gstAmt)}
+                </div>
+
+                <div className="text-right font-semibold">
+                {currency(net)}
+                </div>
             </div>
           );
         })}

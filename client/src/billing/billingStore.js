@@ -24,7 +24,7 @@ export function createBillingStore(windowId) {
           return state;
         }
 
-        const qtyToAdd = Math.max(1, Number(quantity) || 1);
+        const qtyToAdd = Math.max(0.001, parseFloat(quantity) || 0.001);
 
         const normalizedProduct = {
           _id: product._id,
@@ -65,7 +65,7 @@ export function createBillingStore(windowId) {
           item._id === productId
             ? {
                 ...item,
-                quantity: Math.max(1, Math.min(item.stock, item.quantity + delta)),
+                quantity: Math.max(0.001, Math.min(item.stock, item.quantity + delta)),
               }
             : item
         ),

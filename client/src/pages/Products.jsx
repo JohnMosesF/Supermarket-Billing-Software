@@ -15,7 +15,7 @@ export function Products() {
   const [editing, setEditing] = useState(null);
   const [categoryName, setCategoryName] = useState('');
   const { register, handleSubmit, reset } = useForm();
-
+// --- Load Products & Categories ---
   async function load() {
     try {
       const [productRes, categoryRes] = await Promise.all([
@@ -41,19 +41,35 @@ export function Products() {
     const timer = setTimeout(load, 250);
     return () => clearTimeout(timer);
   }, [search]);
-
+// --- Add/Edit Product ---
   async function save(values) {
     try {
       console.log('Saving Product:', values);
 
       const payload = {
         ...values,
+
         category: values.category || undefined,
-        purchasePrice: Number(values.purchasePrice),
-        sellingPrice: Number(values.sellingPrice),
+
+        purchasePrice: Number(values.purchasePrice || 0),
+        sellingPrice: Number(values.sellingPrice || 0),
+        wholesalePrice: Number(values.wholesalePrice || 0),
+        mrp: Number(values.mrp || 0),
+
         stock: Number(values.stock || 0),
+        openingStock: Number(values.openingStock || values.stock || 0),
+
         lowStockThreshold: Number(values.lowStockThreshold || 5),
-        taxRate: Number(values.taxRate || 0)
+
+        taxRate: Number(values.taxRate || 0),
+        discount: Number(values.discount || 0),
+
+        allowDecimalQty: !!values.allowDecimalQty,
+
+        localName: values.localName || '',
+        companyName: values.companyName || '',
+        hsnCode: values.hsnCode || '',
+        unit: values.unit || 'pcs'
       };
 
       if (editing) {
@@ -66,14 +82,22 @@ export function Products() {
 
       reset({
         name: '',
+        localName: '',
         sku: '',
         category: '',
+        mrp: '',
         purchasePrice: '',
         sellingPrice: '',
-        taxRate: '',
+        wholesalePrice: '',
         stock: '',
-        lowStockThreshold: '',
-        unit: ''
+        openingStock: '',
+        lowStockThreshold: 5,
+        taxRate: '',
+        discount: '',
+        companyName: '',
+        hsnCode: '',
+        unit: 'pcs',
+        allowDecimalQty: false
       });
 
       setEditing(null);
@@ -85,29 +109,46 @@ export function Products() {
       toast.error(error?.response?.data?.message || error.message);
     }
   }
-
+// --- Edit Product ---
   function edit(product) {
-    setEditing(product);
-    reset({
+  setEditing(product);
+
+  reset({
       name: product.name,
+      localName: product.localName,
       sku: product.sku,
+
       category: product.category?._id,
+
+      mrp: product.mrp,
       purchasePrice: product.purchasePrice,
       sellingPrice: product.sellingPrice,
-      taxRate: product.taxRate,
+      wholesalePrice: product.wholesalePrice,
+
       stock: product.stock,
+      openingStock: product.openingStock,
+
       lowStockThreshold: product.lowStockThreshold,
-      unit: product.unit
+
+      taxRate: product.taxRate,
+      discount: product.discount,
+
+      companyName: product.companyName,
+      hsnCode: product.hsnCode,
+
+      unit: product.unit,
+
+      allowDecimalQty: product.allowDecimalQty
     });
   }
-
+// --- Delete Product ---
   async function remove(product) {
     if (!confirm(`Delete ${product.name}?`)) return;
     await api.delete(`/products/${product._id}`);
     toast.success('Product deleted');
     load();
   }
-
+// --- Categories ---
   async function addCategory() {
     if (!categoryName.trim()) return;
     await api.post('/categories', { name: categoryName.trim() });
@@ -115,17 +156,28 @@ export function Products() {
     setCategoryName('');
     load();
   }
-
+// --- Excel Import/Export ---
   function exportProducts() {
     const worksheet = XLSX.utils.json_to_sheet(
       products.map(product => ({
-        Name: product.name,
+        ProductID: product.productId,
         SKU: product.sku,
-        Category: product.category?.name,
-        PurchasePrice: product.purchasePrice,
+        Name: product.name,
+        LocalName: product.localName,
+        MRP: product.mrp,
         SellingPrice: product.sellingPrice,
+        WholesalePrice: product.wholesalePrice,
+        OpeningStock: product.openingStock,
+        CurrentStock: product.stock,
+        PurchasePrice: product.purchasePrice,
+        LowStockThreshold: product.lowStockThreshold,
+        CompanyName: product.companyName,
+        Unit: product.unit,
+        Category: product.category?.name,
         GST: product.taxRate,
-        Stock: product.stock
+        Discount: product.discount,
+        HSNCode: product.hsnCode,
+        AllowDecimalQty: product.allowDecimalQty ? 'Yes' : 'No'
       }))
     );
 
@@ -142,19 +194,30 @@ export function Products() {
       'products.xlsx'
     );
   }
-
+// --- Download Excel Template ---
   function downloadTemplate() {
     const worksheet = XLSX.utils.json_to_sheet([
-      {
-        Name: '',
-        SKU: '',
-        Category: '',
-        PurchasePrice: '',
-        SellingPrice: '',
-        GST: '',
-        Stock: ''
-      }
-    ]);
+    {
+      ProductID: '',
+      SKU: '',
+      Name: '',
+      LocalName: '',
+      MRP: '',
+      SellingPrice: '',
+      WholesalePrice: '',
+      OpeningStock: '',
+      CurrentStock: '',
+      PurchasePrice: '',
+      LowStockThreshold: '',
+      CompanyName: '',
+      Unit: 'pcs',
+      Category: '',
+      GST: '',
+      Discount: '',
+      HSNCode: '',
+      AllowDecimalQty: 'No'
+    }
+  ]);
 
     const workbook = XLSX.utils.book_new();
 
@@ -169,7 +232,7 @@ export function Products() {
       'product_template.xlsx'
     );
   }
-
+// --- Handle Excel Import ---
   async function handleImport(event) {
     try {
       const file = event.target.files[0];
@@ -198,21 +261,130 @@ export function Products() {
       // send rows to backend bulk import API
       console.log("Imported rows:", rows);
 
+      let successCount = 0;
+      let failureCount = 0;
+
       for (const row of rows) {
-        console.log("Sending row:", row);
+        try {
+          // Validate required fields
+          const name = row.Name?.trim();
+          const skuFromExcel = row.SKU?.trim();
+          const sku = (skuFromExcel || '').toUpperCase();
+          const excelProductId = Number(
+            row.ProductID ||
+            row['Product ID'] ||
+            row.ProductId ||
+            0
+          );
+          const purchasePrice = Number(row.PurchasePrice || 0);
+          const sellingPrice = Number(row.SellingPrice || 0);
 
-        const response = await api.post('/products', {
-          name: row.name,
-          sku: row.sku,
-          purchasePrice: Number(row.purchasePrice),
-          sellingPrice: Number(row.sellingPrice),
-          stock: Number(row.stock),
-          taxRate: Number(row.taxRate),
-          unit: row.unit
-        });
+          // Skip if missing product name
+          if (!name) {
+            console.warn('Skipping row: Missing product name', row);
+            continue;
+          }
+          if (purchasePrice <= 0) {
+            console.warn('Skipping row: Invalid purchase price', row);
+            failureCount++;
+            toast.error(`Invalid purchase price for "${name}"`);
+            continue;
+          }
+          if (sellingPrice <= 0) {
+            console.warn('Skipping row: Invalid selling price', row);
+            failureCount++;
+            toast.error(`Invalid selling price for "${name}"`);
+            continue;
+          }
 
-        console.log("Server response:", response.data);
+          // Build payload with all fields
+          const payload = {
+            name,
+            localName: row.LocalName?.trim() || '',
+            mrp: Number(row.MRP || 0),
+            sellingPrice,
+            wholesalePrice: Number(row.WholesalePrice || 0),
+            purchasePrice,
+            openingStock: Number(row.OpeningStock || 0),
+            stock: Number(row.CurrentStock || row.OpeningStock || 0),
+            lowStockThreshold: Number(row.LowStockThreshold || 5),
+            companyName: row.CompanyName || '',
+            unit: row.Unit || 'pcs',
+            taxRate: Number(row.GST || 0),
+            discount: Number(row.Discount || 0),
+            hsnCode: row.HSNCode || '',
+            allowDecimalQty:
+              String(row.AllowDecimalQty)
+                .toLowerCase() === 'yes'
+          };
+
+          // Only include SKU if provided in Excel (let server auto-generate if missing)
+          if (skuFromExcel) {
+            payload.sku = sku;
+          }
+
+          // Only include productId if provided in Excel
+          if (excelProductId > 0) {
+            payload.productId = excelProductId;
+          }
+
+          // Find and assign category
+          if (row.Category) {
+            const existingCategory = categories.find(
+              c =>
+                c.name.toLowerCase() ===
+                row.Category.toLowerCase()
+            );
+            if (existingCategory) {
+              payload.category = existingCategory._id;
+            }
+          }
+
+          // Check if product already exists by SKU or ProductID
+          let existing = null;
+          if (skuFromExcel) {
+            existing = products.find(
+              p =>
+                p.sku?.trim().toUpperCase() === sku
+            );
+          }
+          if (!existing && excelProductId > 0) {
+            existing = products.find(
+              p => p.productId === excelProductId
+            );
+          }
+
+          if (existing) {
+            console.log('Updating product:', name);
+            await api.patch(
+              `/products/${existing._id}`,
+              payload
+            );
+            console.log('✓ Updated:', name);
+            successCount++;
+          } else {
+            console.log('Creating new product:', name, skuFromExcel ? `with SKU: ${sku}` : '(SKU will be auto-generated)');
+            await api.post(
+              '/products',
+              payload
+            );
+            console.log('✓ Created:', name);
+            successCount++;
+          }
+        } catch (error) {
+          failureCount++;
+          const productName = row.Name?.trim() || 'Unknown';
+          console.error(`✗ Error importing "${productName}":`, error?.response?.data || error.message);
+          toast.error(`✗ "${productName}": ${error?.response?.data?.message || error.message}`);
+        }
       }
+
+      await load();
+      event.target.value = '';
+
+      toast.success(
+        `Imported: ${successCount} products${failureCount > 0 ? `, ${failureCount} failed` : ''}`
+      );
 
     } catch (error) {
       console.error(error);
@@ -227,6 +399,7 @@ export function Products() {
         <form onSubmit={handleSubmit(save)} className="panel space-y-3 p-5">
           <h2 className="font-semibold">{editing ? 'Edit product' : 'Add product'}</h2>
           <input className="input" placeholder="Product name" {...register('name', { required: true })} />
+          <input className="input" placeholder="Local Language Name" {...register('localName')} />
           <input className="input" placeholder="SKU auto generated if blank" {...register('sku')} />
           
           <select className="input" {...register('category')}>
@@ -240,13 +413,36 @@ export function Products() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            <input className="input" type="number" step="0.01" placeholder="MRP" {...register('mrp')} />
             <input className="input" type="number" step="0.01" placeholder="Purchase price" {...register('purchasePrice', { required: true })} />
             <input className="input" type="number" step="0.01" placeholder="Selling price" {...register('sellingPrice', { required: true })} />
+            <input className="input" type="number" step="0.01" placeholder="Wholesale price" {...register('wholesalePrice')} />
             <input className="input" type="number" step="0.01" placeholder="GST %" {...register('taxRate')} />
-            <input className="input" placeholder="Unit" {...register('unit')} />
+            
+            <select className="input" {...register('unit')}>
+              <option value="pcs">Pieces</option>
+              <option value="kg">Kilogram</option>
+              <option value="g">Gram</option>
+              <option value="ltr">Litre</option>
+              <option value="ml">Millilitre</option>
+              <option value="box">Box</option>
+              <option value="packet">Packet</option>
+              <option value="dozen">Dozen</option>
+            </select>
+
             <input className="input" type="number" placeholder="Stock" {...register('stock')} />
             <input className="input" type="number" placeholder="Low stock" {...register('lowStockThreshold')} />
+            <input className="input" placeholder="Company Name" {...register('companyName')} />
+            <input className="input" placeholder="HSN Code" {...register('hsnCode')} />
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                {...register('allowDecimalQty')}
+              />
+              Allow Decimal Quantity
+            </label>
           </div>
+          
           <div className="flex gap-2">
             <button className="btn-primary flex-1"><Plus size={17} />{editing ? 'Update' : 'Add'}</button>
             {editing ? <button type="button" className="btn-muted" onClick={() => { setEditing(null); reset({}); }}>Cancel</button> : null}
@@ -290,27 +486,119 @@ export function Products() {
               <table className="w-full">
                 <thead>
                   <tr>
-                    <th className="table-th">Product</th>
+                    <th className="table-th">PID</th>
+                    <th className="table-th">SKU</th>
+                    <th className="table-th">Name</th>
+                    <th className="table-th">Local Name</th>
+                    <th className="table-th">Company</th>
                     <th className="table-th">Category</th>
+                    <th className="table-th">Unit</th>
+                    <th className="table-th">MRP</th>
+                    <th className="table-th">Purchase</th>
+                    <th className="table-th">Wholesale</th>
+                    <th className="table-th">Sale</th>
                     <th className="table-th">Stock</th>
-                    <th className="table-th">Price</th>
+                    <th className="table-th">Low Stock</th>
+                    <th className="table-th">GST</th>
+                    <th className="table-th">Discount</th>
+                    <th className="table-th">HSN</th>
+                    <th className="table-th">Decimal Qty</th>
                     <th className="table-th"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {products.map((product) => (
-                    <tr key={product._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                    <tr
+                      key={product._id}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    >
+                      <td className="table-td">{product.productId}</td>
+
                       <td className="table-td">
-                        <button className="text-left font-semibold text-leaf" onClick={() => edit(product)}>{product.name}</button>
-                        <p className="text-xs text-slate-500">{product.sku}</p>
+                        {product.sku}
                       </td>
-                      <td className="table-td">{product.category?.name || '-'}</td>
+
                       <td className="table-td">
-                        <span className={product.stock <= product.lowStockThreshold ? 'font-semibold text-red-600' : ''}>{product.stock}</span>
+                        <button
+                          className="text-left font-semibold text-leaf"
+                          onClick={() => edit(product)}
+                        >
+                          {product.name}
+                        </button>
                       </td>
-                      <td className="table-td">{currency(product.sellingPrice)}</td>
+
+                      <td className="table-td">
+                        {product.localName || '-'}
+                      </td>
+
+                      <td className="table-td">
+                        {product.companyName || '-'}
+                      </td>
+
+                      <td className="table-td">
+                        {product.category?.name || '-'}
+                      </td>
+
+                      <td className="table-td">
+                        {product.unit || 'pcs'}
+                      </td>
+
+                      <td className="table-td">
+                        {currency(product.mrp || 0)}
+                      </td>
+
+                      <td className="table-td">
+                        {currency(product.purchasePrice || 0)}
+                      </td>
+
+                      <td className="table-td">
+                        {currency(product.wholesalePrice || 0)}
+                      </td>
+
+                      <td className="table-td">
+                        {currency(product.sellingPrice || 0)}
+                      </td>
+
+                      <td className="table-td">
+                        <span
+                          className={
+                            product.stock <= product.lowStockThreshold
+                              ? 'font-semibold text-red-600'
+                              : ''
+                          }
+                        >
+                          {product.stock}
+                        </span>
+                      </td>
+
+                      <td className="table-td">
+                        {product.lowStockThreshold}
+                      </td>
+
+                      <td className="table-td">
+                        {product.taxRate || 0}%
+                      </td>
+
+                      <td className="table-td">
+                        {product.discount || 0}%
+                      </td>
+
+                      <td className="table-td">
+                        {product.hsnCode || '-'}
+                      </td>
+
+                      <td className="table-td text-center">
+                        {product.allowDecimalQty ? 'Yes' : 'No'}
+                      </td>
+
                       <td className="table-td text-right">
-                        <button className="btn-muted h-9 w-9 p-0" onClick={() => remove(product)} title="Delete"><Trash2 size={16} /></button>
+                        <button
+                          className="btn-muted h-9 w-9 p-0"
+                          onClick={() => remove(product)}
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </td>
                     </tr>
                   ))}

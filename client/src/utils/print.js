@@ -24,7 +24,7 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
   const cart = raw.cart || state.cart || raw.items || [];
 
   const items = cart.map((item, index) => {
-    const quantity = number(item.quantity ?? item.qty, 0);
+    const quantity = parseFloat(item.quantity ?? item.qty, 0);
     const price = number(item.price ?? item.rate ?? item.sellingPrice, 0);
     const gstRate = number(item.taxRate ?? item.gst ?? item.tax, 0);
     const discount = number(item.discount, 0);

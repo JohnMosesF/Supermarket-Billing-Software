@@ -14,8 +14,18 @@ const productSchema = new mongoose.Schema(
     stock: { type: Number, default: 0, min: 0 },
     lowStockThreshold: { type: Number, default: 5, min: 0 },
     unit: { type: String, default: 'pcs' },
+    allowDecimalQty: { type: Boolean, default: false },
+    localName: String,
+    mrp: Number,
+    wholesalePrice: Number,
+    openingStock: Number,
+    companyName: String,
+    hsnCode: String,
+    discount: Number,
+
     imageUrl: String,
     active: { type: Boolean, default: true }
+    
   },
   { timestamps: true }
 );

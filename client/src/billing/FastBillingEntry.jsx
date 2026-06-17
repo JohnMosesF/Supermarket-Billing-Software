@@ -89,7 +89,7 @@ export default function FastBillingEntry({ onAddProduct, autoFocusCode = false }
             inputMode="numeric"
             min="1"
             value={quantity}
-            onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+            onChange={(e) => setQuantity(Math.max(0.001, parseFloat(e.target.value) || 0.001))}
             className="w-full input text-lg text-center"
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleAdd();

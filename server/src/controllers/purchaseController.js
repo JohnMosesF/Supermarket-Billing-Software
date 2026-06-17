@@ -24,7 +24,7 @@ export const createPurchase = asyncHandler(async (req, res) => {
   for (const item of req.body.items) {
     const product = await Product.findById(item.product);
     if (!product) throw new ApiError(404, 'Product not found');
-    const lineTotal = Number(item.quantity) * Number(item.costPrice);
+    const lineTotal = parseFloat(item.quantity) * Number(item.costPrice);
     total += lineTotal;
     items.push({ product: product._id, name: product.name, quantity: item.quantity, costPrice: item.costPrice, lineTotal });
   }

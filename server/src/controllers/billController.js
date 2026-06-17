@@ -81,10 +81,10 @@ export const createBill = asyncHandler(async (req, res) => {
     const normalized = {
       productId: productIdObj,
       productName: it.productName || it.name || '',
-      quantity: Number(it.quantity || it.qty || 1),
+      quantity: parseFloat(it.quantity || it.qty || 0.001),
       price: Number(it.price || it.sellingPrice || it.rate || 0),
       tax: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1)))
+      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
     };
 
     normalizedItems.push(normalized);
@@ -249,10 +249,10 @@ export const updateBill = asyncHandler(async (req, res) => {
     normalizedItems.push({
       productId: productIdObj,
       productName: it.productName || it.name || '',
-      quantity: Number(it.quantity || it.qty || 1),
-      price: Number(it.price || it.sellingPrice || it.rate || 0),
-      tax: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1)))
+      quantity: parseFloat(it.quantity || it.qty || 0.001),
+      price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
+      tax: parseFloat(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
     });
   }
 
@@ -436,10 +436,10 @@ export const holdBill = asyncHandler(async (req, res) => {
     const normalized = {
       productId: productIdObj,
       productName: it.productName || it.name || '',
-      quantity: Number(it.quantity || it.qty || 1),
-      price: Number(it.price || it.sellingPrice || it.rate || 0),
-      gst: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1)))
+      quantity: parseFloat(it.quantity || it.qty || 0.001),
+      price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
+      gst: parseFloat(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
     };
 
     normalizedItems.push(normalized);

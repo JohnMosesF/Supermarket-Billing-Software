@@ -27,7 +27,7 @@ const paymentModes = [
 ];
 
 function lineMath(item) {
-  const gross = Number(item.price || 0) * Number(item.quantity || 0);
+  const gross = Number(item.price || 0) * parseFloat(item.quantity || 0);
   const discount = Number(item.discount || 0);
   const taxable = Math.max(gross - discount, 0);
   const gstAmount = (taxable * Number(item.taxRate || 0)) / 100;
@@ -107,11 +107,12 @@ export function Billing() {
     return () => clearTimeout(timer);
   }, [customer.name, customer.mobile]);
 
+  // Calculate totals and other derived values based on cart and other inputs
   const totals = useMemo(() => {
-    const subtotal = cart.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0);
+    const subtotal = cart.reduce((sum, item) => sum + Number(item.price || 0) * parseFloat(item.quantity || 0), 0);
     const lineDiscount = cart.reduce((sum, item) => sum + Number(item.discount || 0), 0);
     const gst = cart.reduce((sum, item) => sum + lineMath(item).gstAmount, 0);
-    const totalQuantity = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    const totalQuantity = cart.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0);
     const billDiscount = Number(discount || 0);
     const rawTotal = Math.max(subtotal + gst - lineDiscount - billDiscount, 0);
     const rounded = Math.round(rawTotal);
@@ -126,6 +127,7 @@ export function Billing() {
     };
   }, [cart, discount]);
 
+// Calculate payment and customer credit details  
   const paid = Number(paidAmount || 0);
   const balanceAmount = Math.max(totals.grandTotal - paid, 0);
   const changeReturn = Math.max(paid - totals.grandTotal, 0);
@@ -161,15 +163,21 @@ export function Billing() {
       const existing = items.find((item) => item._id === product._id);
       if (existing) {
         return items.map((item) => item._id === product._id
-          ? { ...item, quantity: Math.min(Number(item.quantity) + Number(entryQty || 1), product.stock) }
+          ? { ...item, quantity: Math.min(parseFloat(item.quantity || 0) + parseFloat(entryQty || 0.001), Number(product.stock) )}
           : item);
       }
       return [
         ...items,
         {
           ...product,
+
+          sku: product.sku,
+          unit: product.unit || 'pcs',
+          allowDecimalQty: product.allowDecimalQty || false,
+
           price: product.sellingPrice,
-          quantity: Math.min(Number(entryQty || 1), product.stock),
+          quantity: Math.min(parseFloat(entryQty || 0.001), product.stock),
+
           discount: 0
         }
       ];
@@ -213,7 +221,7 @@ export function Billing() {
     const { data } = await api.post('/sales', {
       items: cart.map((item) => ({
         product: item._id,
-        quantity: Number(item.quantity),
+        quantity: parseFloat(item.quantity),
         price: Number(item.price),
         discount: Number(item.discount || 0)
       })),
@@ -329,7 +337,7 @@ export function Billing() {
             <div className="rounded-lg bg-slate-100 p-3 dark:bg-slate-800">
               <span className="block text-xs text-slate-500">Items / Qty</span>
               <strong className="text-xl">{totals.items} / {totals.totalQuantity}</strong>
-            </div>
+               </div>
           </div>
         </div>
       </div>
@@ -371,8 +379,16 @@ export function Billing() {
               </label>
               <label className="text-xs font-semibold uppercase text-slate-500">
                 Qty
-                <input className="input mt-1 h-11" type="number" min="1" value={entryQty} onChange={(event) => setEntryQty(event.target.value)} />
-              </label>
+<input
+  type="number"
+  min="0.001"
+  step="0.001"
+  value={
+  Number.isInteger(Number(item.quantity))
+    ? item.quantity
+    : Number(item.quantity).toFixed(3)
+  }
+/>              </label>
               <label className="text-xs font-semibold uppercase text-slate-500">
                 GST
                 <input className="input mt-1 h-11" value={activeProduct?.taxRate ?? ''} readOnly />
@@ -392,7 +408,7 @@ export function Billing() {
               <table className="w-full min-w-[980px] border-separate border-spacing-0 text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800">
                   <tr>
-                    {['Select', 'Product Code', 'Product Name', 'Rate', 'Qty', 'GST%', 'GST Amount', 'Discount', 'Net Amount'].map((heading) => (
+                    {['Select', 'Product Code', 'Product Name', 'Rate', 'Qty', 'Unit', 'GST%', 'GST Amount', 'Discount', 'Net Amount'].map((heading) => (
                       <th key={heading} className="border-b border-slate-200 px-3 py-3 text-left font-bold dark:border-slate-700">{heading}</th>
                     ))}
                   </tr>
@@ -410,8 +426,9 @@ export function Billing() {
                           <input className="h-9 w-24 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" value={item.price} onChange={(event) => updateCartItem(item._id, { price: Number(event.target.value) })} />
                         </td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-                          <input className="h-9 w-20 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" min="1" value={item.quantity} onChange={(event) => updateCartItem(item._id, { quantity: Math.max(1, Number(event.target.value)) })} />
+                          <input className="h-9 w-20 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(event) => updateCartItem(item._id, { quantity: parseFloat(event.target.value) || 0 })} />
                         </td>
+                        <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{item.unit || 'pcs'}</td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{item.taxRate || 0}</td>
                         <td className="border-b border-slate-100 px-3 py-2 text-right dark:border-slate-800">{currency(math.gstAmount)}</td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">

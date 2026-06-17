@@ -31,6 +31,8 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
   const [qty, setQty] = useState('1');
   const [gst, setGst] = useState('0');
   const [stock, setStock] = useState(null);
+  const [unit, setUnit] = useState('pcs');
+  const [allowDecimalQty, setAllowDecimalQty] = useState(false);
   
   // Autocomplete state
   const [suggestions, setSuggestions] = useState([]);
@@ -84,6 +86,8 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
     setRate('0');
     setQty('1');
     setStock(null);
+    setUnit('pcs');
+    setAllowDecimalQty(false);
     setGst('0');
     setSuggestions([]);
     setShowSuggestions(false);
@@ -117,6 +121,8 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
         setGst(String(found.taxRate ?? 0));
         setQty('1');
         setStock(found.stock ?? null);
+        setUnit(found.unit || 'pcs');
+        setAllowDecimalQty(found.allowDecimalQty || false);
         setSuggestions([]);
         setShowSuggestions(false);
         
@@ -173,6 +179,8 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
     setGst(String(product.taxRate || product.tax || 0));
     setQty('1');
     setStock(product.stock ?? null);
+    setUnit(product.unit || 'pcs');
+    setAllowDecimalQty(product.allowDecimalQty || false);
     setSuggestions([]);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
@@ -272,24 +280,33 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
       return;
     }
 
-    const amount = Number(rate || 0) * Number(qty || 1);
+    const amount = Number(rate || 0) * parseFloat(qty || 0.001);
     const gstAmount = (amount * Number(gst || 0)) / 100;
 
     // Validate stock before adding
-    if (stock != null && Number(qty || 0) > Number(stock)) {
+    if (stock != null && parseFloat(qty || 0) > parseFloat(stock)) {
       toast.error('Quantity exceeds available stock');
       return;
     }
 
     const cartItem = {
-      _id: mongoId, // MongoDB ObjectId - use for bill productId on save
+      _id: mongoId,
+
       productId: productId || mongoId,
       sku,
+
       productName: name,
       name,
+
+      qty: parseFloat(qty || 0.001),
+      unit,
+      allowDecimalQty,
+
       rate: Number(rate || 0),
-      qty: Number(qty || 1),
       gst: Number(gst || 0),
+
+      stock,
+
       amount,
       gstAmount
     };
@@ -336,10 +353,10 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
       }
     } else if (e.key === '+') {
       e.preventDefault();
-      setQty(q => String(Number(q || 0) + 1));
+      setQty(q => String((parseFloat(q || 0) + 0.25).toFixed(3)));
     } else if (e.key === '-') {
       e.preventDefault();
-      setQty(q => String(Math.max(1, Number(q || 1) - 1)));
+      setQty(q => String(Math.max(0.001, parseFloat(q || 0.001) - 0.25).toFixed(3)));
     } else if (e.key === 'Escape') {
       e.preventDefault();
       clearRow();
@@ -458,10 +475,12 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
         <input
           ref={qtyRef}
           type="number"
+          min="0.001"
+          step="0.001"
           className="col-span-1 p-2 border rounded-sm text-xs text-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
           placeholder="1"
           value={qty}
-          onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ''))}
+          onChange={(e) => setQty(e.target.value.replace(/[^0-9.]/g, ''))}
           onKeyDown={handleQtyKeyDown}
         />
 
@@ -501,7 +520,7 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
 
         {/* Stock */}
         <div className="col-span-1 text-center text-sm">
-          {stock == null ? '-' : (stock <= 0 ? <span className="text-red-600">Out of Stock</span> : <span>Stock: {stock} pcs</span>)}
+          {stock == null ? '-' : (stock <= 0 ? <span className="text-red-600">Out of Stock</span> : <span>Stock: {stock} {unit}</span>)}
         </div>
 
         {/* Action Button */}

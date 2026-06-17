@@ -18,7 +18,7 @@ export default function BillingSummaryPanel({
 }) {
   const summary = useMemo(() => {
     const items = cart.length;
-    const pieces = cart.reduce((s, i) => s + Number(i.qty || 0), 0);
+    const pieces = cart.reduce((s, i) => s + parseFloat(i.qty || 0), 0);
     const billAmount = total;
     
     return {
