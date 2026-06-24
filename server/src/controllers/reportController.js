@@ -47,6 +47,7 @@ export const productAnalytics = asyncHandler(async (req, res) => {
       $group: {
         _id: '$items.product',
         name: { $first: '$items.name' },
+        unit: { $first: '$items.unit' },
         quantity: { $sum: '$items.quantity' },
         revenue: { $sum: '$items.lineTotal' }
       }

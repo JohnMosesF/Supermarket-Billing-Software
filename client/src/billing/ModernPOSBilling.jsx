@@ -31,6 +31,9 @@ import { printInvoice, makeInvoiceHtmlFromSale } from '../utils/print';
  * - Delete/Ctrl+Delete: Remove Selected Item
  */
 export default function ModernPOSBilling() {
+
+  const params = new URLSearchParams(window.location.search);
+  const windowId = params.get('windowId');
   // Cart state
   const [cart, setCart] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -78,6 +81,7 @@ export default function ModernPOSBilling() {
     return () => clearInterval(id);
   }, [lastManualEdit]);
   
+
   // Refs
   const entryRef = useRef(null);
   const customerNameRef = useRef(null);
@@ -98,6 +102,37 @@ export default function ModernPOSBilling() {
   // KeyboardManager setup moved below after handler definitions to avoid TDZ
 
   // Listen for resume payload sent from main window (electron)
+  const hasCartItems = cart.some(
+    item => Number(item.qty || item.quantity || 0) > 0
+  );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const windowId = params.get('windowId');
+
+    if (window.electronAPI?.sendBillingEvent && windowId) {
+      window.electronAPI.sendBillingEvent(
+        `billing-cart-state-${windowId}`,
+        cart.length > 0
+      );
+    }
+  }, [cart, windowId]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!hasCartItems) return;
+
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasCartItems]);
+
   useEffect(() => {
     if (window?.electronAPI?.onBillingEvent) {
       const handler = (data) => {
@@ -250,6 +285,7 @@ export default function ModernPOSBilling() {
         productId: pid,
         productName: it.productName || it.name || '',
         quantity: parseFloat(it.qty ?? it.quantity ?? 1),
+        unit: it.unit || 'pcs',
         price: parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0),
         gst: parseFloat(it.gst ?? it.taxRate ?? it.tax ?? 0),
         total: Number(
@@ -492,6 +528,8 @@ export default function ModernPOSBilling() {
       rate: item.price || item.sellingPrice || item.rate || 0,
       qty: item.quantity || item.qty || 0,
       gst: item.gst || item.tax || item.taxRate || 0,
+      unit: item.unit || 'pcs',
+      allowDecimalQty: item.allowDecimalQty || false,
       amount: item.total != null ? item.total : (Number(item.price || item.sellingPrice || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)),
       gstAmount: ((Number(item.price || item.sellingPrice || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100
     }));
@@ -604,7 +642,7 @@ export default function ModernPOSBilling() {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col">
+    <div className="h-screen overflow-y-auto bg-gray-50 flex flex-col">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg">
         <div className="flex justify-between items-center">
@@ -698,7 +736,7 @@ export default function ModernPOSBilling() {
           </div>
 
           {/* Customer info panel */}
-          <div className="bg-white shadow-md rounded-lg p-3">
+          <div className="flex flex-col gap-4 overflow-y-auto bg-white shadow-md rounded-lg p-3">
                 <h2 className="text-lg font-bold mb-3">
                   Customer Details
                 </h2>
@@ -783,6 +821,7 @@ export default function ModernPOSBilling() {
                 <input
                   type="number"
                   min="0"
+                  step="0.01"
                   value={amountPaid}
                   onChange={(e) => setAmountPaid(Number(e.target.value))}
                   className="w-full p-2 border rounded-lg text-sm"

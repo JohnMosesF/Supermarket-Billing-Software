@@ -15845,7 +15845,7 @@ var require_read = __commonJS({
         }));
       }
       debug("read body");
-      getBody(stream, opts, function(error, body10) {
+      getBody(stream, opts, function(error, body11) {
         if (error) {
           var _error;
           if (error.type === "encoding.unsupported") {
@@ -15868,19 +15868,19 @@ var require_read = __commonJS({
         if (verify) {
           try {
             debug("verify body");
-            verify(req, res, body10, encoding);
+            verify(req, res, body11, encoding);
           } catch (err) {
             next(createError(403, err, {
-              body: body10,
+              body: body11,
               type: err.type || "entity.verify.failed"
             }));
             return;
           }
         }
-        var str = body10;
+        var str = body11;
         try {
           debug("parse body");
-          str = typeof body10 !== "string" && encoding !== null ? iconv.decode(body10, encoding) : body10;
+          str = typeof body11 !== "string" && encoding !== null ? iconv.decode(body11, encoding) : body11;
           req.body = parse(str);
         } catch (err) {
           next(createError(400, err, {
@@ -24814,20 +24814,20 @@ var require_json = __commonJS({
         throw new TypeError("option verify must be function");
       }
       var shouldParse = typeof type !== "function" ? typeChecker(type) : type;
-      function parse(body10) {
-        if (body10.length === 0) {
+      function parse(body11) {
+        if (body11.length === 0) {
           return {};
         }
         if (strict) {
-          var first = firstchar(body10);
+          var first = firstchar(body11);
           if (first !== "{" && first !== "[") {
             debug("strict violation");
-            throw createStrictSyntaxError(body10, first);
+            throw createStrictSyntaxError(body11, first);
           }
         }
         try {
           debug("parse json");
-          return JSON.parse(body10, reviver);
+          return JSON.parse(body11, reviver);
         } catch (e6) {
           throw normalizeJsonSyntaxError(e6, {
             message: e6.message,
@@ -27605,8 +27605,8 @@ var require_urlencoded = __commonJS({
       }
       var queryparse = extended ? extendedparser(opts) : simpleparser(opts);
       var shouldParse = typeof type !== "function" ? typeChecker(type) : type;
-      function parse(body10) {
-        return body10.length ? queryparse(body10) : {};
+      function parse(body11) {
+        return body11.length ? queryparse(body11) : {};
       }
       return function urlencodedParser(req, res, next) {
         if (req._body) {
@@ -27657,8 +27657,8 @@ var require_urlencoded = __commonJS({
       if (isFinite(parameterLimit)) {
         parameterLimit = parameterLimit | 0;
       }
-      return function queryparse(body10) {
-        var paramCount = parameterCount(body10, parameterLimit);
+      return function queryparse(body11) {
+        var paramCount = parameterCount(body11, parameterLimit);
         if (paramCount === void 0) {
           debug("too many parameters");
           throw createError(413, "too many parameters", {
@@ -27668,7 +27668,7 @@ var require_urlencoded = __commonJS({
         var arrayLimit = Math.max(100, paramCount);
         debug("parse extended urlencoding");
         try {
-          return parse(body10, {
+          return parse(body11, {
             allowPrototypes: true,
             arrayLimit,
             depth,
@@ -27693,7 +27693,7 @@ var require_urlencoded = __commonJS({
         return void 0;
       }
     }
-    function parameterCount(body10, limit) {
+    function parameterCount(body11, limit) {
       var count = 0;
       var index = -1;
       do {
@@ -27701,7 +27701,7 @@ var require_urlencoded = __commonJS({
         if (count > limit) {
           return void 0;
         }
-        index = body10.indexOf("&", index + 1);
+        index = body11.indexOf("&", index + 1);
       } while (index !== -1);
       return count;
     }
@@ -27730,8 +27730,8 @@ var require_urlencoded = __commonJS({
       if (isFinite(parameterLimit)) {
         parameterLimit = parameterLimit | 0;
       }
-      return function queryparse(body10) {
-        var paramCount = parameterCount(body10, parameterLimit);
+      return function queryparse(body11) {
+        var paramCount = parameterCount(body11, parameterLimit);
         if (paramCount === void 0) {
           debug("too many parameters");
           throw createError(413, "too many parameters", {
@@ -27739,7 +27739,7 @@ var require_urlencoded = __commonJS({
           });
         }
         debug("parse urlencoding");
-        return parse(body10, void 0, void 0, { maxKeys: parameterLimit });
+        return parse(body11, void 0, void 0, { maxKeys: parameterLimit });
       };
     }
     function typeChecker(type) {
@@ -28018,8 +28018,8 @@ var require_finalhandler = __commonJS({
     };
     var isFinished = onFinished.isFinished;
     function createHtmlDocument(message) {
-      var body10 = escapeHtml(message).replace(NEWLINE_REGEXP, "<br>").replace(DOUBLE_SPACE_REGEXP, " &nbsp;");
-      return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>' + body10 + "</pre>\n</body>\n</html>\n";
+      var body11 = escapeHtml(message).replace(NEWLINE_REGEXP, "<br>").replace(DOUBLE_SPACE_REGEXP, " &nbsp;");
+      return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>' + body11 + "</pre>\n</body>\n</html>\n";
     }
     module2.exports = finalhandler;
     function finalhandler(req, res, options) {
@@ -28110,7 +28110,7 @@ var require_finalhandler = __commonJS({
     }
     function send(req, res, status, headers, message) {
       function write() {
-        var body10 = createHtmlDocument(message);
+        var body11 = createHtmlDocument(message);
         res.statusCode = status;
         if (req.httpVersionMajor < 2) {
           res.statusMessage = statuses.message[status];
@@ -28122,12 +28122,12 @@ var require_finalhandler = __commonJS({
         res.setHeader("Content-Security-Policy", "default-src 'none'");
         res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.setHeader("Content-Length", Buffer.byteLength(body10, "utf8"));
+        res.setHeader("Content-Length", Buffer.byteLength(body11, "utf8"));
         if (req.method === "HEAD") {
           res.end();
           return;
         }
-        res.end(body10, "utf8");
+        res.end(body11, "utf8");
       }
       if (isFinished(req)) {
         write();
@@ -28923,9 +28923,9 @@ var require_router = __commonJS({
     }
     function sendOptionsResponse(res, options, next) {
       try {
-        var body10 = options.join(",");
-        res.set("Allow", body10);
-        res.send(body10);
+        var body11 = options.join(",");
+        res.set("Allow", body11);
+        res.send(body11);
       } catch (err) {
         next(err);
       }
@@ -30076,8 +30076,8 @@ var require_send = __commonJS({
     function contentRange(type, size, range2) {
       return type + " " + (range2 ? range2.start + "-" + range2.end : "*") + "/" + size;
     }
-    function createHtmlDocument(title, body10) {
-      return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>' + title + "</title>\n</head>\n<body>\n<pre>" + body10 + "</pre>\n</body>\n</html>\n";
+    function createHtmlDocument(title, body11) {
+      return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>' + title + "</title>\n</head>\n<body>\n<pre>" + body11 + "</pre>\n</body>\n</html>\n";
     }
     function createHttpError(status, err) {
       if (!err) {
@@ -31101,8 +31101,8 @@ var require_utils2 = __commonJS({
       return contentType.format(parsed);
     };
     function createETagGenerator(options) {
-      return function generateETag(body10, encoding) {
-        var buf = !Buffer3.isBuffer(body10) ? Buffer3.from(body10, encoding) : body10;
+      return function generateETag(body11, encoding) {
+        var buf = !Buffer3.isBuffer(body11) ? Buffer3.from(body11, encoding) : body11;
         return etag(buf, options);
       };
     }
@@ -32038,12 +32038,12 @@ var require_request = __commonJS({
     };
     req.param = function param(name, defaultValue) {
       var params = this.params || {};
-      var body10 = this.body || {};
+      var body11 = this.body || {};
       var query2 = this.query || {};
       var args = arguments.length === 1 ? "name" : "name, default";
       deprecate("req.param(" + args + "): Use req.params, req.body, or req.query instead");
       if (null != params[name] && params.hasOwnProperty(name)) return params[name];
-      if (null != body10[name]) return body10[name];
+      if (null != body11[name]) return body11[name];
       if (null != query2[name]) return query2[name];
       return defaultValue;
     };
@@ -32366,8 +32366,8 @@ var require_response = __commonJS({
         return "<" + links[rel] + '>; rel="' + rel + '"';
       }).join(", "));
     };
-    res.send = function send2(body10) {
-      var chunk = body10;
+    res.send = function send2(body11) {
+      var chunk = body11;
       var encoding;
       var req = this.req;
       var type;
@@ -32474,11 +32474,11 @@ var require_response = __commonJS({
       var escape2 = app2.get("json escape");
       var replacer = app2.get("json replacer");
       var spaces = app2.get("json spaces");
-      var body10 = stringify(val, replacer, spaces, escape2);
+      var body11 = stringify(val, replacer, spaces, escape2);
       if (!this.get("Content-Type")) {
         this.set("Content-Type", "application/json");
       }
-      return this.send(body10);
+      return this.send(body11);
     };
     res.jsonp = function jsonp(obj2) {
       var val = obj2;
@@ -32496,7 +32496,7 @@ var require_response = __commonJS({
       var escape2 = app2.get("json escape");
       var replacer = app2.get("json replacer");
       var spaces = app2.get("json spaces");
-      var body10 = stringify(val, replacer, spaces, escape2);
+      var body11 = stringify(val, replacer, spaces, escape2);
       var callback = this.req.query[app2.get("jsonp callback name")];
       if (!this.get("Content-Type")) {
         this.set("X-Content-Type-Options", "nosniff");
@@ -32509,20 +32509,20 @@ var require_response = __commonJS({
         this.set("X-Content-Type-Options", "nosniff");
         this.set("Content-Type", "text/javascript");
         callback = callback.replace(/[^\[\]\w$.]/g, "");
-        if (body10 === void 0) {
-          body10 = "";
-        } else if (typeof body10 === "string") {
-          body10 = body10.replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+        if (body11 === void 0) {
+          body11 = "";
+        } else if (typeof body11 === "string") {
+          body11 = body11.replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
         }
-        body10 = "/**/ typeof " + callback + " === 'function' && " + callback + "(" + body10 + ");";
+        body11 = "/**/ typeof " + callback + " === 'function' && " + callback + "(" + body11 + ");";
       }
-      return this.send(body10);
+      return this.send(body11);
     };
     res.sendStatus = function sendStatus(statusCode) {
-      var body10 = statuses.message[statusCode] || String(statusCode);
+      var body11 = statuses.message[statusCode] || String(statusCode);
       this.statusCode = statusCode;
       this.type("txt");
-      return this.send(body10);
+      return this.send(body11);
     };
     res.sendFile = function sendFile(path4, options, callback) {
       var done = callback;
@@ -32721,7 +32721,7 @@ var require_response = __commonJS({
     };
     res.redirect = function redirect(url) {
       var address = url;
-      var body10;
+      var body11;
       var status = 302;
       if (arguments.length === 2) {
         if (typeof arguments[0] === "number") {
@@ -32735,22 +32735,22 @@ var require_response = __commonJS({
       address = this.location(address).get("Location");
       this.format({
         text: function() {
-          body10 = statuses.message[status] + ". Redirecting to " + address;
+          body11 = statuses.message[status] + ". Redirecting to " + address;
         },
         html: function() {
           var u = escapeHtml(address);
-          body10 = "<p>" + statuses.message[status] + ". Redirecting to " + u + "</p>";
+          body11 = "<p>" + statuses.message[status] + ". Redirecting to " + u + "</p>";
         },
         default: function() {
-          body10 = "";
+          body11 = "";
         }
       });
       this.statusCode = status;
-      this.set("Content-Length", Buffer3.byteLength(body10));
+      this.set("Content-Length", Buffer3.byteLength(body11));
       if (this.req.method === "HEAD") {
         this.end();
       } else {
-        this.end(body10);
+        this.end(body11);
       }
     };
     res.vary = function(field) {
@@ -32939,8 +32939,8 @@ var require_serve_static = __commonJS({
       }
       return i6 > 1 ? "/" + str.substr(i6) : str;
     }
-    function createHtmlDocument(title, body10) {
-      return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>' + title + "</title>\n</head>\n<body>\n<pre>" + body10 + "</pre>\n</body>\n</html>\n";
+    function createHtmlDocument(title, body11) {
+      return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>' + title + "</title>\n</head>\n<body>\n<pre>" + body11 + "</pre>\n</body>\n</html>\n";
     }
     function createNotFoundDirectoryListener() {
       return function notFound2() {
@@ -58411,11 +58411,11 @@ var require_utils4 = __commonJS({
         let timeoutId;
         const request2 = http.get(url2, options, (response) => {
           response.setEncoding("utf8");
-          let body10 = "";
-          response.on("data", (chunk) => body10 += chunk);
+          let body11 = "";
+          response.on("data", (chunk) => body11 += chunk);
           response.on("end", () => {
             (0, timers_1.clearTimeout)(timeoutId);
-            resolve({ status: response.statusCode, body: body10 });
+            resolve({ status: response.statusCode, body: body11 });
           });
         }).on("error", (error) => {
           (0, timers_1.clearTimeout)(timeoutId);
@@ -66891,26 +66891,26 @@ var import_node_fs, calculateBodyLength;
 var init_calculateBodyLength = __esm({
   "../server/node_modules/@smithy/core/dist-es/submodules/serde/util-body-length/calculateBodyLength.js"() {
     import_node_fs = require("node:fs");
-    calculateBodyLength = (body10) => {
-      if (!body10) {
+    calculateBodyLength = (body11) => {
+      if (!body11) {
         return 0;
       }
-      if (typeof body10 === "string") {
-        return Buffer.byteLength(body10);
-      } else if (typeof body10.byteLength === "number") {
-        return body10.byteLength;
-      } else if (typeof body10.size === "number") {
-        return body10.size;
-      } else if (typeof body10.start === "number" && typeof body10.end === "number") {
-        return body10.end + 1 - body10.start;
-      } else if (body10 instanceof import_node_fs.ReadStream) {
-        if (body10.path != null) {
-          return (0, import_node_fs.lstatSync)(body10.path).size;
-        } else if (typeof body10.fd === "number") {
-          return (0, import_node_fs.fstatSync)(body10.fd).size;
+      if (typeof body11 === "string") {
+        return Buffer.byteLength(body11);
+      } else if (typeof body11.byteLength === "number") {
+        return body11.byteLength;
+      } else if (typeof body11.size === "number") {
+        return body11.size;
+      } else if (typeof body11.start === "number" && typeof body11.end === "number") {
+        return body11.end + 1 - body11.start;
+      } else if (body11 instanceof import_node_fs.ReadStream) {
+        if (body11.path != null) {
+          return (0, import_node_fs.lstatSync)(body11.path).size;
+        } else if (typeof body11.fd === "number") {
+          return (0, import_node_fs.fstatSync)(body11.fd).size;
         }
       }
-      throw new Error(`Body Length computation failed for ${body10}`);
+      throw new Error(`Body Length computation failed for ${body11}`);
     };
   }
 });
@@ -69500,7 +69500,7 @@ function __awaiter(thisArg, _arguments, P, generator) {
     step((generator = generator.apply(thisArg, _arguments || [])).next());
   });
 }
-function __generator(thisArg, body10) {
+function __generator(thisArg, body11) {
   var _2 = { label: 0, sent: function() {
     if (t[0] & 1) throw t[1];
     return t[1];
@@ -69558,7 +69558,7 @@ function __generator(thisArg, body10) {
           _2.trys.pop();
           continue;
       }
-      op = body10.call(thisArg, _2);
+      op = body11.call(thisArg, _2);
     } catch (e6) {
       op = [6, e6];
       y = 0;
@@ -70786,9 +70786,9 @@ var init_EventStreamCodec = __esm({
           }
         };
       }
-      encode({ headers: rawHeaders, body: body10 }) {
+      encode({ headers: rawHeaders, body: body11 }) {
         const headers = this.headerMarshaller.format(rawHeaders);
-        const length = headers.byteLength + body10.byteLength + 16;
+        const length = headers.byteLength + body11.byteLength + 16;
         const out = new Uint8Array(length);
         const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
         const checksum = new import_crc322.Crc32();
@@ -70796,13 +70796,13 @@ var init_EventStreamCodec = __esm({
         view.setUint32(4, headers.byteLength, false);
         view.setUint32(8, checksum.update(out.subarray(0, 8)).digest(), false);
         out.set(headers, 12);
-        out.set(body10, headers.byteLength + 12);
+        out.set(body11, headers.byteLength + 12);
         view.setUint32(length - 4, checksum.update(out.subarray(8, length - 4)).digest(), false);
         return out;
       }
       decode(message) {
-        const { headers, body: body10 } = splitMessage(message);
-        return { headers: this.headerMarshaller.parse(headers), body: body10 };
+        const { headers, body: body11 } = splitMessage(message);
+        return { headers: this.headerMarshaller.parse(headers), body: body11 };
       }
       formatHeaders(rawHeaders) {
         return this.headerMarshaller.format(rawHeaders);
@@ -71042,8 +71042,8 @@ var init_EventStreamMarshaller = __esm({
         this.eventStreamCodec = new EventStreamCodec(utf8Encoder, utf8Decoder);
         this.utfEncoder = utf8Encoder;
       }
-      deserialize(body10, deserializer) {
-        const inputStream = getChunkedStream(body10);
+      deserialize(body11, deserializer) {
+        const inputStream = getChunkedStream(body11);
         return new SmithyMessageDecoderStream({
           messageStream: new MessageDecoderStream({ inputStream, decoder: this.eventStreamCodec }),
           deserializer: getMessageUnmarshaller(deserializer, this.utfEncoder)
@@ -71101,8 +71101,8 @@ var init_EventStreamMarshaller2 = __esm({
           utf8Encoder
         });
       }
-      deserialize(body10, deserializer) {
-        const bodyIterable = typeof body10[Symbol.asyncIterator] === "function" ? body10 : readableToIterable(body10);
+      deserialize(body11, deserializer) {
+        const bodyIterable = typeof body11[Symbol.asyncIterator] === "function" ? body11 : readableToIterable(body11);
         return this.universalMarshaller.deserialize(bodyIterable, deserializer);
       }
       serialize(input, serializer) {
@@ -71191,11 +71191,11 @@ var init_EventStreamSerde = __esm({
                 ":content-type": { type: "string", value: defaultContentType }
               };
               serializer.write(requestSchema, initialRequest);
-              const body10 = serializer.flush();
+              const body11 = serializer.flush();
               yield {
                 [initialRequestMarker]: true,
                 headers,
-                body: body10
+                body: body11
               };
             }
             for await (const page of eventStream) {
@@ -71217,7 +71217,7 @@ var init_EventStreamSerde = __esm({
               break;
             }
           }
-          const { additionalHeaders, body: body10, eventType, explicitPayloadContentType } = this.writeEventBody(unionMember, unionSchema, event);
+          const { additionalHeaders, body: body11, eventType, explicitPayloadContentType } = this.writeEventBody(unionMember, unionSchema, event);
           const headers = {
             ":event-type": { type: "string", value: eventType },
             ":message-type": { type: "string", value: "event" },
@@ -71226,7 +71226,7 @@ var init_EventStreamSerde = __esm({
           };
           return {
             headers,
-            body: body10
+            body: body11
           };
         });
       }
@@ -71244,9 +71244,9 @@ var init_EventStreamSerde = __esm({
               break;
             }
           }
-          const body10 = event[unionMember].body;
+          const body11 = event[unionMember].body;
           if (unionMember === "initial-response") {
-            const dataObject = await this.deserializer.read(responseSchema, body10);
+            const dataObject = await this.deserializer.read(responseSchema, body11);
             delete dataObject[eventStreamMember];
             return {
               [initialResponseMarker]: true,
@@ -71262,11 +71262,11 @@ var init_EventStreamSerde = __esm({
                 hasBindings = hasBindings || Boolean(eventHeader || eventPayload);
                 if (eventPayload) {
                   if (member2.isBlobSchema()) {
-                    out[name] = body10;
+                    out[name] = body11;
                   } else if (member2.isStringSchema()) {
-                    out[name] = (this.serdeContext?.utf8Encoder ?? toUtf8)(body10);
+                    out[name] = (this.serdeContext?.utf8Encoder ?? toUtf8)(body11);
                   } else if (member2.isStructSchema()) {
-                    out[name] = await this.deserializer.read(member2, body10);
+                    out[name] = await this.deserializer.read(member2, body11);
                   }
                 } else if (eventHeader) {
                   const value = event[unionMember].headers[name]?.value;
@@ -71288,14 +71288,14 @@ var init_EventStreamSerde = __esm({
                   [unionMember]: out
                 };
               }
-              if (body10.byteLength === 0) {
+              if (body11.byteLength === 0) {
                 return {
                   [unionMember]: {}
                 };
               }
             }
             return {
-              [unionMember]: await this.deserializer.read(eventStreamSchema, body10)
+              [unionMember]: await this.deserializer.read(eventStreamSchema, body11)
             };
           } else {
             return {
@@ -71395,9 +71395,9 @@ var init_EventStreamSerde = __esm({
           }
         }
         const messageSerialization = serializer.flush() ?? new Uint8Array();
-        const body10 = typeof messageSerialization === "string" ? (this.serdeContext?.utf8Decoder ?? fromUtf8)(messageSerialization) : messageSerialization;
+        const body11 = typeof messageSerialization === "string" ? (this.serdeContext?.utf8Decoder ?? fromUtf8)(messageSerialization) : messageSerialization;
         return {
-          body: body10,
+          body: body11,
           eventType,
           explicitPayloadContentType,
           additionalHeaders
@@ -72052,8 +72052,8 @@ var init_requestBuilder = __esm({
         this.query = query2;
         return this;
       }
-      b(body10) {
-        this.body = body10;
+      b(body11) {
+        this.body = body11;
         return this;
       }
       m(method) {
@@ -72428,10 +72428,10 @@ function contentLengthMiddleware(bodyLengthChecker) {
   return (next) => async (args) => {
     const request = args.request;
     if (HttpRequest.isInstance(request)) {
-      const { body: body10, headers } = request;
-      if (body10 && Object.keys(headers).map((str) => str.toLowerCase()).indexOf(CONTENT_LENGTH_HEADER) === -1) {
+      const { body: body11, headers } = request;
+      if (body11 && Object.keys(headers).map((str) => str.toLowerCase()).indexOf(CONTENT_LENGTH_HEADER) === -1) {
         try {
-          const length = bodyLengthChecker(body10);
+          const length = bodyLengthChecker(body11);
           request.headers = {
             ...request.headers,
             [CONTENT_LENGTH_HEADER]: String(length)
@@ -76191,17 +76191,17 @@ ${serde.toHex(hashedRequest)}`;
       }
       return canonical;
     };
-    var getPayloadHash = async ({ headers, body: body10 }, hashConstructor) => {
+    var getPayloadHash = async ({ headers, body: body11 }, hashConstructor) => {
       for (const headerName of Object.keys(headers)) {
         if (headerName.toLowerCase() === SHA256_HEADER) {
           return headers[headerName];
         }
       }
-      if (body10 == void 0) {
+      if (body11 == void 0) {
         return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-      } else if (typeof body10 === "string" || ArrayBuffer.isView(body10) || serde.isArrayBuffer(body10)) {
+      } else if (typeof body11 === "string" || ArrayBuffer.isView(body11) || serde.isArrayBuffer(body11)) {
         const hashCtor = new hashConstructor();
-        hashCtor.update(serde.toUint8Array(body10));
+        hashCtor.update(serde.toUint8Array(body11));
         return serde.toHex(await hashCtor.digest());
       }
       return UNSIGNED_PAYLOAD;
@@ -76945,28 +76945,28 @@ var require_dist_cjs6 = __commonJS({
         writeBody(httpRequest, request.body);
       }
     }
-    function writeBody(httpRequest, body10) {
-      if (body10 instanceof node_stream.Readable) {
-        body10.pipe(httpRequest);
+    function writeBody(httpRequest, body11) {
+      if (body11 instanceof node_stream.Readable) {
+        body11.pipe(httpRequest);
         return;
       }
-      if (body10) {
-        const isBuffer = Buffer.isBuffer(body10);
-        const isString = typeof body10 === "string";
+      if (body11) {
+        const isBuffer = Buffer.isBuffer(body11);
+        const isString = typeof body11 === "string";
         if (isBuffer || isString) {
-          if (isBuffer && body10.byteLength === 0) {
+          if (isBuffer && body11.byteLength === 0) {
             httpRequest.end();
           } else {
-            httpRequest.end(body10);
+            httpRequest.end(body11);
           }
           return;
         }
-        const uint8 = body10;
+        const uint8 = body11;
         if (typeof uint8 === "object" && uint8.buffer && typeof uint8.byteOffset === "number" && typeof uint8.byteLength === "number") {
           httpRequest.end(Buffer.from(uint8.buffer, uint8.byteOffset, uint8.byteLength));
           return;
         }
-        httpRequest.end(Buffer.from(body10));
+        httpRequest.end(Buffer.from(body11));
         return;
       }
       httpRequest.end();
@@ -77860,7 +77860,7 @@ var init_common = __esm({
   "../server/node_modules/@aws-sdk/core/dist-es/submodules/protocols/common.js"() {
     init_protocols();
     init_serde();
-    collectBodyString = (streamBody, context) => collectBody(streamBody, context).then((body10) => (context?.utf8Encoder ?? toUtf8)(body10));
+    collectBodyString = (streamBody, context) => collectBody(streamBody, context).then((body11) => (context?.utf8Encoder ?? toUtf8)(body11));
   }
 });
 
@@ -97406,9 +97406,9 @@ var require_errors = __commonJS({
        *
        * @public
        **/
-      constructor(message, body10) {
+      constructor(message, body11) {
         super(message);
-        this.body = body10;
+        this.body = body11;
       }
       get name() {
         return "MongoCryptAzureKMSRequestError";
@@ -97601,7 +97601,7 @@ var require_azure = __commonJS({
     exports2.tokenCache = new AzureCredentialCache();
     async function parseResponse(response) {
       const { status, body: rawBody } = response;
-      const body10 = (() => {
+      const body11 = (() => {
         try {
           return JSON.parse(rawBody);
         } catch {
@@ -97609,20 +97609,20 @@ var require_azure = __commonJS({
         }
       })();
       if (status !== 200) {
-        throw new errors_1.MongoCryptAzureKMSRequestError("Unable to complete request.", body10);
+        throw new errors_1.MongoCryptAzureKMSRequestError("Unable to complete request.", body11);
       }
-      if (!body10.access_token) {
+      if (!body11.access_token) {
         throw new errors_1.MongoCryptAzureKMSRequestError("Malformed response body - missing field `access_token`.");
       }
-      if (!body10.expires_in) {
+      if (!body11.expires_in) {
         throw new errors_1.MongoCryptAzureKMSRequestError("Malformed response body - missing field `expires_in`.");
       }
-      const expiresInMS = Number(body10.expires_in) * 1e3;
+      const expiresInMS = Number(body11.expires_in) * 1e3;
       if (Number.isNaN(expiresInMS)) {
         throw new errors_1.MongoCryptAzureKMSRequestError("Malformed response body - unable to parse int from `expires_in` field.");
       }
       return {
-        accessToken: body10.access_token,
+        accessToken: body11.access_token,
         expiresOnTimestamp: Date.now() + expiresInMS
       };
     }
@@ -105476,7 +105476,7 @@ var require_mongodb_aws = __commonJS({
         if (host.length < 1 || host.length > 255 || host.indexOf("..") !== -1) {
           throw new error_1.MongoRuntimeError(`Server returned an invalid host: "${host}"`);
         }
-        const body10 = "Action=GetCallerIdentity&Version=2011-06-15";
+        const body11 = "Action=GetCallerIdentity&Version=2011-06-15";
         const options = sign({
           method: "POST",
           host,
@@ -105484,12 +105484,12 @@ var require_mongodb_aws = __commonJS({
           service: "sts",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Content-Length": body10.length,
+            "Content-Length": body11.length,
             "X-MongoDB-Server-Nonce": utils_1.ByteUtils.toBase64(serverNonce),
             "X-MongoDB-GS2-CB-Flag": "n"
           },
           path: "/",
-          body: body10
+          body: body11
         }, awsCredentials);
         const payload = {
           a: options.headers.Authorization,
@@ -133353,10 +133353,10 @@ var require_connection2 = __commonJS({
         });
       });
     };
-    async function _wrapUserTransaction(fn, session, mongoose18) {
+    async function _wrapUserTransaction(fn, session, mongoose19) {
       try {
-        const res = mongoose18.transactionAsyncLocalStorage == null ? await fn(session) : await new Promise((resolve) => {
-          mongoose18.transactionAsyncLocalStorage.run(
+        const res = mongoose19.transactionAsyncLocalStorage == null ? await fn(session) : await new Promise((resolve) => {
+          mongoose19.transactionAsyncLocalStorage.run(
             { session },
             () => resolve(fn(session))
           );
@@ -146601,7 +146601,7 @@ var require_mongoose = __commonJS({
     Mongoose.prototype.ConnectionStates = STATES;
     Mongoose.prototype.driver = driver;
     Mongoose.prototype.setDriver = function setDriver(driver2) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       if (_mongoose.__driver === driver2) {
         return _mongoose;
       }
@@ -146619,7 +146619,7 @@ var require_mongoose = __commonJS({
         }
       }
       if (driver2.SchemaTypes != null) {
-        Object.assign(mongoose18.Schema.Types, driver2.SchemaTypes);
+        Object.assign(mongoose19.Schema.Types, driver2.SchemaTypes);
       }
       const Connection = driver2.Connection;
       const oldDefaultConnection = _mongoose.connections[0];
@@ -146637,7 +146637,7 @@ var require_mongoose = __commonJS({
       return _mongoose;
     };
     Mongoose.prototype.set = function getsetOptions(key, value) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       if (arguments.length === 1 && typeof key !== "object") {
         if (VALID_OPTIONS.indexOf(key) === -1) {
           const error2 = new SetOptionError();
@@ -146698,7 +146698,7 @@ var require_mongoose = __commonJS({
     };
     Mongoose.prototype.get = Mongoose.prototype.set;
     Mongoose.prototype.createConnection = function createConnection(uri, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       const Connection = _mongoose.__driver.Connection;
       const conn = new Connection(_mongoose);
       _mongoose.connections.push(conn);
@@ -146713,7 +146713,7 @@ var require_mongoose = __commonJS({
       if (typeof options === "function" || arguments.length >= 3 && typeof arguments[2] === "function") {
         throw new MongooseError("Mongoose.prototype.connect() no longer accepts a callback");
       }
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       if (_mongoose.connection == null) {
         _createDefaultConnection(_mongoose);
       }
@@ -146724,7 +146724,7 @@ var require_mongoose = __commonJS({
       if (arguments.length >= 1 && typeof arguments[0] === "function") {
         throw new MongooseError("Mongoose.prototype.disconnect() no longer accepts a callback");
       }
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       const remaining = _mongoose.connections.length;
       if (remaining <= 0) {
         return;
@@ -146732,18 +146732,18 @@ var require_mongoose = __commonJS({
       await Promise.all(_mongoose.connections.map((conn) => conn.close()));
     };
     Mongoose.prototype.startSession = function startSession() {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       return _mongoose.connection.startSession.apply(_mongoose.connection, arguments);
     };
     Mongoose.prototype.pluralize = function pluralize(fn) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       if (arguments.length > 0) {
         _mongoose._pluralize = fn;
       }
       return _mongoose._pluralize;
     };
     Mongoose.prototype.model = function model(name, schema, collection, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       if (typeof schema === "string") {
         collection = schema;
         schema = false;
@@ -146791,7 +146791,7 @@ var require_mongoose = __commonJS({
       return model2;
     };
     Mongoose.prototype._model = function _model(name, schema, collection, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       let model;
       if (typeof name === "function") {
         model = name;
@@ -146830,25 +146830,25 @@ var require_mongoose = __commonJS({
       return model;
     };
     Mongoose.prototype.deleteModel = function deleteModel(name) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       _mongoose.connection.deleteModel(name);
       delete _mongoose.models[name];
       return _mongoose;
     };
     Mongoose.prototype.modelNames = function modelNames() {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       const names = Object.keys(_mongoose.models);
       return names;
     };
     Mongoose.prototype._applyPlugins = function _applyPlugins(schema, options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       options = options || {};
       options.applyPluginsToDiscriminators = _mongoose.options && _mongoose.options.applyPluginsToDiscriminators || false;
       options.applyPluginsToChildSchemas = typeof (_mongoose.options && _mongoose.options.applyPluginsToChildSchemas) === "boolean" ? _mongoose.options.applyPluginsToChildSchemas : true;
       applyPlugins(schema, _mongoose.plugins, options, "$globalPluginsApplied");
     };
     Mongoose.prototype.plugin = function plugin(fn, opts) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       _mongoose.plugins.push([fn, opts]);
       return _mongoose;
     };
@@ -146898,14 +146898,14 @@ var require_mongoose = __commonJS({
     Mongoose.prototype.DocumentProvider = require_documentProvider();
     Mongoose.prototype.ObjectId = SchemaTypes.ObjectId;
     Mongoose.prototype.isValidObjectId = function isValidObjectId(v) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       return _mongoose.Types.ObjectId.isValid(v);
     };
     Mongoose.prototype.isObjectIdOrHexString = function isObjectIdOrHexString(v) {
       return isBsonType(v, "ObjectId") || typeof v === "string" && objectIdHexRegexp.test(v);
     };
     Mongoose.prototype.syncIndexes = function syncIndexes(options) {
-      const _mongoose = this instanceof Mongoose ? this : mongoose18;
+      const _mongoose = this instanceof Mongoose ? this : mongoose19;
       return _mongoose.connection.syncIndexes(options);
     };
     Mongoose.prototype.Decimal128 = SchemaTypes.Decimal128;
@@ -146925,15 +146925,15 @@ var require_mongoose = __commonJS({
     Mongoose.prototype.skipMiddlewareFunction = Kareem.skipWrappedFunction;
     Mongoose.prototype.overwriteMiddlewareResult = Kareem.overwriteResult;
     Mongoose.prototype.omitUndefined = require_omitUndefined();
-    function _createDefaultConnection(mongoose19) {
-      if (mongoose19.connection) {
+    function _createDefaultConnection(mongoose20) {
+      if (mongoose20.connection) {
         return;
       }
-      const conn = mongoose19.createConnection();
+      const conn = mongoose20.createConnection();
       conn[defaultConnectionSymbol] = true;
-      conn.models = mongoose19.models;
+      conn.models = mongoose20.models;
     }
-    var mongoose18 = module2.exports = exports2 = new Mongoose({
+    var mongoose19 = module2.exports = exports2 = new Mongoose({
       [defaultMongooseSymbol]: true
     });
   }
@@ -146945,10 +146945,10 @@ var require_lib10 = __commonJS({
     "use strict";
     var mongodbDriver = require_node_mongodb_native();
     require_driver().set(mongodbDriver);
-    var mongoose18 = require_mongoose();
-    mongoose18.setDriver(mongodbDriver);
-    mongoose18.Mongoose.prototype.mongo = require_lib7();
-    module2.exports = mongoose18;
+    var mongoose19 = require_mongoose();
+    mongoose19.setDriver(mongodbDriver);
+    mongoose19.Mongoose.prototype.mongo = require_lib7();
+    module2.exports = mongoose19;
   }
 });
 
@@ -146956,55 +146956,55 @@ var require_lib10 = __commonJS({
 var require_mongoose2 = __commonJS({
   "../server/node_modules/mongoose/index.js"(exports2, module2) {
     "use strict";
-    var mongoose18 = require_lib10();
-    module2.exports = mongoose18;
-    module2.exports.default = mongoose18;
-    module2.exports.mongoose = mongoose18;
-    module2.exports.cast = mongoose18.cast;
-    module2.exports.STATES = mongoose18.STATES;
-    module2.exports.setDriver = mongoose18.setDriver;
-    module2.exports.set = mongoose18.set;
-    module2.exports.get = mongoose18.get;
-    module2.exports.createConnection = mongoose18.createConnection;
-    module2.exports.connect = mongoose18.connect;
-    module2.exports.disconnect = mongoose18.disconnect;
-    module2.exports.startSession = mongoose18.startSession;
-    module2.exports.pluralize = mongoose18.pluralize;
-    module2.exports.model = mongoose18.model;
-    module2.exports.deleteModel = mongoose18.deleteModel;
-    module2.exports.modelNames = mongoose18.modelNames;
-    module2.exports.plugin = mongoose18.plugin;
-    module2.exports.connections = mongoose18.connections;
-    module2.exports.version = mongoose18.version;
-    module2.exports.Aggregate = mongoose18.Aggregate;
-    module2.exports.Mongoose = mongoose18.Mongoose;
-    module2.exports.Schema = mongoose18.Schema;
-    module2.exports.SchemaType = mongoose18.SchemaType;
-    module2.exports.SchemaTypes = mongoose18.SchemaTypes;
-    module2.exports.VirtualType = mongoose18.VirtualType;
-    module2.exports.Types = mongoose18.Types;
-    module2.exports.Query = mongoose18.Query;
-    module2.exports.Model = mongoose18.Model;
-    module2.exports.Document = mongoose18.Document;
-    module2.exports.ObjectId = mongoose18.ObjectId;
-    module2.exports.isValidObjectId = mongoose18.isValidObjectId;
-    module2.exports.isObjectIdOrHexString = mongoose18.isObjectIdOrHexString;
-    module2.exports.syncIndexes = mongoose18.syncIndexes;
-    module2.exports.Decimal128 = mongoose18.Decimal128;
-    module2.exports.Mixed = mongoose18.Mixed;
-    module2.exports.Date = mongoose18.Date;
-    module2.exports.Number = mongoose18.Number;
-    module2.exports.Error = mongoose18.Error;
-    module2.exports.MongooseError = mongoose18.MongooseError;
-    module2.exports.now = mongoose18.now;
-    module2.exports.CastError = mongoose18.CastError;
-    module2.exports.SchemaTypeOptions = mongoose18.SchemaTypeOptions;
-    module2.exports.mongo = mongoose18.mongo;
-    module2.exports.mquery = mongoose18.mquery;
-    module2.exports.sanitizeFilter = mongoose18.sanitizeFilter;
-    module2.exports.trusted = mongoose18.trusted;
-    module2.exports.skipMiddlewareFunction = mongoose18.skipMiddlewareFunction;
-    module2.exports.overwriteMiddlewareResult = mongoose18.overwriteMiddlewareResult;
+    var mongoose19 = require_lib10();
+    module2.exports = mongoose19;
+    module2.exports.default = mongoose19;
+    module2.exports.mongoose = mongoose19;
+    module2.exports.cast = mongoose19.cast;
+    module2.exports.STATES = mongoose19.STATES;
+    module2.exports.setDriver = mongoose19.setDriver;
+    module2.exports.set = mongoose19.set;
+    module2.exports.get = mongoose19.get;
+    module2.exports.createConnection = mongoose19.createConnection;
+    module2.exports.connect = mongoose19.connect;
+    module2.exports.disconnect = mongoose19.disconnect;
+    module2.exports.startSession = mongoose19.startSession;
+    module2.exports.pluralize = mongoose19.pluralize;
+    module2.exports.model = mongoose19.model;
+    module2.exports.deleteModel = mongoose19.deleteModel;
+    module2.exports.modelNames = mongoose19.modelNames;
+    module2.exports.plugin = mongoose19.plugin;
+    module2.exports.connections = mongoose19.connections;
+    module2.exports.version = mongoose19.version;
+    module2.exports.Aggregate = mongoose19.Aggregate;
+    module2.exports.Mongoose = mongoose19.Mongoose;
+    module2.exports.Schema = mongoose19.Schema;
+    module2.exports.SchemaType = mongoose19.SchemaType;
+    module2.exports.SchemaTypes = mongoose19.SchemaTypes;
+    module2.exports.VirtualType = mongoose19.VirtualType;
+    module2.exports.Types = mongoose19.Types;
+    module2.exports.Query = mongoose19.Query;
+    module2.exports.Model = mongoose19.Model;
+    module2.exports.Document = mongoose19.Document;
+    module2.exports.ObjectId = mongoose19.ObjectId;
+    module2.exports.isValidObjectId = mongoose19.isValidObjectId;
+    module2.exports.isObjectIdOrHexString = mongoose19.isObjectIdOrHexString;
+    module2.exports.syncIndexes = mongoose19.syncIndexes;
+    module2.exports.Decimal128 = mongoose19.Decimal128;
+    module2.exports.Mixed = mongoose19.Mixed;
+    module2.exports.Date = mongoose19.Date;
+    module2.exports.Number = mongoose19.Number;
+    module2.exports.Error = mongoose19.Error;
+    module2.exports.MongooseError = mongoose19.MongooseError;
+    module2.exports.now = mongoose19.now;
+    module2.exports.CastError = mongoose19.CastError;
+    module2.exports.SchemaTypeOptions = mongoose19.SchemaTypeOptions;
+    module2.exports.mongo = mongoose19.mongo;
+    module2.exports.mquery = mongoose19.mquery;
+    module2.exports.sanitizeFilter = mongoose19.sanitizeFilter;
+    module2.exports.trusted = mongoose19.trusted;
+    module2.exports.skipMiddlewareFunction = mongoose19.skipMiddlewareFunction;
+    module2.exports.overwriteMiddlewareResult = mongoose19.overwriteMiddlewareResult;
   }
 });
 
@@ -187906,10 +187906,10 @@ var require_brace_expansion = __commonJS({
       if (!m4)
         return str.split(",");
       var pre = m4.pre;
-      var body10 = m4.body;
+      var body11 = m4.body;
       var post = m4.post;
       var p2 = pre.split(",");
-      p2[p2.length - 1] += "{" + body10 + "}";
+      p2[p2.length - 1] += "{" + body11 + "}";
       var postParts = parseCommaParts(post);
       if (post.length) {
         p2[p2.length - 1] += postParts.shift();
@@ -188205,7 +188205,7 @@ var require_minimatch = __commonJS({
           }
         }
         const head = pattern.slice(patternIndex, firstgs);
-        const body10 = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
+        const body11 = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
         const tail = partial ? [] : pattern.slice(lastgs + 1);
         if (head.length) {
           const fileHead = file.slice(fileIndex, fileIndex + head.length);
@@ -188230,7 +188230,7 @@ var require_minimatch = __commonJS({
             fileTailMatch = tail.length + 1;
           }
         }
-        if (!body10.length) {
+        if (!body11.length) {
           let sawSome = !!fileTailMatch;
           for (let i6 = fileIndex; i6 < file.length - fileTailMatch; i6++) {
             const f6 = String(file[i6]);
@@ -188245,7 +188245,7 @@ var require_minimatch = __commonJS({
         let currentBody = bodySegments[0];
         let nonGsParts = 0;
         const nonGsPartsSums = [0];
-        for (const b6 of body10) {
+        for (const b6 of body11) {
           if (b6 === GLOBSTAR) {
             nonGsPartsSums.push(nonGsParts);
             currentBody = [[], 0];
@@ -188284,11 +188284,11 @@ var require_minimatch = __commonJS({
           }
           return sawTail;
         }
-        const [body10, after] = bs;
+        const [body11, after] = bs;
         while (fileIndex <= after) {
           const m4 = this._matchOne(
-            file.slice(0, fileIndex + body10.length),
-            body10,
+            file.slice(0, fileIndex + body11.length),
+            body11,
             partial,
             fileIndex,
             0
@@ -188297,7 +188297,7 @@ var require_minimatch = __commonJS({
             const sub = this._matchGlobStarBodySections(
               file,
               bodySegments,
-              fileIndex + body10.length,
+              fileIndex + body11.length,
               bodyIndex + 1,
               partial,
               globStarDepth + 1,
@@ -196285,10 +196285,10 @@ var require_brace_expansion2 = __commonJS({
       if (!m4)
         return str.split(",");
       var pre = m4.pre;
-      var body10 = m4.body;
+      var body11 = m4.body;
       var post = m4.post;
       var p2 = pre.split(",");
-      p2[p2.length - 1] += "{" + body10 + "}";
+      p2[p2.length - 1] += "{" + body11 + "}";
       var postParts = parseCommaParts(post);
       if (post.length) {
         p2[p2.length - 1] += postParts.shift();
@@ -196928,7 +196928,7 @@ var require_minimatch2 = __commonJS({
         }
       }
       var head = pattern.slice(patternIndex, firstgs);
-      var body10 = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
+      var body11 = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
       var tail = partial ? [] : pattern.slice(lastgs + 1);
       if (head.length) {
         var fileHead = file.slice(fileIndex, fileIndex + head.length);
@@ -196954,7 +196954,7 @@ var require_minimatch2 = __commonJS({
           fileTailMatch = tail.length + 1;
         }
       }
-      if (!body10.length) {
+      if (!body11.length) {
         var sawSome = !!fileTailMatch;
         for (i6 = fileIndex; i6 < file.length - fileTailMatch; i6++) {
           var f6 = String(file[i6]);
@@ -196969,8 +196969,8 @@ var require_minimatch2 = __commonJS({
       var currentBody = bodySegments[0];
       var nonGsParts = 0;
       var nonGsPartsSums = [0];
-      for (var bi = 0; bi < body10.length; bi++) {
-        var b6 = body10[bi];
+      for (var bi = 0; bi < body11.length; bi++) {
+        var b6 = body11[bi];
         if (b6 === GLOBSTAR) {
           nonGsPartsSums.push(nonGsParts);
           currentBody = [[], 0];
@@ -197007,12 +197007,12 @@ var require_minimatch2 = __commonJS({
         }
         return sawTail;
       }
-      var body10 = bs[0];
+      var body11 = bs[0];
       var after = bs[1];
       while (fileIndex <= after) {
         var m4 = this._matchOne(
-          file.slice(0, fileIndex + body10.length),
-          body10,
+          file.slice(0, fileIndex + body11.length),
+          body11,
           partial,
           fileIndex,
           0
@@ -197021,7 +197021,7 @@ var require_minimatch2 = __commonJS({
           var sub = this._matchGlobStarBodySections(
             file,
             bodySegments,
-            fileIndex + body10.length,
+            fileIndex + body11.length,
             bodyIndex + 1,
             partial,
             globStarDepth + 1,
@@ -210651,8 +210651,8 @@ var require_promisify = __commonJS({
             return ret2;
           }
           var getFunctionCode = typeof callback === "string" ? "this != null ? this['" + callback + "'] : fn" : "fn";
-          var body10 = "'use strict';                                                \n        var ret = function (Parameters) {                                    \n            'use strict';                                                    \n            var len = arguments.length;                                      \n            var promise = new Promise(INTERNAL);                             \n            promise._captureStackTrace();                                    \n            var nodeback = nodebackForPromise(promise, " + multiArgs + ");   \n            var ret;                                                         \n            var callback = tryCatch([GetFunctionCode]);                      \n            switch(len) {                                                    \n                [CodeForSwitchCase]                                          \n            }                                                                \n            if (ret === errorObj) {                                          \n                promise._rejectCallback(maybeWrapAsError(ret.e), true, true);\n            }                                                                \n            if (!promise._isFateSealed()) promise._setAsyncGuaranteed();     \n            return promise;                                                  \n        };                                                                   \n        notEnumerableProp(ret, '__isPromisified__', true);                   \n        return ret;                                                          \n    ".replace("[CodeForSwitchCase]", generateArgumentSwitchCase()).replace("[GetFunctionCode]", getFunctionCode);
-          body10 = body10.replace("Parameters", parameterDeclaration(newParameterCount));
+          var body11 = "'use strict';                                                \n        var ret = function (Parameters) {                                    \n            'use strict';                                                    \n            var len = arguments.length;                                      \n            var promise = new Promise(INTERNAL);                             \n            promise._captureStackTrace();                                    \n            var nodeback = nodebackForPromise(promise, " + multiArgs + ");   \n            var ret;                                                         \n            var callback = tryCatch([GetFunctionCode]);                      \n            switch(len) {                                                    \n                [CodeForSwitchCase]                                          \n            }                                                                \n            if (ret === errorObj) {                                          \n                promise._rejectCallback(maybeWrapAsError(ret.e), true, true);\n            }                                                                \n            if (!promise._isFateSealed()) promise._setAsyncGuaranteed();     \n            return promise;                                                  \n        };                                                                   \n        notEnumerableProp(ret, '__isPromisified__', true);                   \n        return ret;                                                          \n    ".replace("[CodeForSwitchCase]", generateArgumentSwitchCase()).replace("[GetFunctionCode]", getFunctionCode);
+          body11 = body11.replace("Parameters", parameterDeclaration(newParameterCount));
           return new Function(
             "Promise",
             "fn",
@@ -210664,7 +210664,7 @@ var require_promisify = __commonJS({
             "errorObj",
             "notEnumerableProp",
             "INTERNAL",
-            body10
+            body11
           )(
             Promise2,
             fn,
@@ -216937,10 +216937,10 @@ var require_brace_expansion3 = __commonJS({
       if (!m4)
         return str.split(",");
       var pre = m4.pre;
-      var body10 = m4.body;
+      var body11 = m4.body;
       var post = m4.post;
       var p2 = pre.split(",");
-      p2[p2.length - 1] += "{" + body10 + "}";
+      p2[p2.length - 1] += "{" + body11 + "}";
       var postParts = parseCommaParts(post);
       if (post.length) {
         p2[p2.length - 1] += postParts.shift();
@@ -217580,7 +217580,7 @@ var require_minimatch3 = __commonJS({
         }
       }
       var head = pattern.slice(patternIndex, firstgs);
-      var body10 = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
+      var body11 = partial ? pattern.slice(firstgs + 1) : pattern.slice(firstgs + 1, lastgs);
       var tail = partial ? [] : pattern.slice(lastgs + 1);
       if (head.length) {
         var fileHead = file.slice(fileIndex, fileIndex + head.length);
@@ -217606,7 +217606,7 @@ var require_minimatch3 = __commonJS({
           fileTailMatch = tail.length + 1;
         }
       }
-      if (!body10.length) {
+      if (!body11.length) {
         var sawSome = !!fileTailMatch;
         for (i6 = fileIndex; i6 < file.length - fileTailMatch; i6++) {
           var f6 = String(file[i6]);
@@ -217621,8 +217621,8 @@ var require_minimatch3 = __commonJS({
       var currentBody = bodySegments[0];
       var nonGsParts = 0;
       var nonGsPartsSums = [0];
-      for (var bi = 0; bi < body10.length; bi++) {
-        var b6 = body10[bi];
+      for (var bi = 0; bi < body11.length; bi++) {
+        var b6 = body11[bi];
         if (b6 === GLOBSTAR) {
           nonGsPartsSums.push(nonGsParts);
           currentBody = [[], 0];
@@ -217659,12 +217659,12 @@ var require_minimatch3 = __commonJS({
         }
         return sawTail;
       }
-      var body10 = bs[0];
+      var body11 = bs[0];
       var after = bs[1];
       while (fileIndex <= after) {
         var m4 = this._matchOne(
-          file.slice(0, fileIndex + body10.length),
-          body10,
+          file.slice(0, fileIndex + body11.length),
+          body11,
           partial,
           fileIndex,
           0
@@ -217673,7 +217673,7 @@ var require_minimatch3 = __commonJS({
           var sub = this._matchGlobStarBodySections(
             file,
             bodySegments,
-            fileIndex + body10.length,
+            fileIndex + body11.length,
             bodyIndex + 1,
             partial,
             globStarDepth + 1,
@@ -377022,7 +377022,7 @@ end`);
 // ../server/src/app.js
 var import_compression = __toESM(require_compression(), 1);
 var import_cors = __toESM(require_lib(), 1);
-var import_express16 = __toESM(require_express2(), 1);
+var import_express17 = __toESM(require_express2(), 1);
 var import_express_mongo_sanitize = __toESM(require_express_mongo_sanitize(), 1);
 
 // ../server/node_modules/express-rate-limit/dist/index.mjs
@@ -378374,7 +378374,7 @@ function errorHandler(error, req, res, next) {
 }
 
 // ../server/src/routes/index.js
-var import_express15 = __toESM(require_express2(), 1);
+var import_express16 = __toESM(require_express2(), 1);
 
 // ../server/src/routes/authRoutes.js
 var import_express = __toESM(require_express2(), 1);
@@ -380333,6 +380333,9 @@ var inventoryLogSchema = new import_mongoose4.default.Schema(
     reason: { type: String, required: true },
     source: { type: String, enum: ["sale", "purchase", "manual", "restore"], default: "manual" },
     referenceId: import_mongoose4.default.Schema.Types.ObjectId,
+    invoiceId: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "Bill" },
+    supplier: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "Supplier" },
+    purchaseInvoiceNo: String,
     user: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "User" }
   },
   { timestamps: true }
@@ -380354,7 +380357,15 @@ var productSchema = new import_mongoose5.default.Schema(
     taxRate: { type: Number, default: 0, min: 0 },
     stock: { type: Number, default: 0, min: 0 },
     lowStockThreshold: { type: Number, default: 5, min: 0 },
-    unit: { type: String, default: "pcs" },
+    unit: { type: String, default: "pcs", lowercase: true, trim: true },
+    allowDecimalQty: { type: Boolean, default: false },
+    localName: String,
+    mrp: Number,
+    wholesalePrice: Number,
+    openingStock: Number,
+    companyName: String,
+    hsnCode: String,
+    discount: Number,
     imageUrl: String,
     active: { type: Boolean, default: true }
   },
@@ -380371,8 +380382,12 @@ var purchaseItemSchema = new import_mongoose6.default.Schema(
   {
     product: { type: import_mongoose6.default.Schema.Types.ObjectId, ref: "Product", required: true },
     name: String,
-    quantity: { type: Number, required: true, min: 1 },
+    quantity: { type: Number, required: true, min: 1e-3 },
+    unit: { type: String, default: "pcs" },
     costPrice: { type: Number, required: true, min: 0 },
+    gstRate: { type: Number, default: 0, min: 0 },
+    mrp: { type: Number, default: 0, min: 0 },
+    sellingPrice: { type: Number, default: 0, min: 0 },
     lineTotal: { type: Number, required: true }
   },
   { _id: false }
@@ -380381,6 +380396,7 @@ var purchaseSchema = new import_mongoose6.default.Schema(
   {
     supplier: { type: import_mongoose6.default.Schema.Types.ObjectId, ref: "Supplier" },
     invoiceNumber: String,
+    purchaseDate: { type: Date, default: Date.now },
     items: [purchaseItemSchema],
     total: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
@@ -380398,7 +380414,8 @@ var saleItemSchema = new import_mongoose7.default.Schema(
     product: { type: import_mongoose7.default.Schema.Types.ObjectId, ref: "Product", required: true },
     name: { type: String, required: true },
     sku: { type: String, required: true },
-    quantity: { type: Number, required: true, min: 1 },
+    quantity: { type: Number, required: true, min: 1e-3 },
+    unit: { type: String, default: "pcs" },
     price: { type: Number, required: true, min: 0 },
     purchasePrice: { type: Number, required: true, min: 0 },
     taxRate: { type: Number, default: 0 },
@@ -380463,6 +380480,7 @@ var supplierSchema = new import_mongoose9.default.Schema(
     email: { type: String, trim: true, lowercase: true },
     gstNumber: String,
     address: String,
+    notes: String,
     active: { type: Boolean, default: true }
   },
   { timestamps: true }
@@ -380517,7 +380535,8 @@ var billItemSchema = new import_mongoose10.default.Schema(
   {
     productId: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "Product", required: true },
     productName: { type: String, required: true, trim: true },
-    quantity: { type: Number, required: true, min: 1 },
+    quantity: { type: Number, required: true, min: 1e-3 },
+    unit: { type: String, default: "pcs", trim: true },
     price: { type: Number, required: true, min: 0 },
     tax: { type: Number, required: true, min: 0, default: 0 },
     total: { type: Number, required: true, min: 0 }
@@ -380683,32 +380702,99 @@ var holdBillSchema = new import_mongoose14.default.Schema(
 var HoldBill = import_mongoose14.default.model("HoldBill", holdBillSchema);
 var HoldBill_default = HoldBill;
 
+// ../server/src/models/Unit.js
+var import_mongoose15 = __toESM(require_mongoose2(), 1);
+var DEFAULT_UNITS = [
+  { name: "kg", allowDecimal: true },
+  { name: "g", allowDecimal: true },
+  { name: "litre", allowDecimal: true },
+  { name: "l", allowDecimal: true },
+  { name: "ml", allowDecimal: true },
+  { name: "pcs", allowDecimal: false },
+  { name: "piece", allowDecimal: false },
+  { name: "packet", allowDecimal: false },
+  { name: "pkt", allowDecimal: false },
+  { name: "box", allowDecimal: false },
+  { name: "part", allowDecimal: false },
+  { name: "unit", allowDecimal: false }
+];
+var unitSchema = new import_mongoose15.default.Schema(
+  {
+    name: { type: String, required: true, trim: true, lowercase: true, unique: true },
+    allowDecimal: { type: Boolean, default: false },
+    active: { type: Boolean, default: true }
+  },
+  { timestamps: true }
+);
+var Unit = import_mongoose15.default.model("Unit", unitSchema);
+
+// ../server/src/controllers/unitController.js
+var import_express_validator3 = __toESM(require_lib4(), 1);
+var unitRules = [
+  (0, import_express_validator3.body)("name").trim().notEmpty(),
+  (0, import_express_validator3.body)("allowDecimal").isBoolean()
+];
+async function ensureDefaultUnits() {
+  await Promise.all(DEFAULT_UNITS.map((unit) => Unit.updateOne(
+    { name: unit.name },
+    { $setOnInsert: unit },
+    { upsert: true }
+  )));
+}
+var listUnits = asyncHandler(async (req, res) => {
+  await ensureDefaultUnits();
+  const units = await Unit.find({ active: true }).sort({ allowDecimal: -1, name: 1 });
+  res.json({ units });
+});
+var createUnit = asyncHandler(async (req, res) => {
+  const name = String(req.body.name || "").trim().toLowerCase();
+  const unit = await Unit.create({ name, allowDecimal: Boolean(req.body.allowDecimal) });
+  res.status(201).json({ unit });
+});
+var updateUnit = asyncHandler(async (req, res) => {
+  const unit = await Unit.findByIdAndUpdate(
+    req.params.id,
+    {
+      name: String(req.body.name || "").trim().toLowerCase(),
+      allowDecimal: Boolean(req.body.allowDecimal)
+    },
+    { new: true, runValidators: true }
+  );
+  if (!unit) throw new ApiError(404, "Unit not found");
+  res.json({ unit });
+});
+var deleteUnit = asyncHandler(async (req, res) => {
+  const unit = await Unit.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
+  if (!unit) throw new ApiError(404, "Unit not found");
+  res.json({ message: "Unit deleted" });
+});
+
 // ../server/src/controllers/billController.js
-var import_mongoose16 = __toESM(require_mongoose2(), 1);
+var import_mongoose17 = __toESM(require_mongoose2(), 1);
 
 // ../server/src/models/Refund.js
-var import_mongoose15 = __toESM(require_mongoose2(), 1);
-var refundItemSchema = new import_mongoose15.default.Schema(
+var import_mongoose16 = __toESM(require_mongoose2(), 1);
+var refundItemSchema = new import_mongoose16.default.Schema(
   {
-    productId: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Product" },
+    productId: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "Product" },
     productName: { type: String, trim: true },
-    quantity: { type: Number, min: 1, default: 1 },
+    quantity: { type: Number, min: 1e-3, default: 1 },
     price: { type: Number, min: 0, default: 0 },
     total: { type: Number, min: 0, default: 0 }
   },
   { _id: false }
 );
-var refundSchema = new import_mongoose15.default.Schema(
+var refundSchema = new import_mongoose16.default.Schema(
   {
-    bill: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Bill", required: true },
+    bill: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "Bill", required: true },
     items: { type: [refundItemSchema], default: [] },
     type: { type: String, trim: true, default: "partial" },
     reason: { type: String, trim: true },
-    processedBy: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "User" }
+    processedBy: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "User" }
   },
   { timestamps: true }
 );
-var Refund = import_mongoose15.default.model("Refund", refundSchema);
+var Refund = import_mongoose16.default.model("Refund", refundSchema);
 var Refund_default = Refund;
 
 // ../server/src/controllers/billController.js
@@ -380723,6 +380809,82 @@ function paymentStatusFromAmounts(total, paid) {
   if (paid >= total) return "Paid";
   if (paid > 0) return "Partial";
   return "Unpaid";
+}
+function isWholeNumber(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
+}
+async function getUnitRule(unitName) {
+  await ensureDefaultUnits();
+  const name = String(unitName || "pcs").trim().toLowerCase();
+  const unit = await Unit.findOne({ name, active: true }).lean();
+  return unit || { name: "pcs", allowDecimal: false };
+}
+async function validateBillItemsForSale(items, stockCredits = []) {
+  const creditsByProduct = /* @__PURE__ */ new Map();
+  for (const item of stockCredits || []) {
+    const key = String(item.productId || item.product || item._id);
+    creditsByProduct.set(key, (creditsByProduct.get(key) || 0) + Math.abs(Number(item.quantity || item.qty || 0)));
+  }
+  for (const it of items) {
+    const product = await Product.findById(it.productId);
+    if (!product) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
+    const unit = await getUnitRule(product.unit || it.unit);
+    it.unit = unit.name;
+    if (!unit.allowDecimal && !isWholeNumber(it.quantity)) {
+      throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
+    }
+    const available = Number(product.stock || 0) + (creditsByProduct.get(String(it.productId)) || 0);
+    if (available < it.quantity) {
+      throw new ApiError(400, "Insufficient stock available.");
+    }
+  }
+}
+async function deductSoldStock(items, bill, userId) {
+  for (const it of items) {
+    const product = await Product.findOneAndUpdate(
+      { _id: it.productId, stock: { $gte: it.quantity } },
+      { $inc: { stock: -Math.abs(it.quantity) } },
+      { new: false }
+    );
+    if (!product) throw new ApiError(400, "Insufficient stock available.");
+    const stockBefore = Number(product.stock || 0);
+    const stockAfter = stockBefore - Math.abs(it.quantity);
+    await InventoryLog.create({
+      product: it.productId,
+      type: "stock_out",
+      quantity: Math.abs(it.quantity),
+      stockBefore,
+      stockAfter,
+      invoiceId: bill._id,
+      referenceId: bill._id,
+      reason: `Sale ${bill.invoiceNo}`,
+      source: "sale",
+      user: userId
+    });
+  }
+}
+async function restoreSoldStock(items, reason, userId, billId) {
+  for (const it of items || []) {
+    const quantity = Math.abs(Number(it.quantity || it.qty || 0));
+    if (!quantity) continue;
+    const product = await Product.findById(it.productId);
+    if (!product) continue;
+    const stockBefore = Number(product.stock || 0);
+    product.stock = stockBefore + quantity;
+    await product.save();
+    await InventoryLog.create({
+      product: product._id,
+      type: "stock_in",
+      quantity,
+      stockBefore,
+      stockAfter: product.stock,
+      invoiceId: billId,
+      referenceId: billId,
+      reason,
+      source: "restore",
+      user: userId
+    });
+  }
 }
 async function resolveBillCustomer({ customerId, customerMobile, customerName, customerAddress }) {
   if (customerId) return Customer.findById(customerId);
@@ -380748,7 +380910,7 @@ var createBill = asyncHandler(async (req, res) => {
   const normalizedItems = [];
   for (const it of items) {
     let pid = it.productId || it._id || null;
-    if (pid && !import_mongoose16.default.Types.ObjectId.isValid(String(pid))) {
+    if (pid && !import_mongoose17.default.Types.ObjectId.isValid(String(pid))) {
       const pidStr = String(pid);
       if (/^[0-9]+$/.test(pidStr)) {
         const prod = await Product.findOne({ productId: Number(pidStr), active: true }).lean();
@@ -380762,17 +380924,18 @@ var createBill = asyncHandler(async (req, res) => {
         }
       }
     }
-    if (!pid || !import_mongoose16.default.Types.ObjectId.isValid(String(pid))) {
+    if (!pid || !import_mongoose17.default.Types.ObjectId.isValid(String(pid))) {
       throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}. Expected MongoDB ObjectId, got: ${pid}`);
     }
-    const productIdObj = new import_mongoose16.default.Types.ObjectId(String(pid));
+    const productIdObj = new import_mongoose17.default.Types.ObjectId(String(pid));
     const normalized = {
       productId: productIdObj,
       productName: it.productName || it.name || "",
-      quantity: Number(it.quantity || it.qty || 1),
+      quantity: parseFloat(it.quantity || it.qty || 1e-3),
+      unit: String(it.unit || "pcs").trim().toLowerCase(),
       price: Number(it.price || it.sellingPrice || it.rate || 0),
       tax: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1))
+      total: Number(it.total != null ? it.total : Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 1e-3))
     };
     normalizedItems.push(normalized);
   }
@@ -380835,17 +380998,9 @@ var createBill = asyncHandler(async (req, res) => {
     })),
     total: billPayload.total
   });
-  for (const it of normalizedItems) {
-    const prod = await Product.findById(it.productId);
-    if (!prod) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
-    if (prod.stock < it.quantity) {
-      throw new ApiError(400, `Insufficient stock for ${prod.name || prod.sku}. Available ${prod.stock}, requested ${it.quantity}`);
-    }
-  }
-  for (const it of normalizedItems) {
-    await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
-  }
+  await validateBillItemsForSale(normalizedItems);
   const bill = await Bill_default.create(billPayload);
+  await deductSoldStock(normalizedItems, bill, req.user?._id);
   if (customer) {
     const loyaltyPoints = Math.floor(bill.total / 100);
     customer.totalSpent += bill.total;
@@ -380890,39 +381045,26 @@ var updateBill = asyncHandler(async (req, res) => {
   const { items, subtotal, taxTotal, discount } = req.body;
   const bill = await Bill_default.findById(req.params.id);
   if (!bill) throw new ApiError(404, "Bill not found");
-  for (const old of bill.items || []) {
-    try {
-      await Product.updateOne({ _id: old.productId }, { $inc: { stock: Math.abs(old.quantity) } });
-    } catch (e6) {
-      console.warn("Failed to restore stock for", old.productId, e6);
-    }
-  }
   const normalizedItems = [];
   for (const it of items) {
     let pid = it.productId || it._id || null;
-    if (!pid || !import_mongoose16.default.Types.ObjectId.isValid(String(pid))) {
+    if (!pid || !import_mongoose17.default.Types.ObjectId.isValid(String(pid))) {
       throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}`);
     }
-    const productIdObj = new import_mongoose16.default.Types.ObjectId(String(pid));
+    const productIdObj = new import_mongoose17.default.Types.ObjectId(String(pid));
     normalizedItems.push({
       productId: productIdObj,
       productName: it.productName || it.name || "",
-      quantity: Number(it.quantity || it.qty || 1),
-      price: Number(it.price || it.sellingPrice || it.rate || 0),
-      tax: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1))
+      quantity: parseFloat(it.quantity || it.qty || 1e-3),
+      unit: String(it.unit || "pcs").trim().toLowerCase(),
+      price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
+      tax: parseFloat(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 1e-3))
     });
   }
-  for (const it of normalizedItems) {
-    const prod = await Product.findById(it.productId);
-    if (!prod) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
-    if (prod.stock < it.quantity) {
-      throw new ApiError(400, `Insufficient stock for ${prod.name || prod.sku}. Available ${prod.stock}, requested ${it.quantity}`);
-    }
-  }
-  for (const it of normalizedItems) {
-    await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
-  }
+  await validateBillItemsForSale(normalizedItems, bill.items);
+  await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
+  await deductSoldStock(normalizedItems, bill, req.user?._id);
   bill.items = normalizedItems;
   bill.subtotal = subtotal;
   bill.taxTotal = taxTotal;
@@ -380942,13 +381084,7 @@ var deleteBill = asyncHandler(async (req, res) => {
     reason,
     originalData: bill.toObject()
   });
-  for (const it of bill.items || []) {
-    try {
-      await Product.updateOne({ _id: it.productId }, { $inc: { stock: Math.abs(it.quantity) } });
-    } catch (e6) {
-      console.warn("Failed to restore stock for", it.productId, e6);
-    }
-  }
+  await restoreSoldStock(bill.items, `Deleted bill restore ${bill.invoiceNo}`, req.user?._id, bill._id);
   await Bill_default.findByIdAndDelete(req.params.id);
   res.json({ message: "Bill deleted successfully" });
 });
@@ -381011,7 +381147,7 @@ var holdBill = asyncHandler(async (req, res) => {
   const normalizedItems = [];
   for (const it of items) {
     let pid = it.productId || it._id || null;
-    if (pid && !import_mongoose16.default.Types.ObjectId.isValid(String(pid))) {
+    if (pid && !import_mongoose17.default.Types.ObjectId.isValid(String(pid))) {
       const pidStr = String(pid);
       if (/^[0-9]+$/.test(pidStr)) {
         let prod = await Product.findOne({ productId: Number(pidStr) }).lean();
@@ -381036,17 +381172,18 @@ var holdBill = asyncHandler(async (req, res) => {
         if (prod) pid = prod._id;
       }
     }
-    if (!pid || !import_mongoose16.default.Types.ObjectId.isValid(String(pid))) {
+    if (!pid || !import_mongoose17.default.Types.ObjectId.isValid(String(pid))) {
       throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}`);
     }
-    const productIdObj = new import_mongoose16.default.Types.ObjectId(String(pid));
+    const productIdObj = new import_mongoose17.default.Types.ObjectId(String(pid));
     const normalized = {
       productId: productIdObj,
       productName: it.productName || it.name || "",
-      quantity: Number(it.quantity || it.qty || 1),
-      price: Number(it.price || it.sellingPrice || it.rate || 0),
-      gst: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : Number(it.price || it.sellingPrice || it.rate || 0) * Number(it.quantity || it.qty || 1))
+      quantity: parseFloat(it.quantity || it.qty || 1e-3),
+      unit: String(it.unit || "pcs").trim().toLowerCase(),
+      price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
+      gst: parseFloat(it.gst || it.taxRate || it.tax || 0),
+      total: Number(it.total != null ? it.total : Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 1e-3))
     };
     normalizedItems.push(normalized);
   }
@@ -381097,7 +381234,7 @@ var createRefund = asyncHandler(async (req, res) => {
   for (const it of items || []) {
     try {
       const pid = it.productId || it._id || it.product;
-      if (pid && import_mongoose16.default.Types.ObjectId.isValid(String(pid))) {
+      if (pid && import_mongoose17.default.Types.ObjectId.isValid(String(pid))) {
         await Product.updateOne({ _id: pid }, { $inc: { stock: Math.abs(it.quantity || it.qty || 0) } });
       }
     } catch (e6) {
@@ -381158,10 +381295,10 @@ holdBillRoutes.delete("/:id", deleteHeldBill);
 var import_express5 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/categoryController.js
-var import_express_validator3 = __toESM(require_lib4(), 1);
+var import_express_validator4 = __toESM(require_lib4(), 1);
 var categoryRules = [
-  (0, import_express_validator3.body)("name").trim().notEmpty(),
-  (0, import_express_validator3.body)("taxRate").optional().isFloat({ min: 0 })
+  (0, import_express_validator4.body)("name").trim().notEmpty(),
+  (0, import_express_validator4.body)("taxRate").optional().isFloat({ min: 0 })
 ];
 var listCategories = asyncHandler(async (req, res) => {
   const categories = await Category.find().sort({ name: 1 });
@@ -381192,15 +381329,15 @@ categoryRoutes.route("/:id").patch(authorize("admin", "manager"), categoryRules,
 var import_express6 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/customerController.js
-var import_express_validator4 = __toESM(require_lib4(), 1);
+var import_express_validator5 = __toESM(require_lib4(), 1);
 var customerRules = [
-  (0, import_express_validator4.body)("name").trim().notEmpty(),
-  (0, import_express_validator4.body)("mobile").trim().notEmpty()
+  (0, import_express_validator5.body)("name").trim().notEmpty(),
+  (0, import_express_validator5.body)("mobile").trim().notEmpty()
 ];
 var collectionRules = [
-  (0, import_express_validator4.body)("amount").isFloat({ min: 0.01 }),
-  (0, import_express_validator4.body)("paymentMethod").isIn(["Cash", "UPI", "Card", "Bank Transfer"]),
-  (0, import_express_validator4.body)("notes").optional().trim()
+  (0, import_express_validator5.body)("amount").isFloat({ min: 0.01 }),
+  (0, import_express_validator5.body)("paymentMethod").isIn(["Cash", "UPI", "Card", "Bank Transfer"]),
+  (0, import_express_validator5.body)("notes").optional().trim()
 ];
 var listCustomers = asyncHandler(async (req, res) => {
   const search = req.query.search?.trim();
@@ -381297,23 +381434,32 @@ customerRoutes.route("/:id").patch(customerRules, validate, updateCustomer).dele
 var import_express7 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/inventoryController.js
-var import_express_validator5 = __toESM(require_lib4(), 1);
+var import_express_validator6 = __toESM(require_lib4(), 1);
 var adjustmentRules = [
-  (0, import_express_validator5.body)("product").isMongoId(),
-  (0, import_express_validator5.body)("quantity").isNumeric(),
-  (0, import_express_validator5.body)("reason").trim().notEmpty()
+  (0, import_express_validator6.body)("product").isMongoId(),
+  (0, import_express_validator6.body)("quantity").isNumeric(),
+  (0, import_express_validator6.body)("reason").trim().notEmpty()
 ];
+function isWholeNumber2(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
+}
 var listInventoryLogs = asyncHandler(async (req, res) => {
   const filter = {};
   if (req.query.product) filter.product = req.query.product;
-  const logs = await InventoryLog.find(filter).populate("product", "name sku").populate("user", "name").sort({ createdAt: -1 }).limit(200);
+  const logs = await InventoryLog.find(filter).populate("product", "name sku unit").populate("user", "name").sort({ createdAt: -1 }).limit(200);
   res.json({ logs });
 });
 var adjustStock = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.body.product);
   if (!product) throw new ApiError(404, "Product not found");
+  await ensureDefaultUnits();
+  const unit = await Unit.findOne({ name: product.unit || "pcs", active: true }).lean();
+  const quantity = parseFloat(req.body.quantity);
+  if (unit && !unit.allowDecimal && !isWholeNumber2(quantity)) {
+    throw new ApiError(400, `${product.unit || "pcs"} accepts whole number quantities only`);
+  }
   const stockBefore = product.stock;
-  const stockAfter = Math.max(stockBefore + Number(req.body.quantity), 0);
+  const stockAfter = Math.max(stockBefore + quantity, 0);
   product.stock = stockAfter;
   await product.save();
   const log = await InventoryLog.create({
@@ -381338,7 +381484,7 @@ inventoryRoutes.post("/adjust", authorize("admin", "manager"), adjustmentRules, 
 var import_express8 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/productController.js
-var import_express_validator6 = __toESM(require_lib4(), 1);
+var import_express_validator7 = __toESM(require_lib4(), 1);
 
 // ../server/src/utils/invoice.js
 function makeInvoiceNumber(count = 0) {
@@ -381353,15 +381499,29 @@ function makeSku(name = "PRD", count = 0) {
 
 // ../server/src/controllers/productController.js
 var productRules = [
-  (0, import_express_validator6.body)("name").trim().notEmpty(),
-  (0, import_express_validator6.body)("purchasePrice").isFloat({ min: 0 }),
-  (0, import_express_validator6.body)("sellingPrice").isFloat({ min: 0 }),
-  (0, import_express_validator6.body)("stock").optional().isInt({ min: 0 }),
-  (0, import_express_validator6.body)("taxRate").optional().isFloat({ min: 0 })
+  (0, import_express_validator7.body)("name").trim().notEmpty(),
+  (0, import_express_validator7.body)("purchasePrice").isFloat({ min: 0 }),
+  (0, import_express_validator7.body)("sellingPrice").isFloat({ min: 0 }),
+  (0, import_express_validator7.body)("mrp").optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
+  (0, import_express_validator7.body)("wholesalePrice").optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
+  (0, import_express_validator7.body)("stock").optional().isFloat({ min: 0 }),
+  (0, import_express_validator7.body)("taxRate").optional().isFloat({ min: 0 }),
+  (0, import_express_validator7.body)("unit").optional().trim().notEmpty()
 ];
+async function resolveUnitFields(payload) {
+  await ensureDefaultUnits();
+  const unitName = String(payload.unit || "pcs").trim().toLowerCase();
+  const unit = await Unit.findOne({ name: unitName, active: true }).lean();
+  if (!unit) throw new ApiError(400, `Invalid unit: ${unitName}`);
+  return {
+    ...payload,
+    unit: unit.name,
+    allowDecimalQty: unit.allowDecimal
+  };
+}
 var productQueryRules = [
-  (0, import_express_validator6.query)("page").optional().isInt({ min: 1 }),
-  (0, import_express_validator6.query)("limit").optional().isInt({ min: 1, max: 100 })
+  (0, import_express_validator7.query)("page").optional().isInt({ min: 1 }),
+  (0, import_express_validator7.query)("limit").optional().isInt({ min: 1, max: 1e4 })
 ];
 var listProducts = asyncHandler(async (req, res) => {
   const page = Number(req.query.page || 1);
@@ -381384,15 +381544,20 @@ var listProducts = asyncHandler(async (req, res) => {
   res.json({ products, total, page, pages: Math.ceil(total / limit) });
 });
 var createProduct = asyncHandler(async (req, res) => {
+  let nextProductId;
+  if (req.body.productId) {
+    nextProductId = Number(req.body.productId);
+  } else {
+    const lastProduct = await Product.findOne().sort({ productId: -1 });
+    nextProductId = lastProduct ? lastProduct.productId + 1 : 1;
+  }
   const total = await Product.countDocuments();
-  const lastProduct = await Product.findOne().sort({ productId: -1 }).lean();
-  const nextProductId = (lastProduct?.productId || 1e3) + 1;
-  const payload = {
+  const payload = await resolveUnitFields({
     ...req.body,
     productId: nextProductId,
     sku: req.body.sku || makeSku(req.body.name, total),
     imageUrl: req.file ? `/uploads/${req.file.filename}` : req.body.imageUrl
-  };
+  });
   const product = await Product.create(payload);
   if (product.stock > 0) {
     await InventoryLog.create({
@@ -381402,7 +381567,7 @@ var createProduct = asyncHandler(async (req, res) => {
       stockBefore: 0,
       stockAfter: product.stock,
       reason: "Opening stock",
-      user: req.user._id
+      user: req.user?._id
     });
   }
   res.status(201).json({ product });
@@ -381411,7 +381576,8 @@ var updateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
   if (!product) throw new ApiError(404, "Product not found");
   const oldStock = product.stock;
-  Object.assign(product, req.body);
+  const payload = req.body.unit ? await resolveUnitFields(req.body) : req.body;
+  Object.assign(product, payload);
   if (req.file) product.imageUrl = `/uploads/${req.file.filename}`;
   await product.save();
   if (Number(req.body.stock) !== oldStock && req.body.stock !== void 0) {
@@ -381525,7 +381691,7 @@ function getCache(key) {
 var escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var searchProducts = asyncHandler(async (req, res) => {
   const query2 = String(req.query.q || "").trim();
-  const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
+  const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 200);
   console.log(`Product search request: q=${query2} limit=${limit}`);
   if (!query2) {
     return res.json({ products: [] });
@@ -381545,7 +381711,9 @@ var searchProducts = asyncHandler(async (req, res) => {
       sellingPrice: 1,
       stock: 1,
       taxRate: 1,
-      category: 1
+      category: 1,
+      allowDecimalQty: 1,
+      unit: 1
     }).lean();
     if (prod) {
       const payload2 = [{
@@ -381559,7 +381727,9 @@ var searchProducts = asyncHandler(async (req, res) => {
         stock: prod.stock,
         taxRate: prod.taxRate || 0,
         tax: prod.taxRate || 0,
-        available: prod.stock > 0
+        available: prod.stock > 0,
+        allowDecimalQty: prod.allowDecimalQty || false,
+        unit: prod.unit || "pcs"
       }];
       setCache(cacheKey, payload2, 15e3);
       return res.json({ products: payload2 });
@@ -381574,7 +381744,9 @@ var searchProducts = asyncHandler(async (req, res) => {
     sellingPrice: 1,
     stock: 1,
     taxRate: 1,
-    category: 1
+    category: 1,
+    allowDecimalQty: 1,
+    unit: 1
   }).limit(limit).lean();
   if (prefixResults && prefixResults.length > 0) {
     const payload2 = prefixResults.map((product) => ({
@@ -381588,7 +381760,9 @@ var searchProducts = asyncHandler(async (req, res) => {
       stock: product.stock,
       taxRate: product.taxRate || 0,
       tax: product.taxRate || 0,
-      available: product.stock > 0
+      available: product.stock > 0,
+      allowDecimalQty: product.allowDecimalQty || false,
+      unit: product.unit || "pcs"
     }));
     setCache(cacheKey, payload2, 1e4);
     return res.json({ products: payload2 });
@@ -381603,7 +381777,9 @@ var searchProducts = asyncHandler(async (req, res) => {
     sellingPrice: 1,
     stock: 1,
     taxRate: 1,
-    category: 1
+    category: 1,
+    allowDecimalQty: 1,
+    unit: 1
   }).limit(1e3).lean();
   const searchResults = fuzzySearchProducts(query2, candidates);
   const topResults = searchResults.slice(0, limit);
@@ -381616,9 +381792,12 @@ var searchProducts = asyncHandler(async (req, res) => {
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,
     stock: product.stock,
+    unit: product.unit,
     taxRate: product.taxRate || 0,
     tax: product.taxRate || 0,
-    available: product.stock > 0
+    available: product.stock > 0,
+    allowDecimalQty: product.allowDecimalQty || false,
+    unit: product.unit || "pcs"
   }));
   console.log(`Found ${payload.length} products matching "${query2}"`);
   res.json({ products: payload });
@@ -381636,7 +381815,9 @@ var searchByProductId = asyncHandler(async (req, res) => {
     sellingPrice: 1,
     stock: 1,
     taxRate: 1,
-    category: 1
+    category: 1,
+    allowDecimalQty: 1,
+    unit: 1
   }).lean();
   if (!product) {
     return res.status(404).json({ message: "Product not found" });
@@ -381652,7 +381833,9 @@ var searchByProductId = asyncHandler(async (req, res) => {
     stock: product.stock,
     taxRate: product.taxRate || 0,
     tax: product.taxRate || 0,
-    available: product.stock > 0
+    available: product.stock > 0,
+    allowDecimalQty: product.allowDecimalQty || false,
+    unit: product.unit || "pcs"
   };
   res.json({ product: payload });
 });
@@ -381697,61 +381880,145 @@ productRoutes.route("/:id").patch(authorize("admin", "manager"), upload.single("
 var import_express9 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/purchaseController.js
-var import_express_validator7 = __toESM(require_lib4(), 1);
+var import_express_validator8 = __toESM(require_lib4(), 1);
 var purchaseRules = [
-  (0, import_express_validator7.body)("items").isArray({ min: 1 }),
-  (0, import_express_validator7.body)("items.*.product").isMongoId(),
-  (0, import_express_validator7.body)("items.*.quantity").isInt({ min: 1 }),
-  (0, import_express_validator7.body)("items.*.costPrice").isFloat({ min: 0 })
+  (0, import_express_validator8.body)("items").isArray({ min: 1 }),
+  (0, import_express_validator8.body)("items.*.product").optional({ nullable: true, checkFalsy: true }).isMongoId(),
+  (0, import_express_validator8.body)("items.*.quantity").isFloat({ min: 1e-3 }),
+  (0, import_express_validator8.body)("items.*.costPrice").isFloat({ min: 0 })
 ];
 var listPurchases = asyncHandler(async (req, res) => {
-  const purchases = await Purchase.find().populate("supplier", "name").populate("user", "name").sort({ createdAt: -1 });
+  const purchases = await Purchase.find().populate("supplier", "name mobile").populate("user", "name").sort({ purchaseDate: -1, createdAt: -1 });
   res.json({ purchases });
 });
-var createPurchase = asyncHandler(async (req, res) => {
-  let total = 0;
+async function getUnit(name) {
+  await ensureDefaultUnits();
+  const unit = await Unit.findOne({ name: String(name || "pcs").trim().toLowerCase(), active: true }).lean();
+  if (!unit) throw new ApiError(400, `Invalid unit: ${name}`);
+  return unit;
+}
+function isWholeNumber3(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
+}
+async function resolvePurchaseItems(rawItems) {
   const items = [];
-  for (const item of req.body.items) {
-    const product = await Product.findById(item.product);
-    if (!product) throw new ApiError(404, "Product not found");
-    const lineTotal = Number(item.quantity) * Number(item.costPrice);
-    total += lineTotal;
-    items.push({ product: product._id, name: product.name, quantity: item.quantity, costPrice: item.costPrice, lineTotal });
+  for (const item of rawItems) {
+    const unit = await getUnit(item.unit);
+    const quantity = Number(item.quantity || 0);
+    if (!unit.allowDecimal && !isWholeNumber3(quantity)) {
+      throw new ApiError(400, `Quantity for ${unit.name} must be a whole number`);
+    }
+    let product = item.product ? await Product.findById(item.product) : null;
+    if (!product) {
+      if (!item.name && !item.productName) throw new ApiError(400, "Product is required");
+      const totalProducts = await Product.countDocuments();
+      const lastProduct = await Product.findOne().sort({ productId: -1 }).lean();
+      product = await Product.create({
+        productId: (lastProduct?.productId || 0) + 1,
+        name: item.name || item.productName,
+        sku: item.sku || makeSku(item.name || item.productName, totalProducts),
+        purchasePrice: Number(item.costPrice || 0),
+        sellingPrice: Number(item.sellingPrice || item.mrp || item.costPrice || 0),
+        mrp: Number(item.mrp || 0),
+        taxRate: Number(item.gstRate || item.gst || 0),
+        unit: unit.name,
+        allowDecimalQty: unit.allowDecimal,
+        stock: 0,
+        active: true
+      });
+    }
+    const costPrice = Number(item.costPrice || 0);
+    const gstRate = Number(item.gstRate ?? item.gst ?? 0);
+    const lineTotal = quantity * costPrice * (1 + gstRate / 100);
+    items.push({
+      product: product._id,
+      name: product.name,
+      quantity,
+      unit: unit.name,
+      costPrice,
+      gstRate,
+      mrp: Number(item.mrp || product.mrp || 0),
+      sellingPrice: Number(item.sellingPrice || product.sellingPrice || 0),
+      lineTotal
+    });
   }
-  const purchase = await Purchase.create({
-    supplier: req.body.supplier,
-    invoiceNumber: req.body.invoiceNumber,
-    items,
-    total,
-    paidAmount: req.body.paidAmount || 0,
-    user: req.user._id,
-    notes: req.body.notes
-  });
+  return items;
+}
+async function applyPurchaseStock(items, purchase, userId, direction = 1) {
   for (const item of items) {
     const product = await Product.findById(item.product);
-    const stockBefore = product.stock;
-    product.stock += item.quantity;
-    product.purchasePrice = item.costPrice;
+    if (!product) throw new ApiError(404, "Product not found");
+    const quantity = Math.abs(Number(item.quantity || 0)) * direction;
+    const stockBefore = Number(product.stock || 0);
+    const stockAfter = stockBefore + quantity;
+    if (stockAfter < 0) throw new ApiError(400, "Insufficient stock available.");
+    product.stock = stockAfter;
+    if (direction > 0) {
+      product.purchasePrice = item.costPrice;
+      if (item.sellingPrice) product.sellingPrice = item.sellingPrice;
+      if (item.mrp) product.mrp = item.mrp;
+      if (item.gstRate != null) product.taxRate = item.gstRate;
+      product.unit = item.unit || product.unit;
+    }
     await product.save();
     await InventoryLog.create({
       product: product._id,
-      type: "stock_in",
-      quantity: item.quantity,
+      type: direction > 0 ? "stock_in" : "stock_out",
+      quantity: Math.abs(Number(item.quantity || 0)),
       stockBefore,
-      stockAfter: product.stock,
-      reason: `Purchase ${purchase.invoiceNumber || purchase._id}`,
+      stockAfter,
+      reason: direction > 0 ? `Purchase ${purchase.invoiceNumber || purchase._id}` : `Purchase edit restore ${purchase.invoiceNumber || purchase._id}`,
       source: "purchase",
       referenceId: purchase._id,
-      user: req.user._id
+      supplier: purchase.supplier,
+      purchaseInvoiceNo: purchase.invoiceNumber,
+      user: userId
     });
   }
+}
+var createPurchase = asyncHandler(async (req, res) => {
+  const items = await resolvePurchaseItems(req.body.items || []);
+  const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const purchase = await Purchase.create({
+    supplier: req.body.supplier,
+    invoiceNumber: req.body.invoiceNumber,
+    purchaseDate: req.body.purchaseDate ? new Date(req.body.purchaseDate) : /* @__PURE__ */ new Date(),
+    items,
+    total,
+    paidAmount: req.body.paidAmount || 0,
+    user: req.user?._id,
+    notes: req.body.notes
+  });
+  await applyPurchaseStock(items, purchase, req.user?._id, 1);
   res.status(201).json({ purchase });
+});
+var getPurchase = asyncHandler(async (req, res) => {
+  const purchase = await Purchase.findById(req.params.id).populate("supplier").populate("items.product");
+  if (!purchase) throw new ApiError(404, "Purchase not found");
+  res.json({ purchase });
+});
+var updatePurchase = asyncHandler(async (req, res) => {
+  const purchase = await Purchase.findById(req.params.id);
+  if (!purchase) throw new ApiError(404, "Purchase not found");
+  const items = await resolvePurchaseItems(req.body.items || []);
+  await applyPurchaseStock(purchase.items, purchase, req.user?._id, -1);
+  purchase.supplier = req.body.supplier || void 0;
+  purchase.invoiceNumber = req.body.invoiceNumber;
+  purchase.purchaseDate = req.body.purchaseDate ? new Date(req.body.purchaseDate) : purchase.purchaseDate;
+  purchase.items = items;
+  purchase.total = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  purchase.paidAmount = req.body.paidAmount || 0;
+  purchase.notes = req.body.notes;
+  await purchase.save();
+  await applyPurchaseStock(items, purchase, req.user?._id, 1);
+  res.json({ purchase });
 });
 
 // ../server/src/routes/purchaseRoutes.js
 var purchaseRoutes = import_express9.default.Router();
 purchaseRoutes.use(protect, authorize("admin", "manager"));
 purchaseRoutes.route("/").get(listPurchases).post(purchaseRules, validate, createPurchase);
+purchaseRoutes.route("/:id").get(getPurchase).put(purchaseRules, validate, updatePurchase);
 
 // ../server/src/routes/reportRoutes.js
 var import_express10 = __toESM(require_express2(), 1);
@@ -381797,6 +382064,7 @@ var productAnalytics = asyncHandler(async (req, res) => {
       $group: {
         _id: "$items.product",
         name: { $first: "$items.name" },
+        unit: { $first: "$items.unit" },
         quantity: { $sum: "$items.quantity" },
         revenue: { $sum: "$items.lineTotal" }
       }
@@ -381944,7 +382212,7 @@ reportRoutes.get("/sales/export.pdf", exportSalesPdf);
 var import_express11 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/saleController.js
-var import_express_validator8 = __toESM(require_lib4(), 1);
+var import_express_validator9 = __toESM(require_lib4(), 1);
 async function resolveCustomerForSale(req) {
   if (req.body.customer) return req.body.customer;
   const mobile = String(req.body.customerMobile || "").trim();
@@ -381961,13 +382229,21 @@ async function resolveCustomerForSale(req) {
   return customer._id;
 }
 var saleRules = [
-  (0, import_express_validator8.body)("items").isArray({ min: 1 }),
-  (0, import_express_validator8.body)("items.*.product").isMongoId(),
-  (0, import_express_validator8.body)("items.*.quantity").isInt({ min: 1 }),
-  (0, import_express_validator8.body)("items.*.price").optional().isFloat({ min: 0 }),
-  (0, import_express_validator8.body)("items.*.discount").optional().isFloat({ min: 0 }),
-  (0, import_express_validator8.body)("paymentMethod").isIn(["cash", "upi", "card", "bank_transfer", "credit"])
+  (0, import_express_validator9.body)("items").isArray({ min: 1 }),
+  (0, import_express_validator9.body)("items.*.product").isMongoId(),
+  (0, import_express_validator9.body)("items.*.quantity").isFloat({ min: 1e-3 }),
+  (0, import_express_validator9.body)("items.*.price").optional().isFloat({ min: 0 }),
+  (0, import_express_validator9.body)("items.*.discount").optional().isFloat({ min: 0 }),
+  (0, import_express_validator9.body)("paymentMethod").isIn(["cash", "upi", "card", "bank_transfer", "credit"])
 ];
+function isWholeNumber4(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
+}
+async function getUnitRule2(unitName) {
+  await ensureDefaultUnits();
+  const unit = await Unit.findOne({ name: String(unitName || "pcs").trim().toLowerCase(), active: true }).lean();
+  return unit || { name: "pcs", allowDecimal: false };
+}
 var listSales = asyncHandler(async (req, res) => {
   const filter = {};
   if (req.query.from || req.query.to) {
@@ -381999,8 +382275,12 @@ var createSale = asyncHandler(async (req, res) => {
   for (const item of req.body.items) {
     const product = productMap.get(String(item.product));
     if (!product) throw new ApiError(404, "One or more products were not found");
+    const unit = await getUnitRule2(product.unit || item.unit);
+    if (!unit.allowDecimal && !isWholeNumber4(item.quantity)) {
+      throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
+    }
     if (product.stock < item.quantity) {
-      throw new ApiError(400, `${product.name} has only ${product.stock} in stock`);
+      throw new ApiError(400, "Insufficient stock available.");
     }
     const price = Number(item.price ?? product.sellingPrice);
     const discount2 = Number(item.discount || 0);
@@ -382016,6 +382296,7 @@ var createSale = asyncHandler(async (req, res) => {
       name: product.name,
       sku: product.sku,
       quantity: item.quantity,
+      unit: unit.name,
       price,
       purchasePrice: product.purchasePrice,
       taxRate: product.taxRate,
@@ -382071,6 +382352,7 @@ var createSale = asyncHandler(async (req, res) => {
       reason: `Sale ${sale.invoiceNumber}`,
       source: "sale",
       referenceId: sale._id,
+      invoiceId: sale._id,
       user: req.user._id
     });
   }
@@ -382147,8 +382429,8 @@ settingsRoutes.patch("/", authorize("admin"), updateSettings);
 var import_express13 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/supplierController.js
-var import_express_validator9 = __toESM(require_lib4(), 1);
-var supplierRules = [(0, import_express_validator9.body)("name").trim().notEmpty()];
+var import_express_validator10 = __toESM(require_lib4(), 1);
+var supplierRules = [(0, import_express_validator10.body)("name").trim().notEmpty()];
 var listSuppliers = asyncHandler(async (req, res) => {
   const suppliers = await Supplier.find().sort({ name: 1 });
   res.json({ suppliers });
@@ -382174,16 +382456,25 @@ supplierRoutes.use(protect, authorize("admin", "manager"));
 supplierRoutes.route("/").get(listSuppliers).post(supplierRules, validate, createSupplier);
 supplierRoutes.route("/:id").patch(supplierRules, validate, updateSupplier).delete(deleteSupplier);
 
-// ../server/src/routes/userRoutes.js
+// ../server/src/routes/unitRoutes.js
 var import_express14 = __toESM(require_express2(), 1);
+var unitRoutes = import_express14.default.Router();
+unitRoutes.use(protect);
+unitRoutes.get("/", listUnits);
+unitRoutes.post("/", authorize("admin", "manager"), unitRules, validate, createUnit);
+unitRoutes.patch("/:id", authorize("admin", "manager"), unitRules, validate, updateUnit);
+unitRoutes.delete("/:id", authorize("admin"), deleteUnit);
+
+// ../server/src/routes/userRoutes.js
+var import_express15 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/userController.js
-var import_express_validator10 = __toESM(require_lib4(), 1);
+var import_express_validator11 = __toESM(require_lib4(), 1);
 var userRules = [
-  (0, import_express_validator10.body)("name").trim().notEmpty(),
-  (0, import_express_validator10.body)("email").isEmail().normalizeEmail(),
-  (0, import_express_validator10.body)("role").optional().isIn(["admin", "manager", "cashier"]),
-  (0, import_express_validator10.body)("password").optional().isLength({ min: 8 })
+  (0, import_express_validator11.body)("name").trim().notEmpty(),
+  (0, import_express_validator11.body)("email").isEmail().normalizeEmail(),
+  (0, import_express_validator11.body)("role").optional().isIn(["admin", "manager", "cashier"]),
+  (0, import_express_validator11.body)("password").optional().isLength({ min: 8 })
 ];
 var listUsers = asyncHandler(async (req, res) => {
   const users = await User.find().sort({ createdAt: -1 });
@@ -382213,7 +382504,7 @@ var deleteUser = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/userRoutes.js
-var userRoutes = import_express14.default.Router();
+var userRoutes = import_express15.default.Router();
 userRoutes.use(protect, authorize("admin"));
 userRoutes.route("/").get(listUsers).post(userRules, validate, createUser);
 userRoutes.route("/:id").patch(userRules, validate, updateUser).delete(deleteUser);
@@ -382277,7 +382568,7 @@ var getDashboard = asyncHandler(async (req, res) => {
 });
 
 // ../server/src/routes/index.js
-var apiRoutes = import_express15.default.Router();
+var apiRoutes = import_express16.default.Router();
 apiRoutes.get("/health", (req, res) => res.json({ success: true, message: "Server running" }));
 apiRoutes.use("/auth", authRoutes);
 apiRoutes.get("/dashboard", protect, getDashboard);
@@ -382286,6 +382577,7 @@ apiRoutes.use("/categories", categoryRoutes);
 apiRoutes.use("/products", productRoutes);
 apiRoutes.use("/customers", customerRoutes);
 apiRoutes.use("/suppliers", supplierRoutes);
+apiRoutes.use("/units", unitRoutes);
 apiRoutes.use("/sales", saleRoutes);
 apiRoutes.use("/purchases", purchaseRoutes);
 apiRoutes.use("/inventory", inventoryRoutes);
@@ -382304,7 +382596,7 @@ function isAllowedOrigin(origin) {
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
   return false;
 }
-var app = (0, import_express16.default)();
+var app = (0, import_express17.default)();
 app.set("trust proxy", 1);
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 var corsOptions = {
@@ -382321,11 +382613,11 @@ app.use((0, import_cors.default)(corsOptions));
 app.options("*", (0, import_cors.default)(corsOptions));
 app.use((0, import_compression.default)());
 app.use((0, import_morgan.default)(env2.nodeEnv === "production" ? "combined" : "dev"));
-app.use(import_express16.default.json({ limit: "10mb" }));
-app.use(import_express16.default.urlencoded({ extended: true, limit: "10mb" }));
+app.use(import_express17.default.json({ limit: "10mb" }));
+app.use(import_express17.default.urlencoded({ extended: true, limit: "10mb" }));
 app.use((0, import_express_mongo_sanitize.default)());
-app.use(lib_default({ windowMs: 15 * 60 * 1e3, limit: 500 }));
-app.use("/uploads", import_express16.default.static(import_path2.default.resolve(env2.uploadDir)));
+app.use(lib_default({ windowMs: 15 * 60 * 1e3, limit: 1e4 }));
+app.use("/uploads", import_express17.default.static(import_path2.default.resolve(env2.uploadDir)));
 app.use("/api", apiRoutes);
 app.use(notFound);
 app.use(errorHandler);
@@ -382364,11 +382656,11 @@ async function ensureDefaultData() {
 }
 
 // ../server/src/config/db.js
-var import_mongoose17 = __toESM(require_mongoose2(), 1);
+var import_mongoose18 = __toESM(require_mongoose2(), 1);
 async function connectDB() {
-  import_mongoose17.default.set("strictQuery", true);
-  await import_mongoose17.default.connect(env2.mongoUri);
-  console.log(`MongoDB connected: ${import_mongoose17.default.connection.host}`);
+  import_mongoose18.default.set("strictQuery", true);
+  await import_mongoose18.default.connect(env2.mongoUri);
+  console.log(`MongoDB connected: ${import_mongoose18.default.connection.host}`);
 }
 
 // ../server/src/server.js

@@ -4,6 +4,7 @@ import InvoicePreview from './InvoicePreview.jsx';
 import { currency } from '../utils/format.js';
 import toast from 'react-hot-toast';
 import { billingAPI } from './billingService.js';
+import { useNavigate } from 'react-router-dom';
 
 export default function BillHistoryModal({ isOpen, onClose }) {
   const [bills, setBills] = useState([]);
@@ -20,6 +21,11 @@ export default function BillHistoryModal({ isOpen, onClose }) {
   const [limit] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const navigate = useNavigate();
+
+  const openBillEditor = (bill) => {
+    navigate(`/billing/edit/${bill._id}`);
+  };
 
   const handleSearch = async (requestedPage = 1) => {
     setLoading(true);
@@ -85,6 +91,7 @@ export default function BillHistoryModal({ isOpen, onClose }) {
           productId: it.product || it.productId || it._id,
           productName: it.name || it.productName,
           quantity: it.quantity || it.qty || 1,
+          unit: it.unit || 'pcs',
           price: it.sellingPrice || it.price || it.rate || 0,
           gst: it.taxRate || it.gst || 0,
           total: it.total || (it.sellingPrice || it.price || 0) * (it.quantity || 0)
@@ -239,7 +246,14 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                     {bills.map((bill) => (
                       <tr key={bill._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                        <td className="px-4 py-2 font-semibold">{bill.invoiceNo}</td>
+                        <td className="px-4 py-2">
+                          <button
+                            className="text-blue-600 hover:underline font-medium"
+                            onClick={() => openBillInEditor(bill)}
+                          >
+                            {bill.invoiceNo}
+                          </button>
+                        </td>
                         <td className="px-4 py-2">{new Date(bill.createdAt).toLocaleDateString()}</td>
                         <td className="px-4 py-2">{bill.customerName || '-'}</td>
                         <td className="text-right px-4 py-2 font-bold">{currency(bill.total || 0)}</td>

@@ -83,6 +83,9 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{heldBill.items?.length || 0} items</p>
                     <p className="text-xs text-slate-500">
+                      {(heldBill.items || []).slice(0, 3).map((item) => `${item.productName || item.name}: ${item.quantity || item.qty} ${item.unit || 'pcs'}`).join(', ')}
+                    </p>
+                    <p className="text-xs text-slate-500">
                       {heldBill.customerMobile && `Customer: ${heldBill.customerMobile}`}
                     </p>
                     <p className="text-sm font-bold text-green-600 dark:text-green-400 mt-1">

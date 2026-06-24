@@ -17,6 +17,12 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? new Date().toLocaleString() : date.toLocaleString();
 }
 
+function formatQuantity(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return '0';
+  return parsed.toFixed(3).replace(/\.?0+$/, '');
+}
+
 export function normalizeInvoiceSale(input = {}, settings = {}) {
   const raw = input.sale || input;
   const state = raw.state || {};
@@ -37,6 +43,8 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
       name: item.name || item.productName || item.itemName || 'Item',
       sku: item.sku || item.code || item.productCode || item.productId || '',
       quantity,
+      unit: item.unit || 'pcs',
+      quantityText: `${formatQuantity(quantity)} ${item.unit || 'pcs'}`,
       price,
       gstRate,
       gstAmount,
@@ -82,7 +90,7 @@ export function makeInvoiceHtmlFromSale(sale = {}, settings = {}) {
         <div class="item-name">${escapeHtml(item.name)}</div>
         ${item.sku ? `<div class="muted">${escapeHtml(item.sku)}</div>` : ''}
       </td>
-      <td class="num">${item.quantity}</td>
+      <td class="num">${escapeHtml(item.quantityText)}</td>
       <td class="num">${item.price.toFixed(2)}</td>
       <td class="num">${item.gstRate.toFixed(2)}%</td>
       <td class="num">${item.lineTotal.toFixed(2)}</td>

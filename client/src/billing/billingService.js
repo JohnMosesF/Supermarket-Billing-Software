@@ -22,6 +22,7 @@ function normalizeProductResult(product) {
     name: product.name || product.productName || '',
     productName: product.productName || product.name || '',
     sku: product.sku || '',
+    unit: product.unit || '',
     barcode: product.barcode || '',
     sellingPrice: Number(product.sellingPrice ?? product.price ?? product.rate ?? 0),
     stock: Number(product.stock ?? 0),
@@ -29,6 +30,8 @@ function normalizeProductResult(product) {
     tax: Number(product.taxRate ?? product.tax ?? 0),
     category: product.category,
     available: Number(product.stock ?? 0) > 0,
+    unit: product.unit || 'pcs',
+    allowDecimalQty: Boolean(product.allowDecimalQty),
   };
   if (normalized.productId === 0) normalized.productId = undefined;
   return normalized;
@@ -48,7 +51,7 @@ function dedupeProducts(products) {
 // Product API
 export const productAPI = {
   // Search products with fuzzy matching (client caches recent queries)
-  searchProducts: (query, limit = 12) => {
+  searchProducts: (query, limit = 100) => {
     const key = `prod_search:${query}:${limit}`;
     const cached = getClientCache(key);
     if (cached) return Promise.resolve({ data: { products: cached } });

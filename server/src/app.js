@@ -42,7 +42,7 @@ app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(mongoSanitize());
-app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 500 }));
+app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 10000 }));
 app.use('/uploads', express.static(path.resolve(env.uploadDir)));
 
 app.use('/api', apiRoutes);

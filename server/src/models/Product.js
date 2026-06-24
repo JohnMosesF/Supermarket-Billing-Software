@@ -13,7 +13,7 @@ const productSchema = new mongoose.Schema(
     taxRate: { type: Number, default: 0, min: 0 },
     stock: { type: Number, default: 0, min: 0 },
     lowStockThreshold: { type: Number, default: 5, min: 0 },
-    unit: { type: String, default: 'pcs' },
+    unit: { type: String, default: 'pcs', lowercase: true, trim: true },
     allowDecimalQty: { type: Boolean, default: false },
     localName: String,
     mrp: Number,

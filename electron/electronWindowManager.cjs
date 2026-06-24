@@ -1,3 +1,4 @@
+console.log("LOADED electronWindowManager.cjs");
 const path = require('path');
 const { BrowserWindow } = require('electron');
 

@@ -6,6 +6,7 @@ const saleItemSchema = new mongoose.Schema(
     name: { type: String, required: true },
     sku: { type: String, required: true },
     quantity: { type: Number, required: true, min: 0.001 },
+    unit: { type: String, default: 'pcs' },
     price: { type: Number, required: true, min: 0 },
     purchasePrice: { type: Number, required: true, min: 0 },
     taxRate: { type: Number, default: 0 },

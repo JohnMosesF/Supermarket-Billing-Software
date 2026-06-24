@@ -5,6 +5,9 @@ import DeletedBill from '../models/DeletedBill.js';
 import PrintLog from '../models/PrintLog.js';
 import HoldBill from '../models/HoldBill.js';
 import { Product } from '../models/Product.js';
+import { InventoryLog } from '../models/InventoryLog.js';
+import { Unit } from '../models/Unit.js';
+import { ensureDefaultUnits } from './unitController.js';
 import mongoose from 'mongoose';
 import Refund from '../models/Refund.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -22,6 +25,88 @@ function paymentStatusFromAmounts(total, paid) {
   if (paid >= total) return 'Paid';
   if (paid > 0) return 'Partial';
   return 'Unpaid';
+}
+
+function isWholeNumber(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
+}
+
+async function getUnitRule(unitName) {
+  await ensureDefaultUnits();
+  const name = String(unitName || 'pcs').trim().toLowerCase();
+  const unit = await Unit.findOne({ name, active: true }).lean();
+  return unit || { name: 'pcs', allowDecimal: false };
+}
+
+async function validateBillItemsForSale(items, stockCredits = []) {
+  const creditsByProduct = new Map();
+  for (const item of stockCredits || []) {
+    const key = String(item.productId || item.product || item._id);
+    creditsByProduct.set(key, (creditsByProduct.get(key) || 0) + Math.abs(Number(item.quantity || item.qty || 0)));
+  }
+
+  for (const it of items) {
+    const product = await Product.findById(it.productId);
+    if (!product) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
+    const unit = await getUnitRule(product.unit || it.unit);
+    it.unit = unit.name;
+    if (!unit.allowDecimal && !isWholeNumber(it.quantity)) {
+      throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
+    }
+    const available = Number(product.stock || 0) + (creditsByProduct.get(String(it.productId)) || 0);
+    if (available < it.quantity) {
+      throw new ApiError(400, 'Insufficient stock available.');
+    }
+  }
+}
+
+async function deductSoldStock(items, bill, userId) {
+  for (const it of items) {
+    const product = await Product.findOneAndUpdate(
+      { _id: it.productId, stock: { $gte: it.quantity } },
+      { $inc: { stock: -Math.abs(it.quantity) } },
+      { new: false }
+    );
+    if (!product) throw new ApiError(400, 'Insufficient stock available.');
+    const stockBefore = Number(product.stock || 0);
+    const stockAfter = stockBefore - Math.abs(it.quantity);
+    await InventoryLog.create({
+      product: it.productId,
+      type: 'stock_out',
+      quantity: Math.abs(it.quantity),
+      stockBefore,
+      stockAfter,
+      invoiceId: bill._id,
+      referenceId: bill._id,
+      reason: `Sale ${bill.invoiceNo}`,
+      source: 'sale',
+      user: userId
+    });
+  }
+}
+
+async function restoreSoldStock(items, reason, userId, billId) {
+  for (const it of items || []) {
+    const quantity = Math.abs(Number(it.quantity || it.qty || 0));
+    if (!quantity) continue;
+    const product = await Product.findById(it.productId);
+    if (!product) continue;
+    const stockBefore = Number(product.stock || 0);
+    product.stock = stockBefore + quantity;
+    await product.save();
+    await InventoryLog.create({
+      product: product._id,
+      type: 'stock_in',
+      quantity,
+      stockBefore,
+      stockAfter: product.stock,
+      invoiceId: billId,
+      referenceId: billId,
+      reason,
+      source: 'restore',
+      user: userId
+    });
+  }
 }
 
 async function resolveBillCustomer({ customerId, customerMobile, customerName, customerAddress }) {
@@ -82,6 +167,7 @@ export const createBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productName: it.productName || it.name || '',
       quantity: parseFloat(it.quantity || it.qty || 0.001),
+      unit: String(it.unit || 'pcs').trim().toLowerCase(),
       price: Number(it.price || it.sellingPrice || it.rate || 0),
       tax: Number(it.gst || it.taxRate || it.tax || 0),
       total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
@@ -160,21 +246,10 @@ export const createBill = asyncHandler(async (req, res) => {
     total: billPayload.total
   });
 
-  // Deduct stock for each item (ensure availability)
-  for (const it of normalizedItems) {
-    const prod = await Product.findById(it.productId);
-    if (!prod) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
-    if (prod.stock < it.quantity) {
-      throw new ApiError(400, `Insufficient stock for ${prod.name || prod.sku}. Available ${prod.stock}, requested ${it.quantity}`);
-    }
-  }
-
-  // Apply stock deduction
-  for (const it of normalizedItems) {
-    await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
-  }
+  await validateBillItemsForSale(normalizedItems);
 
   const bill = await Bill.create(billPayload);
+  await deductSoldStock(normalizedItems, bill, req.user?._id);
 
   if (customer) {
     const loyaltyPoints = Math.floor(bill.total / 100);
@@ -229,15 +304,6 @@ export const updateBill = asyncHandler(async (req, res) => {
 
   if (!bill) throw new ApiError(404, 'Bill not found');
 
-  // Restore stock from old bill items
-  for (const old of bill.items || []) {
-    try {
-      await Product.updateOne({ _id: old.productId }, { $inc: { stock: Math.abs(old.quantity) } });
-    } catch (e) {
-      console.warn('Failed to restore stock for', old.productId, e);
-    }
-  }
-
   // Normalize incoming items similar to create
   const normalizedItems = [];
   for (const it of items) {
@@ -250,25 +316,16 @@ export const updateBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productName: it.productName || it.name || '',
       quantity: parseFloat(it.quantity || it.qty || 0.001),
+      unit: String(it.unit || 'pcs').trim().toLowerCase(),
       price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
       tax: parseFloat(it.gst || it.taxRate || it.tax || 0),
       total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
     });
   }
 
-  // Check availability for new items
-  for (const it of normalizedItems) {
-    const prod = await Product.findById(it.productId);
-    if (!prod) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
-    if (prod.stock < it.quantity) {
-      throw new ApiError(400, `Insufficient stock for ${prod.name || prod.sku}. Available ${prod.stock}, requested ${it.quantity}`);
-    }
-  }
-
-  // Apply stock deduction for new items
-  for (const it of normalizedItems) {
-    await Product.updateOne({ _id: it.productId }, { $inc: { stock: -Math.abs(it.quantity) } });
-  }
+  await validateBillItemsForSale(normalizedItems, bill.items);
+  await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
+  await deductSoldStock(normalizedItems, bill, req.user?._id);
 
   // Update bill fields
   bill.items = normalizedItems;
@@ -296,14 +353,7 @@ export const deleteBill = asyncHandler(async (req, res) => {
     reason,
     originalData: bill.toObject(),
   });
-  // Restore stock for all items before deleting
-  for (const it of bill.items || []) {
-    try {
-      await Product.updateOne({ _id: it.productId }, { $inc: { stock: Math.abs(it.quantity) } });
-    } catch (e) {
-      console.warn('Failed to restore stock for', it.productId, e);
-    }
-  }
+  await restoreSoldStock(bill.items, `Deleted bill restore ${bill.invoiceNo}`, req.user?._id, bill._id);
 
   // Delete bill
   await Bill.findByIdAndDelete(req.params.id);
@@ -437,6 +487,7 @@ export const holdBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productName: it.productName || it.name || '',
       quantity: parseFloat(it.quantity || it.qty || 0.001),
+      unit: String(it.unit || 'pcs').trim().toLowerCase(),
       price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
       gst: parseFloat(it.gst || it.taxRate || it.tax || 0),
       total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))

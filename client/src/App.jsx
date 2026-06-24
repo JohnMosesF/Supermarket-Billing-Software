@@ -10,6 +10,7 @@ import { Inventory } from './pages/Inventory.jsx';
 import { Login } from './pages/Login.jsx';
 import { NotFound } from './pages/NotFound.jsx';
 import { Products } from './pages/Products.jsx';
+import { Purchases } from './pages/Purchases.jsx';
 import { Reports } from './pages/Reports.jsx';
 import { SettingsPage } from './pages/SettingsPage.jsx';
 import { Suppliers } from './pages/Suppliers.jsx';
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="products" element={<Products />} />
             <Route path="customers" element={<Customers />} />
             <Route path="inventory" element={<Inventory />} />
+            <Route path="purchases" element={<Purchases />} />
             <Route path="suppliers" element={<Suppliers />} />
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<UsersPage />} />

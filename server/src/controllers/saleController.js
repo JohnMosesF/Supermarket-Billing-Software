@@ -3,6 +3,8 @@ import { Customer } from '../models/Customer.js';
 import { InventoryLog } from '../models/InventoryLog.js';
 import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
+import { Unit } from '../models/Unit.js';
+import { ensureDefaultUnits } from './unitController.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { makeInvoiceNumber } from '../utils/invoice.js';
@@ -29,11 +31,21 @@ async function resolveCustomerForSale(req) {
 export const saleRules = [
   body('items').isArray({ min: 1 }),
   body('items.*.product').isMongoId(),
-  body('items.*.quantity').isInt({ min: 1 }),
+  body('items.*.quantity').isFloat({ min: 0.001 }),
   body('items.*.price').optional().isFloat({ min: 0 }),
   body('items.*.discount').optional().isFloat({ min: 0 }),
   body('paymentMethod').isIn(['cash', 'upi', 'card', 'bank_transfer', 'credit'])
 ];
+
+function isWholeNumber(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
+}
+
+async function getUnitRule(unitName) {
+  await ensureDefaultUnits();
+  const unit = await Unit.findOne({ name: String(unitName || 'pcs').trim().toLowerCase(), active: true }).lean();
+  return unit || { name: 'pcs', allowDecimal: false };
+}
 
 export const listSales = asyncHandler(async (req, res) => {
   const filter = {};
@@ -77,8 +89,12 @@ export const createSale = asyncHandler(async (req, res) => {
   for (const item of req.body.items) {
     const product = productMap.get(String(item.product));
     if (!product) throw new ApiError(404, 'One or more products were not found');
+    const unit = await getUnitRule(product.unit || item.unit);
+    if (!unit.allowDecimal && !isWholeNumber(item.quantity)) {
+      throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
+    }
     if (product.stock < item.quantity) {
-      throw new ApiError(400, `${product.name} has only ${product.stock} in stock`);
+      throw new ApiError(400, 'Insufficient stock available.');
     }
 
     const price = Number(item.price ?? product.sellingPrice);
@@ -96,6 +112,7 @@ export const createSale = asyncHandler(async (req, res) => {
       name: product.name,
       sku: product.sku,
       quantity: item.quantity,
+      unit: unit.name,
       price,
       purchasePrice: product.purchasePrice,
       taxRate: product.taxRate,
@@ -155,6 +172,7 @@ export const createSale = asyncHandler(async (req, res) => {
       reason: `Sale ${sale.invoiceNumber}`,
       source: 'sale',
       referenceId: sale._id,
+      invoiceId: sale._id,
       user: req.user._id
     });
   }

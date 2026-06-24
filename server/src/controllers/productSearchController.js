@@ -10,7 +10,7 @@ const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  */
 export const searchProducts = asyncHandler(async (req, res) => {
   const query = String(req.query.q || '').trim();
-  const limit = Math.min(Math.max(Number(req.query.limit || 12), 1), 50);
+  const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 200);
 
   console.log(`Product search request: q=${query} limit=${limit}`);
 
@@ -39,6 +39,8 @@ export const searchProducts = asyncHandler(async (req, res) => {
       stock: 1,
       taxRate: 1,
       category: 1,
+      allowDecimalQty: 1,
+      unit: 1,
     }).lean();
 
     if (prod) {
@@ -54,6 +56,8 @@ export const searchProducts = asyncHandler(async (req, res) => {
         taxRate: prod.taxRate || 0,
         tax: prod.taxRate || 0,
         available: prod.stock > 0,
+        allowDecimalQty: prod.allowDecimalQty || false,
+        unit: prod.unit || 'pcs',
       }];
       setCache(cacheKey, payload, 15000);
       return res.json({ products: payload });
@@ -71,6 +75,8 @@ export const searchProducts = asyncHandler(async (req, res) => {
     stock: 1,
     taxRate: 1,
     category: 1,
+    allowDecimalQty: 1,
+    unit: 1,
   }).limit(limit).lean();
 
   if (prefixResults && prefixResults.length > 0) {
@@ -86,6 +92,8 @@ export const searchProducts = asyncHandler(async (req, res) => {
       taxRate: product.taxRate || 0,
       tax: product.taxRate || 0,
       available: product.stock > 0,
+      allowDecimalQty: product.allowDecimalQty || false,
+      unit: product.unit || 'pcs',
     }));
     setCache(cacheKey, payload, 10000);
     return res.json({ products: payload });
@@ -103,6 +111,8 @@ export const searchProducts = asyncHandler(async (req, res) => {
     stock: 1,
     taxRate: 1,
     category: 1,
+    allowDecimalQty: 1,
+    unit: 1,
   }).limit(1000).lean();
 
   // Apply fuzzy search to candidate subset
@@ -120,9 +130,12 @@ export const searchProducts = asyncHandler(async (req, res) => {
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,
     stock: product.stock,
+    unit: product.unit,
     taxRate: product.taxRate || 0,
     tax: product.taxRate || 0,
     available: product.stock > 0,
+    allowDecimalQty: product.allowDecimalQty || false,
+    unit: product.unit || 'pcs',
   }));
 
   console.log(`Found ${payload.length} products matching "${query}"`);
@@ -148,6 +161,8 @@ export const searchByProductId = asyncHandler(async (req, res) => {
     stock: 1,
     taxRate: 1,
     category: 1,
+    allowDecimalQty: 1,
+    unit: 1,
   }).lean();
 
   if (!product) {
@@ -166,6 +181,8 @@ export const searchByProductId = asyncHandler(async (req, res) => {
     taxRate: product.taxRate || 0,
     tax: product.taxRate || 0,
     available: product.stock > 0,
+    allowDecimalQty: product.allowDecimalQty || false,
+    unit: product.unit || 'pcs',
   };
 
   res.json({ product: payload });

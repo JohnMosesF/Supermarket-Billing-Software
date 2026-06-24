@@ -20,7 +20,7 @@ export default function ProductSearch({ onAddProduct }) {
     setLoading(true);
 
     try {
-      const response = await productAPI.searchProducts(searchTerm, 12);
+      const response = await productAPI.searchProducts(searchTerm, 100);
       const products = (response.data && (response.data.products || response.data)) || [];
       setResults(products || []);
       setSelectedIndex(-1);

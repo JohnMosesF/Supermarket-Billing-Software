@@ -2,6 +2,7 @@ export function currency(value = 0, code = 'INR') {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: code,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(Number(value || 0));
 }

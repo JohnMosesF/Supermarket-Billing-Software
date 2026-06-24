@@ -54,7 +54,7 @@ export function Reports() {
         </div>
         <div className="panel p-5">
           <h2 className="mb-3 font-semibold">Top products</h2>
-          {products.map((item) => <p key={item._id} className="flex justify-between py-2 text-sm"><span>{item.name}</span><strong>{item.quantity} sold</strong></p>)}
+          {products.map((item) => <p key={item._id} className="flex justify-between py-2 text-sm"><span>{item.name}</span><strong>{Number(item.quantity || 0).toFixed(3).replace(/\.?0+$/, '')} {item.unit || 'pcs'} sold</strong></p>)}
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
+console.log("LOADED electronWindowManager.js");
 const path = require('path');
-const { BrowserWindow } = require('electron');
-
+const { BrowserWindow, dialog, ipcMain } = require('electron');
 const windows = new Map();
 
 function generateInvoiceNumber() {
@@ -27,6 +27,8 @@ function createBillingWindow({ isDev, loadUrl, opts = {} }) {
     },
   });
 
+  let hasCartItems = false;
+
   const url = isDev
     ? `${loadUrl.replace(/\/$/, '')}/billing-window?invoiceNo=${encodeURIComponent(invoiceNo)}&windowId=${encodeURIComponent(windowId)}`
     : `file://${path.join(process.resourcesPath, 'client', 'dist', 'index.html')}#/billing-window?invoiceNo=${encodeURIComponent(invoiceNo)}&windowId=${encodeURIComponent(windowId)}`;
@@ -42,8 +44,34 @@ function createBillingWindow({ isDev, loadUrl, opts = {} }) {
       }
     });
   }
+
+  bw.on('close', async (e) => {
+    if (!hasCartItems) return;
+
+    e.preventDefault();
+
+    const result = await dialog.showMessageBox(bw, {
+      type: 'warning',
+      buttons: ['Cancel', 'Close Bill'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Unsaved Bill',
+      message: 'Cart contains items.',
+      detail: 'Closing this window will lose the current bill. Do you want to continue?'
+    });
+
+    if (result.response === 1) {
+      hasCartItems = false;
+      bw.destroy();
+    }
+  });
+
   bw.on('closed', () => windows.delete(windowId));
   bw.on('focus', () => bw.setTitle(`Billing - Invoice #${invoiceNo}`));
+
+  ipcMain.on(`billing-cart-state-${windowId}`, (event, state) => {
+    hasCartItems = !!state;
+  });
 
   windows.set(windowId, { bw, invoiceNo, windowId });
   return { ok: true, windowId, invoiceNo };

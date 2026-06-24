@@ -25,7 +25,7 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
     setLoading(true);
     try {
       // Use productAPI which is explicitly for products
-      const res = await productAPI.searchProducts(q, 12);
+      const res = await productAPI.searchProducts(q, 100);
       const products = (res.data && (res.data.products || res.data)) || [];
       setResults(products || []);
       setSelectedIndex(-1);

@@ -30,7 +30,10 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
     return () => window.removeEventListener('keydown', handler);
   }, [cart, onSelectIndex, onRemove, selectedIndex]);
 
-  const total = cart.reduce((s, it) => s + (Number(it.rate || 0) * parseFloat(it.qty || 0) + ((Number(it.rate || 0) * parseFloat(it.qty || 0) * Number(it.gst || 0)) / 100)), 0);
+  const total = cart.reduce(
+    (s, it) => s + Number(it.rate || 0) * Number(it.qty || 0),
+    0
+  );
 
   return (
     <div ref={tableRef} className="text-sm" tabIndex={0}>
@@ -49,9 +52,13 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
       <div>
         {cart.map((item, i) => {
           console.log("TABLE ITEM", item);
-          const amount = Number(item.rate || 0) * parseFloat(item.qty || 0);
-          const gstAmt = (amount * Number(item.gst || 0)) / 100;
-          const net = amount + gstAmt;
+          const net = Number(item.rate || 0) * parseFloat(item.qty || 0);
+          const gstRate = Number(item.gst || 0);
+          const amount =
+            gstRate > 0
+              ? net / (1 + gstRate / 100)
+              : net;
+          const gstAmt = net - amount;
           const code = item.productId && /^[0-9]+$/.test(String(item.productId))
             ? String(item.productId)
             : (item.sku || '');

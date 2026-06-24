@@ -31,7 +31,7 @@ export default function InvoicePreview({ sale, settings = {}, state = {}, totals
               <div className="min-w-0">
                 <div className="truncate text-[12px] font-semibold">{item.name}</div>
                 {item.sku ? <div className="text-[10px] text-slate-500">{item.sku}</div> : null}
-                <div className="text-[10px] text-slate-400">{item.quantity} x {currency(item.price)} | GST {item.gstRate}%</div>
+                <div className="text-[10px] text-slate-400">{item.quantityText} x {currency(item.price)} | GST {item.gstRate}%</div>
               </div>
               <div className="text-right text-[11px] font-bold">{currency(item.lineTotal)}</div>
             </div>

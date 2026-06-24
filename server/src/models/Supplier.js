@@ -8,6 +8,7 @@ const supplierSchema = new mongoose.Schema(
     email: { type: String, trim: true, lowercase: true },
     gstNumber: String,
     address: String,
+    notes: String,
     active: { type: Boolean, default: true }
   },
   { timestamps: true }

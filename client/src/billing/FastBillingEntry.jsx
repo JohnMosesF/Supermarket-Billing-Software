@@ -104,6 +104,7 @@ export default function FastBillingEntry({ onAddProduct, autoFocusCode = false }
             ref={priceRef}
             type="number"
             inputMode="decimal"
+            step="0.01"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             className="w-full input text-lg text-right"

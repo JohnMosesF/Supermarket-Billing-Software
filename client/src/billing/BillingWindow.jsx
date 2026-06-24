@@ -1,15 +1,17 @@
 import React, { useEffect } from 'react';
 import ModernPOSBilling from './ModernPOSBilling.jsx';
 
-function useQuery() {
-  const hash = window.location.hash || '';
-  const querySource = hash.includes('?') ? hash.substring(hash.indexOf('?')) : window.location.search;
-  return new URLSearchParams(querySource);
-}
-
 export default function BillingWindow() {
+
   useEffect(() => {
     document.body.style.margin = '0';
+
+    console.log('Billing window loaded');
+
+    if (window.electronAPI?.getWindowData) {
+      const data = window.electronAPI.getWindowData();
+      console.log('WINDOW DATA:', data);
+    }
   }, []);
 
   return (

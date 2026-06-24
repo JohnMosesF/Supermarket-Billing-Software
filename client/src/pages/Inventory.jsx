@@ -87,8 +87,8 @@ export function Inventory() {
                 <tr key={log._id}>
                   <td className="table-td"><strong>{log.product?.name}</strong><p className="text-xs text-slate-500">{log.reason}</p></td>
                   <td className="table-td">{log.type}</td>
-                  <td className="table-td">{log.quantity}</td>
-                  <td className="table-td">{log.stockBefore} to {log.stockAfter}</td>
+                  <td className="table-td">{log.quantity} {log.product?.unit || ''}</td>
+                  <td className="table-td">{log.stockBefore} to {log.stockAfter} {log.product?.unit || ''}</td>
                   <td className="table-td">{dateTime(log.createdAt)}</td>
                 </tr>
               ))}

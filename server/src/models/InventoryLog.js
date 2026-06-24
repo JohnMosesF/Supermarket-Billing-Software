@@ -10,6 +10,9 @@ const inventoryLogSchema = new mongoose.Schema(
     reason: { type: String, required: true },
     source: { type: String, enum: ['sale', 'purchase', 'manual', 'restore'], default: 'manual' },
     referenceId: mongoose.Schema.Types.ObjectId,
+    invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bill' },
+    supplier: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier' },
+    purchaseInvoiceNo: String,
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   { timestamps: true }

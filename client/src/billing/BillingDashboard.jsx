@@ -72,16 +72,6 @@ export default function BillingDashboard() {
           <div className="text-sm text-slate-500">Open new POS window</div>
         </button>
 
-        {/* Modify Bill */}
-        <button
-          onClick={() => toggleModal('modify')}
-          className="panel p-6 flex flex-col items-start gap-2 hover:shadow-lg transition hover:bg-purple-50 dark:hover:bg-purple-900/20"
-        >
-          <FileText size={28} className="text-purple-600 dark:text-purple-400" />
-          <div className="text-lg font-bold">Modify Bill</div>
-          <div className="text-sm text-slate-500">Edit existing invoice</div>
-        </button>
-
         {/* Delete Bill */}
         <button
           onClick={() => toggleModal('delete')}

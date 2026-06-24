@@ -43,6 +43,7 @@ export default function ModifyBillModal({ isOpen, onClose }) {
         quantity: 1,
         price: product.sellingPrice,
         tax: product.taxRate,
+        unit: product.unit || 'pcs',
         total: product.sellingPrice
       });
     }
@@ -58,7 +59,7 @@ export default function ModifyBillModal({ isOpen, onClose }) {
     if (!bill) return;
     const item = bill.items.find((it) => String(it.productId || it.product || it._id) === String(productId));
     if (item) {
-      item.quantity = Math.max(1, item.quantity + delta);
+      item.quantity = Math.max(1, Number(item.quantity || 0) + delta);
       setBill({ ...bill });
     }
   };
@@ -69,13 +70,14 @@ export default function ModifyBillModal({ isOpen, onClose }) {
     try {
       await billingAPI.updateBill(bill._id, {
         items: bill.items,
-        subtotal: bill.items.reduce((s, it) => s + it.sellingPrice * it.quantity, 0),
-        taxTotal: bill.items.reduce((s, it) => s + ((it.sellingPrice * it.quantity) * (it.taxRate || 0)) / 100, 0),
+        subtotal: bill.items.reduce((s, it) => s + Number(it.price || it.sellingPrice || 0) * Number(it.quantity || 0), 0),
+        taxTotal: bill.items.reduce((s, it) => s + ((Number(it.price || it.sellingPrice || 0) * Number(it.quantity || 0)) * Number(it.tax || it.taxRate || 0)) / 100, 0),
+        discount: bill.discount || 0
       });
       toast.success('Bill updated successfully');
       onClose();
     } catch (err) {
-      toast.error('Failed to update bill');
+      toast.error(err?.response?.data?.message || 'Failed to update bill');
     } finally {
       setLoading(false);
     }
@@ -87,8 +89,9 @@ export default function ModifyBillModal({ isOpen, onClose }) {
       const payload = {
         items: (bill.items || []).map((it) => ({
           productId: it.product || it.productId || it._id,
-          productName: it.name,
+          productName: it.productName || it.name,
           quantity: it.quantity,
+          unit: it.unit || 'pcs',
           price: it.sellingPrice || it.price || 0,
           gst: it.taxRate || it.gst || 0,
           total: (it.sellingPrice || it.price || 0) * (it.quantity || 0)
@@ -169,7 +172,7 @@ export default function ModifyBillModal({ isOpen, onClose }) {
                         <div key={pid} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
                           <div className="flex-1">
                             <div className="font-semibold text-sm">{item.productName || item.name}</div>
-                            <div className="text-xs text-slate-500">{currency(item.price || item.sellingPrice)}</div>
+                            <div className="text-xs text-slate-500">{item.quantity} {item.unit || 'pcs'} x {currency(item.price || item.sellingPrice)}</div>
                           </div>
                           <div className="flex items-center gap-1 border rounded">
                             <button

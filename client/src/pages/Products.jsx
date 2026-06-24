@@ -11,25 +11,34 @@ import * as XLSX from 'xlsx';
 export function Products() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [categoryName, setCategoryName] = useState('');
+  const [unitForm, setUnitForm] = useState({ name: '', allowDecimal: false, id: null });
   const { register, handleSubmit, reset } = useForm();
+  const decimal = (value, fallback = 0) => {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
 // --- Load Products & Categories ---
   async function load() {
     try {
-      const [productRes, categoryRes] = await Promise.all([
+      const [productRes, categoryRes, unitRes] = await Promise.all([
         api.get('/products', {
           params: {
             search,
-            limit: 100
+            limit: 5000
           }
         }),
-        api.get('/categories')
+        api.get('/categories'),
+        api.get('/units')
       ]);
 
       setProducts(productRes.data.products || []);
       setCategories(categoryRes.data.categories || []);
+      setUnits(unitRes.data.units || []);
 
     } catch (error) {
       console.error('LOAD ERROR:', error);
@@ -64,12 +73,11 @@ export function Products() {
         taxRate: Number(values.taxRate || 0),
         discount: Number(values.discount || 0),
 
-        allowDecimalQty: !!values.allowDecimalQty,
-
         localName: values.localName || '',
         companyName: values.companyName || '',
         hsnCode: values.hsnCode || '',
-        unit: values.unit || 'pcs'
+        unit: values.unit || 'pcs',
+        productId: Number(values.productId || 0),
       };
 
       if (editing) {
@@ -97,7 +105,6 @@ export function Products() {
         companyName: '',
         hsnCode: '',
         unit: 'pcs',
-        allowDecimalQty: false
       });
 
       setEditing(null);
@@ -114,6 +121,7 @@ export function Products() {
   setEditing(product);
 
   reset({
+      productId: product.productId,
       name: product.name,
       localName: product.localName,
       sku: product.sku,
@@ -138,7 +146,6 @@ export function Products() {
 
       unit: product.unit,
 
-      allowDecimalQty: product.allowDecimalQty
     });
   }
 // --- Delete Product ---
@@ -154,6 +161,28 @@ export function Products() {
     await api.post('/categories', { name: categoryName.trim() });
     toast.success('Category added');
     setCategoryName('');
+    load();
+  }
+// --- Units ---
+  async function saveUnit() {
+    const name = unitForm.name.trim().toLowerCase();
+    if (!name) return;
+    const payload = { name, allowDecimal: Boolean(unitForm.allowDecimal) };
+    if (unitForm.id) {
+      await api.patch(`/units/${unitForm.id}`, payload);
+      toast.success('Unit updated');
+    } else {
+      await api.post('/units', payload);
+      toast.success('Unit added');
+    }
+    setUnitForm({ name: '', allowDecimal: false, id: null });
+    load();
+  }
+
+  async function removeUnit(unit) {
+    if (!confirm(`Delete unit ${unit.name}?`)) return;
+    await api.delete(`/units/${unit._id}`);
+    toast.success('Unit deleted');
     load();
   }
 // --- Excel Import/Export ---
@@ -177,7 +206,6 @@ export function Products() {
         GST: product.taxRate,
         Discount: product.discount,
         HSNCode: product.hsnCode,
-        AllowDecimalQty: product.allowDecimalQty ? 'Yes' : 'No'
       }))
     );
 
@@ -214,8 +242,7 @@ export function Products() {
       Category: '',
       GST: '',
       Discount: '',
-      HSNCode: '',
-      AllowDecimalQty: 'No'
+      HSNCode: ''
     }
   ]);
 
@@ -264,6 +291,12 @@ export function Products() {
       let successCount = 0;
       let failureCount = 0;
 
+      const allProductsRes = await api.get('/products', {
+        params: { limit: 5000 }
+      });
+
+      const allProducts =
+        allProductsRes.data.products || [];
       for (const row of rows) {
         try {
           // Validate required fields
@@ -276,8 +309,8 @@ export function Products() {
             row.ProductId ||
             0
           );
-          const purchasePrice = Number(row.PurchasePrice || 0);
-          const sellingPrice = Number(row.SellingPrice || 0);
+          const purchasePrice = decimal(row.PurchasePrice);
+          const sellingPrice = decimal(row.SellingPrice);
 
           // Skip if missing product name
           if (!name) {
@@ -301,21 +334,18 @@ export function Products() {
           const payload = {
             name,
             localName: row.LocalName?.trim() || '',
-            mrp: Number(row.MRP || 0),
+            mrp: decimal(row.MRP),
             sellingPrice,
-            wholesalePrice: Number(row.WholesalePrice || 0),
+            wholesalePrice: decimal(row.WholesalePrice),
             purchasePrice,
             openingStock: Number(row.OpeningStock || 0),
             stock: Number(row.CurrentStock || row.OpeningStock || 0),
             lowStockThreshold: Number(row.LowStockThreshold || 5),
             companyName: row.CompanyName || '',
-            unit: row.Unit || 'pcs',
+            unit: String(row.Unit || 'pcs').toLowerCase(),
             taxRate: Number(row.GST || 0),
             discount: Number(row.Discount || 0),
-            hsnCode: row.HSNCode || '',
-            allowDecimalQty:
-              String(row.AllowDecimalQty)
-                .toLowerCase() === 'yes'
+            hsnCode: row.HSNCode || ''
           };
 
           // Only include SKU if provided in Excel (let server auto-generate if missing)
@@ -343,14 +373,14 @@ export function Products() {
           // Check if product already exists by SKU or ProductID
           let existing = null;
           if (skuFromExcel) {
-            existing = products.find(
+            existing = allProducts.find(
               p =>
                 p.sku?.trim().toUpperCase() === sku
             );
           }
           if (!existing && excelProductId > 0) {
-            existing = products.find(
-              p => p.productId === excelProductId
+            existing = allProducts.find(
+              p => Number(p.productId) === Number(excelProductId)
             );
           }
 
@@ -394,10 +424,14 @@ export function Products() {
 
   return (
     <div>
+    
       <PageHeader title="Products" description="Manage product catalog, prices, GST, images, and stock levels." />
       <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
         <form onSubmit={handleSubmit(save)} className="panel space-y-3 p-5">
           <h2 className="font-semibold">{editing ? 'Edit product' : 'Add product'}</h2>
+          
+          
+          <input className="input" type="number" placeholder="Product ID" {...register('productId')} />
           <input className="input" placeholder="Product name" {...register('name', { required: true })} />
           <input className="input" placeholder="Local Language Name" {...register('localName')} />
           <input className="input" placeholder="SKU auto generated if blank" {...register('sku')} />
@@ -412,6 +446,45 @@ export function Products() {
             <button type="button" className="btn-muted" onClick={addCategory}>Add</button>
           </div>
 
+          <div className="panel space-y-2 p-3 shadow-none">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold">Manage Units</span>
+              <button type="button" className="btn-muted py-1.5" onClick={saveUnit}>
+                {unitForm.id ? 'Update' : 'Add'}
+              </button>
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <input
+                className="input"
+                placeholder="Unit name"
+                value={unitForm.name}
+                onChange={(event) => setUnitForm((current) => ({ ...current, name: event.target.value }))}
+              />
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={unitForm.allowDecimal}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, allowDecimal: event.target.checked }))}
+                />
+                Decimal
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {units.map((unit) => (
+                <button
+                  type="button"
+                  key={unit._id}
+                  className="rounded-md border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
+                  onClick={() => setUnitForm({ id: unit._id, name: unit.name, allowDecimal: unit.allowDecimal })}
+                  onDoubleClick={() => removeUnit(unit)}
+                  title="Click to edit, double click to delete"
+                >
+                  {unit.name} {unit.allowDecimal ? '(decimal)' : '(whole)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <input className="input" type="number" step="0.01" placeholder="MRP" {...register('mrp')} />
             <input className="input" type="number" step="0.01" placeholder="Purchase price" {...register('purchasePrice', { required: true })} />
@@ -420,27 +493,17 @@ export function Products() {
             <input className="input" type="number" step="0.01" placeholder="GST %" {...register('taxRate')} />
             
             <select className="input" {...register('unit')}>
-              <option value="pcs">Pieces</option>
-              <option value="kg">Kilogram</option>
-              <option value="g">Gram</option>
-              <option value="ltr">Litre</option>
-              <option value="ml">Millilitre</option>
-              <option value="box">Box</option>
-              <option value="packet">Packet</option>
-              <option value="dozen">Dozen</option>
+              {units.map((unit) => (
+                <option key={unit._id} value={unit.name}>
+                  {unit.name} ({unit.allowDecimal ? 'decimal' : 'whole'})
+                </option>
+              ))}
             </select>
 
             <input className="input" type="number" placeholder="Stock" {...register('stock')} />
             <input className="input" type="number" placeholder="Low stock" {...register('lowStockThreshold')} />
             <input className="input" placeholder="Company Name" {...register('companyName')} />
             <input className="input" placeholder="HSN Code" {...register('hsnCode')} />
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                {...register('allowDecimalQty')}
-              />
-              Allow Decimal Quantity
-            </label>
           </div>
           
           <div className="flex gap-2">
@@ -502,7 +565,6 @@ export function Products() {
                     <th className="table-th">GST</th>
                     <th className="table-th">Discount</th>
                     <th className="table-th">HSN</th>
-                    <th className="table-th">Decimal Qty</th>
                     <th className="table-th"></th>
                   </tr>
                 </thead>
@@ -585,10 +647,6 @@ export function Products() {
 
                       <td className="table-td">
                         {product.hsnCode || '-'}
-                      </td>
-
-                      <td className="table-td text-center">
-                        {product.allowDecimalQty ? 'Yes' : 'No'}
                       </td>
 
                       <td className="table-td text-right">

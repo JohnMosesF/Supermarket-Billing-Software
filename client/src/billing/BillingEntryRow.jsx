@@ -21,8 +21,9 @@ import { currency } from '../utils/format.js';
  * - Arrow Up/Down in dropdown to navigate suggestions
  * - Enter to select suggestion
  */
-const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocusCustomer }, ref) {
-  // Form state
+  const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocusCustomer }, ref) {
+  
+    // Form state
   const [mongoId, setMongoId] = useState(null); // MongoDB ObjectId (_id)
   const [productId, setProductId] = useState(''); // Numeric product ID
   const [name, setName] = useState('');
@@ -46,7 +47,22 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
   const qtyRef = useRef(null);
   const rateRef = useRef(null);
   const gstRef = useRef(null);
+  const suggestionRefs = useRef([]);
   
+  useEffect(() => {
+    if (
+      selectedSuggestionIndex >= 0 &&
+      suggestionRefs.current[selectedSuggestionIndex]
+    ) {
+      suggestionRefs.current[
+        selectedSuggestionIndex
+      ].scrollIntoView({
+        block: 'nearest',
+        behavior: 'auto'
+      });
+    }
+  }, [selectedSuggestionIndex]);
+
   // Focus on component mount
   useEffect(() => {
     productIdRef.current?.focus();
@@ -155,10 +171,16 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
     }
 
     try {
-      const res = await productAPI.searchProducts(q, 8);
+      const res = await productAPI.searchProducts(q, 100);
       const products = res.data?.products || [];
       setSuggestions(products);
       setShowSuggestions(products.length > 0);
+
+      // Auto-select first result
+      setSelectedSuggestionIndex(
+        products.length > 0 ? 0 : -1
+      );
+
     } catch (err) {
       console.error(err);
       setSuggestions([]);
@@ -171,7 +193,15 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
    * CRITICAL: Preserve MongoDB ObjectId (_id) from product object
    */
   const selectSuggestion = (product) => {
-    console.log('Selected product from autocomplete:', product);
+
+    console.log(
+      'Selected product from autocomplete:',
+      product,
+      'unit=',
+      product.unit,
+      'allowDecimalQty=',
+      product.allowDecimalQty
+    );
     setMongoId(product._id || null); // PRESERVE MongoDB ObjectId
     setProductId(String(product.productId || ''));
     setName(product.productName || product.name || '');
@@ -225,12 +255,14 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
         break;
       case 'Enter':
         e.preventDefault();
-        if (selectedSuggestionIndex >= 0) {
-          selectSuggestion(suggestions[selectedSuggestionIndex]);
-        } else if (suggestions.length === 1) {
-          selectSuggestion(suggestions[0]);
-        } else {
-          handleNameEnter();
+        if (suggestions.length > 0) {
+          selectSuggestion(
+            suggestions[
+              selectedSuggestionIndex >= 0
+                ? selectedSuggestionIndex
+                : 0
+            ]
+          );
         }
         break;
       case 'Escape':
@@ -280,8 +312,15 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
       return;
     }
 
-    const amount = Number(rate || 0) * parseFloat(qty || 0.001);
-    const gstAmount = (amount * Number(gst || 0)) / 100;
+    const quantity = Number(qty) || 0;
+    if (!allowDecimalQty && !Number.isInteger(quantity)) {
+      toast.error(`${unit || 'pcs'} accepts whole number quantities only`);
+      return;
+    }
+
+    const grossAmount = Number(rate || 0) * quantity;
+    const gstAmount = grossAmount - grossAmount / (1 + Number(gst || 0) / 100);
+    const amount = grossAmount - gstAmount;
 
     // Validate stock before adding
     if (stock != null && parseFloat(qty || 0) > parseFloat(stock)) {
@@ -353,10 +392,20 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
       }
     } else if (e.key === '+') {
       e.preventDefault();
-      setQty(q => String((parseFloat(q || 0) + 0.25).toFixed(3)));
+
+      if (allowDecimalQty) {
+        setQty(q => String((parseFloat(q || 0) + 0.25).toFixed(3)));
+      } else {
+        setQty(q => String(parseInt(q || 0, 10) + 1));
+      }
     } else if (e.key === '-') {
       e.preventDefault();
-      setQty(q => String(Math.max(0.001, parseFloat(q || 0.001) - 0.25).toFixed(3)));
+
+      if (allowDecimalQty) {
+        setQty(q => String(Math.max(0.001, parseFloat(q || 0.001) - 0.25).toFixed(3)));
+      } else {
+        setQty(q => String(Math.max(1, parseInt(q || 1, 10) - 1)));
+      }
     } else if (e.key === 'Escape') {
       e.preventDefault();
       clearRow();
@@ -402,9 +451,11 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
   };
 
   // Calculate amounts for display
-  const amount = Number(rate || 0) * Number(qty || 1);
-  const gstAmount = (amount * Number(gst || 0)) / 100;
-  const netAmount = amount + gstAmount;
+  const quantity = Number(qty) || 0;
+  const grossAmount = Number(rate || 0) * Number(qty || 1);
+  const gstAmount = grossAmount - grossAmount / (1 + Number(gst || 0) / 100);
+  const amount = grossAmount - gstAmount;
+  const netAmount = grossAmount;
 
   return (
     <div className="space-y-2">
@@ -451,6 +502,7 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
             <ul className="absolute z-50 bg-white border border-gray-300 mt-1 max-h-48 overflow-y-auto w-full text-xs rounded-sm shadow-lg">
               {suggestions.map((product, idx) => (
                 <li
+                  ref={(el) => (suggestionRefs.current[idx] = el) }
                   key={idx}
                   className={`p-2 cursor-pointer flex justify-between items-center ${
                     idx === selectedSuggestionIndex
@@ -475,13 +527,28 @@ const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocus
         <input
           ref={qtyRef}
           type="number"
-          min="0.001"
-          step="0.001"
+          min={allowDecimalQty ? "0.001" : "1"}
+          step={allowDecimalQty ? "0.001" : "1"}
           className="col-span-1 p-2 border rounded-sm text-xs text-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
           placeholder="1"
           value={qty}
-          onChange={(e) => setQty(e.target.value.replace(/[^0-9.]/g, ''))}
-          onKeyDown={handleQtyKeyDown}
+          onChange={(e) => {
+            let value = e.target.value;
+
+            if (!allowDecimalQty) {
+              value = value.replace(/\./g, '');
+            }
+
+            setQty(value);
+          }}
+          onKeyDown={(e) => {
+            if (!allowDecimalQty && e.key === '.') {
+              e.preventDefault();
+              return;
+            }
+
+            handleQtyKeyDown(e);
+          }}
         />
 
         {/* Price */}

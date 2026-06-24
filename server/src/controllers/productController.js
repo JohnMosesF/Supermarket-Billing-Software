@@ -1,6 +1,8 @@
 import { body, query } from 'express-validator';
 import { Product } from '../models/Product.js';
 import { InventoryLog } from '../models/InventoryLog.js';
+import { Unit } from '../models/Unit.js';
+import { ensureDefaultUnits } from './unitController.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { makeSku } from '../utils/invoice.js';
@@ -9,13 +11,28 @@ export const productRules = [
   body('name').trim().notEmpty(),
   body('purchasePrice').isFloat({ min: 0 }),
   body('sellingPrice').isFloat({ min: 0 }),
-  body('stock').optional().isInt({ min: 0 }),
-  body('taxRate').optional().isFloat({ min: 0 })
+  body('mrp').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
+  body('wholesalePrice').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
+  body('stock').optional().isFloat({ min: 0 }),
+  body('taxRate').optional().isFloat({ min: 0 }),
+  body('unit').optional().trim().notEmpty()
 ];
+
+async function resolveUnitFields(payload) {
+  await ensureDefaultUnits();
+  const unitName = String(payload.unit || 'pcs').trim().toLowerCase();
+  const unit = await Unit.findOne({ name: unitName, active: true }).lean();
+  if (!unit) throw new ApiError(400, `Invalid unit: ${unitName}`);
+  return {
+    ...payload,
+    unit: unit.name,
+    allowDecimalQty: unit.allowDecimal
+  };
+}
 
 export const productQueryRules = [
   query('page').optional().isInt({ min: 1 }),
-  query('limit').optional().isInt({ min: 1, max: 100 })
+  query('limit').optional().isInt({ min: 1, max: 10000 })
 ];
 
 export const listProducts = asyncHandler(async (req, res) => {
@@ -44,18 +61,30 @@ export const listProducts = asyncHandler(async (req, res) => {
 });
 
 export const createProduct = asyncHandler(async (req, res) => {
-  const total = await Product.countDocuments();
-  
-  // Auto-generate numeric productId
-  const lastProduct = await Product.findOne().sort({ productId: -1 }).lean();
-  const nextProductId = (lastProduct?.productId || 1000) + 1;
 
-  const payload = {
+  let nextProductId;
+
+  if (req.body.productId) {
+    nextProductId = Number(req.body.productId);
+  } else {
+    const lastProduct = await Product.findOne()
+      .sort({ productId: -1 });
+
+    nextProductId = lastProduct
+      ? lastProduct.productId + 1
+      : 1;
+  }
+
+  const total = await Product.countDocuments();
+
+  const payload = await resolveUnitFields({
     ...req.body,
     productId: nextProductId,
     sku: req.body.sku || makeSku(req.body.name, total),
-    imageUrl: req.file ? `/uploads/${req.file.filename}` : req.body.imageUrl
-  };
+    imageUrl: req.file
+      ? `/uploads/${req.file.filename}`
+      : req.body.imageUrl
+  });
 
   const product = await Product.create(payload);
 
@@ -67,7 +96,7 @@ export const createProduct = asyncHandler(async (req, res) => {
       stockBefore: 0,
       stockAfter: product.stock,
       reason: 'Opening stock',
-      user: req.user._id
+      user: req.user?._id
     });
   }
 
@@ -79,7 +108,8 @@ export const updateProduct = asyncHandler(async (req, res) => {
   if (!product) throw new ApiError(404, 'Product not found');
 
   const oldStock = product.stock;
-  Object.assign(product, req.body);
+  const payload = req.body.unit ? await resolveUnitFields(req.body) : req.body;
+  Object.assign(product, payload);
   if (req.file) product.imageUrl = `/uploads/${req.file.filename}`;
   await product.save();
 

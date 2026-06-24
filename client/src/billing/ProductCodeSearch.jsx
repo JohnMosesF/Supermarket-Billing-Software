@@ -21,7 +21,7 @@ export default function ProductCodeSearch({ value, onChange, onSelect, placehold
     }
     setLoading(true);
     try {
-      const res = await productAPI.searchProducts(q, 8);
+      const res = await productAPI.searchProducts(q, 100);
       const products = (res.data && (res.data.products || res.data)) || [];
       setResults(products || []);
       setSelectedIndex(-1);

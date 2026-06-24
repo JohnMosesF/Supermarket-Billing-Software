@@ -84,7 +84,7 @@ export function Billing() {
         setProducts([]);
         return;
       }
-      productAPI.searchProducts(q, 12).then((res) => {
+      productAPI.searchProducts(q, 100).then((res) => {
         setProducts(res.data.products || []);
         setHighlightedSuggestion(0);
       }).catch(() => {
@@ -115,15 +115,14 @@ export function Billing() {
     const totalQuantity = cart.reduce((sum, item) => sum + parseFloat(item.quantity || 0), 0);
     const billDiscount = Number(discount || 0);
     const rawTotal = Math.max(subtotal + gst - lineDiscount - billDiscount, 0);
-    const rounded = Math.round(rawTotal);
     return {
       items: cart.length,
       totalQuantity,
       subtotal,
       gst,
       discount: lineDiscount + billDiscount,
-      roundOff: rounded - rawTotal,
-      grandTotal: rounded
+      roundOff: 0,
+      grandTotal: rawTotal
     };
   }, [cart, discount]);
 
@@ -156,6 +155,11 @@ export function Billing() {
     if (!product) return;
     if (product.stock <= 0) {
       toast.error('Product is out of stock');
+      return;
+    }
+    const quantity = parseFloat(entryQty || 0);
+    if (!product.allowDecimalQty && !Number.isInteger(quantity)) {
+      toast.error(`${product.unit || 'pcs'} accepts whole number quantities only`);
       return;
     }
 
@@ -222,6 +226,7 @@ export function Billing() {
       items: cart.map((item) => ({
         product: item._id,
         quantity: parseFloat(item.quantity),
+        unit: item.unit || 'pcs',
         price: Number(item.price),
         discount: Number(item.discount || 0)
       })),
@@ -379,16 +384,18 @@ export function Billing() {
               </label>
               <label className="text-xs font-semibold uppercase text-slate-500">
                 Qty
-<input
-  type="number"
-  min="0.001"
-  step="0.001"
-  value={
-  Number.isInteger(Number(item.quantity))
-    ? item.quantity
-    : Number(item.quantity).toFixed(3)
-  }
-/>              </label>
+                <input
+                  className="input mt-1 h-11"
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  value={entryQty}
+                  onChange={(event) => {
+                    const value = parseFloat(event.target.value) || 0.001;
+                    setEntryQty(activeProduct?.allowDecimalQty === false ? Math.max(1, Math.trunc(value)) : value);
+                  }}
+                />
+              </label>
               <label className="text-xs font-semibold uppercase text-slate-500">
                 GST
                 <input className="input mt-1 h-11" value={activeProduct?.taxRate ?? ''} readOnly />
@@ -423,16 +430,19 @@ export function Billing() {
                         <td className="border-b border-slate-100 px-3 py-2 font-mono dark:border-slate-800">{item.sku}</td>
                         <td className="border-b border-slate-100 px-3 py-2 font-semibold dark:border-slate-800">{item.name}</td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-                          <input className="h-9 w-24 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" value={item.price} onChange={(event) => updateCartItem(item._id, { price: Number(event.target.value) })} />
+                          <input className="h-9 w-24 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" step="0.01" value={item.price} onChange={(event) => updateCartItem(item._id, { price: Number(event.target.value) })} />
                         </td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-                          <input className="h-9 w-20 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" min="0.001" step="0.001" value={item.quantity} onChange={(event) => updateCartItem(item._id, { quantity: parseFloat(event.target.value) || 0 })} />
+                          <input className="h-9 w-20 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" min={item.allowDecimalQty ? '0.001' : '1'} step={item.allowDecimalQty ? '0.001' : '1'} value={item.quantity} onChange={(event) => {
+                            const value = parseFloat(event.target.value) || 0;
+                            updateCartItem(item._id, { quantity: item.allowDecimalQty ? value : Math.max(1, Math.trunc(value)) });
+                          }} />
                         </td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{item.unit || 'pcs'}</td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">{item.taxRate || 0}</td>
                         <td className="border-b border-slate-100 px-3 py-2 text-right dark:border-slate-800">{currency(math.gstAmount)}</td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-                          <input className="h-9 w-24 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" value={item.discount} onChange={(event) => updateCartItem(item._id, { discount: Number(event.target.value) })} />
+                          <input className="h-9 w-24 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" step="0.01" value={item.discount} onChange={(event) => updateCartItem(item._id, { discount: Number(event.target.value) })} />
                         </td>
                         <td className="border-b border-slate-100 px-3 py-2 text-right font-bold dark:border-slate-800">{currency(math.netAmount)}</td>
                       </tr>
@@ -524,7 +534,7 @@ export function Billing() {
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs font-semibold uppercase text-slate-500">
                   Discount
-                  <input className="input mt-1 h-11" type="number" min="0" value={discount} onChange={(event) => setDiscount(Math.max(0, Number(event.target.value)))} />
+                  <input className="input mt-1 h-11" type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(Math.max(0, Number(event.target.value)))} />
                 </label>
                 <label className="text-xs font-semibold uppercase text-slate-500">
                   Paid Amount
@@ -532,6 +542,7 @@ export function Billing() {
                     className="input mt-1 h-11 text-lg font-bold"
                     type="number"
                     min="0"
+                    step="0.01"
                     max={isCredit ? totals.grandTotal : undefined}
                     value={paidAmount}
                     onChange={(event) => {
