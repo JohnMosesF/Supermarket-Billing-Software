@@ -7,6 +7,23 @@ const path = require('path');
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 let backendProcess = null;
+let isQuitting = false;
+
+function markWindowCloseConfirmed(win) {
+  if (win && !win.isDestroyed()) {
+    win.__closeConfirmed = true;
+  }
+}
+
+function destroyAllWindows() {
+  isQuitting = true;
+  for (const window of BrowserWindow.getAllWindows()) {
+    markWindowCloseConfirmed(window);
+    if (!window.isDestroyed()) {
+      window.destroy();
+    }
+  }
+}
 
 function resourcePath(...parts) {
   return isDev ? path.join(__dirname, '..', ...parts) : path.join(process.resourcesPath, ...parts);
@@ -123,6 +140,29 @@ function createWindow() {
     }
   });
 
+  win.__hasCartItems = false;
+  win.__closeConfirmed = false;
+
+  win.on('close', async (event) => {
+    if (isQuitting || win.__closeConfirmed || !win.__hasCartItems) return;
+
+    event.preventDefault();
+
+    const result = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Cancel', 'Close Application'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Unsaved Bill',
+      message: 'There are items in the cart.',
+      detail: 'Closing this window will lose the current bill.'
+    });
+
+    if (result.response === 1) {
+      destroyAllWindows();
+    }
+  });
+
   if (isDev) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
     win.webContents.openDevTools({ mode: 'detach' });
@@ -135,6 +175,13 @@ const { formatInvoiceHTML } = require('./thermalPrinter.cjs');
 
 ipcMain.handle('create-billing-window', async (event, opts = {}) => {
   return createBillingWindow({ isDev, loadUrl: process.env.VITE_DEV_SERVER_URL, opts });
+});
+
+ipcMain.on('window-cart-state', (event, hasItems) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && !win.isDestroyed()) {
+    win.__hasCartItems = !!hasItems;
+  }
 });
 
 ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {

@@ -380208,8 +380208,17 @@ var protect = asyncHandler(async (req, res, next) => {
   }
   const decoded = import_jsonwebtoken2.default.verify(token, env2.jwtSecret);
   const user = await User.findById(decoded.id).select("-password");
-  if (!user || !user.active) {
-    throw new ApiError(401, "User account is unavailable");
+  if (!user) {
+    throw new ApiError(
+      401,
+      "Session is no longer valid. Please log in again."
+    );
+  }
+  if (!user.active) {
+    throw new ApiError(
+      403,
+      "Your account has been disabled."
+    );
   }
   req.user = user;
   next();
@@ -380453,17 +380462,88 @@ var import_mongoose8 = __toESM(require_mongoose2(), 1);
 var settingSchema = new import_mongoose8.default.Schema(
   {
     storeName: { type: String, default: "FreshMart Supermarket" },
+    branchName: { type: String, default: "" },
+    addressLine1: { type: String, default: "" },
+    addressLine2: { type: String, default: "" },
+    city: { type: String, default: "" },
+    state: { type: String, default: "" },
+    pincode: { type: String, default: "" },
     phone: { type: String, default: "" },
+    whatsapp: { type: String, default: "" },
     email: { type: String, default: "" },
+    website: { type: String, default: "" },
     address: { type: String, default: "" },
     gstNumber: { type: String, default: "" },
+    fssaiNumber: { type: String, default: "" },
+    logoUrl: { type: String, default: "" },
     currency: { type: String, default: "INR" },
+    currencySymbol: { type: String, default: "\u20B9" },
     taxInclusive: { type: Boolean, default: false },
+    gstExclusive: { type: Boolean, default: false },
+    gstMode: { type: String, enum: ["cgst_sgst", "igst"], default: "cgst_sgst" },
     defaultTaxRate: { type: Number, default: 0 },
     invoicePrefix: { type: String, default: "INV" },
     invoiceFooter: { type: String, default: "Thank you for shopping with us." },
     printerName: { type: String, default: "" },
     thermalPaperWidth: { type: String, enum: ["58mm", "80mm"], default: "80mm" },
+    receiptWidth: { type: String, enum: ["58mm", "80mm", "A4"], default: "80mm" },
+    receiptTopMargin: { type: Number, default: 2 },
+    receiptBottomMargin: { type: Number, default: 3 },
+    receiptMarginLeft: { type: Number, default: 3 },
+    receiptMarginRight: { type: Number, default: 3 },
+    receiptFontFamily: { type: String, default: "Consolas" },
+    receiptFontSize: { type: Number, default: 11.5 },
+    receiptLineHeight: { type: Number, default: 1.25 },
+    printDensity: { type: String, enum: ["compact", "normal", "bold"], default: "normal" },
+    dividerStyle: { type: String, enum: ["solid", "dashed", "double"], default: "dashed" },
+    centerHeader: { type: Boolean, default: true },
+    boldStoreName: { type: Boolean, default: true },
+    showDividers: { type: Boolean, default: true },
+    paperFeedAfterPrint: { type: Number, default: 8 },
+    showInvoiceNumber: { type: Boolean, default: true },
+    showDate: { type: Boolean, default: true },
+    showTime: { type: Boolean, default: true },
+    showCashier: { type: Boolean, default: true },
+    showCustomerName: { type: Boolean, default: true },
+    showCustomerMobile: { type: Boolean, default: true },
+    showCustomerGST: { type: Boolean, default: false },
+    showPaymentMethod: { type: Boolean, default: true },
+    showBarcode: { type: Boolean, default: false },
+    showQRCode: { type: Boolean, default: false },
+    showSKU: { type: Boolean, default: false },
+    showProductCode: { type: Boolean, default: false },
+    showHSN: { type: Boolean, default: false },
+    showUnit: { type: Boolean, default: true },
+    showGSTPercent: { type: Boolean, default: true },
+    showItemDiscount: { type: Boolean, default: false },
+    showTaxSummary: { type: Boolean, default: false },
+    showTaxableAmount: { type: Boolean, default: false },
+    showSubtotal: { type: Boolean, default: true },
+    showDiscount: { type: Boolean, default: true },
+    showTax: { type: Boolean, default: true },
+    showRoundOff: { type: Boolean, default: true },
+    showGrandTotal: { type: Boolean, default: true },
+    showPaid: { type: Boolean, default: true },
+    showBalance: { type: Boolean, default: true },
+    showSavings: { type: Boolean, default: false },
+    totalsOrder: { type: [String], default: ["Subtotal", "Discount", "Tax", "RoundOff", "Savings"] },
+    footerLine1: { type: String, default: "" },
+    footerLine2: { type: String, default: "" },
+    footerLine3: { type: String, default: "Visit Again" },
+    returnPolicy: { type: String, default: "Goods Once Sold Cannot Be Returned" },
+    thankYouMessage: { type: String, default: "Thank You For Shopping With Us" },
+    signatureLine: { type: Boolean, default: false },
+    autoPrint: { type: Boolean, default: false },
+    printPreview: { type: Boolean, default: true },
+    silentPrinting: { type: Boolean, default: true },
+    numberOfCopies: { type: Number, default: 1 },
+    openCashDrawer: { type: Boolean, default: false },
+    cutPaper: { type: Boolean, default: false },
+    enableBarcode: { type: Boolean, default: false },
+    enableQRCode: { type: Boolean, default: false },
+    upiQr: { type: Boolean, default: false },
+    upiId: { type: String, default: "" },
+    upiName: { type: String, default: "" },
     lowStockGlobalThreshold: { type: Number, default: 5 }
   },
   { timestamps: true }

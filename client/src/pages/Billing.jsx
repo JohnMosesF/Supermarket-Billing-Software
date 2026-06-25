@@ -107,6 +107,23 @@ export function Billing() {
     return () => clearTimeout(timer);
   }, [customer.name, customer.mobile]);
 
+  useEffect(() => {
+      if (!window.electronAPI) return;
+      window.electronAPI.onAppCloseRequest(async () => {
+          if (cart.length === 0) {
+              await window.electronAPI.confirmAppClose();
+              return;
+          }
+          const result = window.confirm(
+              "There are items in the cart.\n\nDo you really want to close?"
+          );
+          if (result) {
+              await window.electronAPI.confirmAppClose();
+          }
+      });
+
+  }, [cart]);
+
   // Calculate totals and other derived values based on cart and other inputs
   const totals = useMemo(() => {
     const subtotal = cart.reduce((sum, item) => sum + Number(item.price || 0) * parseFloat(item.quantity || 0), 0);

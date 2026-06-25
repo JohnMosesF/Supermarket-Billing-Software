@@ -32,11 +32,36 @@ import { printInvoice, makeInvoiceHtmlFromSale } from '../utils/print';
  */
 export default function ModernPOSBilling() {
 
-  const params = new URLSearchParams(window.location.search);
+  const params = getQueryParams();
   const windowId = params.get('windowId');
   // Cart state
   const [cart, setCart] = useState([]);
+
+      useEffect(() => {
+        if (!window.electronAPI?.onAppCloseRequest) return;
+
+        const handler = async () => {
+
+            if (cart.length === 0) {
+                await window.electronAPI.confirmAppClose();
+                return;
+            }
+
+            const ok = window.confirm(
+                "There are items in the cart. Close the application?"
+            );
+
+            if (ok) {
+                await window.electronAPI.confirmAppClose();
+            }
+        };
+
+        window.electronAPI.onAppCloseRequest(handler);
+
+    }, [cart]);
+
   const [selectedIndex, setSelectedIndex] = useState(-1);
+
   useEffect(() => {
     console.log("Selected Index:", selectedIndex);
   }, [selectedIndex]);
@@ -106,9 +131,21 @@ export default function ModernPOSBilling() {
     item => Number(item.qty || item.quantity || 0) > 0
   );
 
+  function getQueryParams() {
+      const hash = window.location.hash;
+
+      if (hash.includes("?")) {
+          return new URLSearchParams(hash.substring(hash.indexOf("?")));
+      }
+
+      return new URLSearchParams(window.location.search);
+  }
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = getQueryParams();
     const windowId = params.get('windowId');
+
+    console.log("Window ID:", windowId);
 
     if (window.electronAPI?.sendBillingEvent && windowId) {
       window.electronAPI.sendBillingEvent(
