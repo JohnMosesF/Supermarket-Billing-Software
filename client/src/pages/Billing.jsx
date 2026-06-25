@@ -264,8 +264,9 @@ export function Billing() {
     );
 
     const result = await printInvoice(invoiceHtml, {
-      silent: true,
+      silent: settings?.silentPrinting !== false,
       printBackground: true,
+      copies: Number(settings?.numberOfCopies || 1),
       deviceName: settings?.printerName || undefined,
       meta: { storeName: settings?.storeName, gst: settings?.gstNumber, invoiceNo: saleToPrint.invoiceNumber || saleToPrint.invoiceNo }
     });

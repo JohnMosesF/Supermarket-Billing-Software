@@ -15,8 +15,18 @@ export const protect = asyncHandler(async (req, res, next) => {
   const decoded = jwt.verify(token, env.jwtSecret);
   const user = await User.findById(decoded.id).select('-password');
 
-  if (!user || !user.active) {
-    throw new ApiError(401, 'User account is unavailable');
+  if (!user) {
+    throw new ApiError(
+      401,
+      'Session is no longer valid. Please log in again.'
+    );
+  }
+
+  if (!user.active) {
+    throw new ApiError(
+      403,
+      'Your account has been disabled.'
+    );
   }
 
   req.user = user;

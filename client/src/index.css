@@ -72,7 +72,7 @@ body {
   #invoice-print {
     position: absolute;
     inset: 0 auto auto 0;
-    width: 80mm;
-    padding: 4mm;
+    width: auto;
+    padding: 0;
   }
 }

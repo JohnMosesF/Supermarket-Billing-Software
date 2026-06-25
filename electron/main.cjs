@@ -159,6 +159,7 @@ ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
       {
         silent: options.silent !== undefined ? options.silent : true,
         printBackground: options.printBackground !== undefined ? options.printBackground : true,
+        copies: Number(options.copies || 1),
         deviceName: options.deviceName || undefined,
         margins: { marginType: 'none' },
         pageSize: options.pageSize || { width: 80000, height: 210000 }

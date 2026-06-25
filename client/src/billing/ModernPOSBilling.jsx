@@ -463,8 +463,9 @@ export default function ModernPOSBilling() {
       }
 
       const result = await printInvoice(html, {
-        silent: true,
+        silent: settings?.silentPrinting !== false,
         printBackground: true,
+        copies: Number(settings?.numberOfCopies || 1),
         deviceName: settings?.printerName || undefined,
         meta: {
           storeName: settings?.storeName,
