@@ -2,11 +2,12 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function formatInvoiceHTML(meta, bodyHtml) {
-  if (typeof bodyHtml === 'string' && /<html[\s>]/i.test(bodyHtml)) {
+function formatInvoiceHTML(meta = {}, bodyHtml) {
+    if (typeof bodyHtml === 'string' && /<html[\s>]/i.test(bodyHtml)) {
     return bodyHtml;
   }
 
+  const paperWidth = meta.paperWidth || '80mm';
   const storeName = escapeHtml(meta.storeName || 'StoreDesk POS');
   const gst = escapeHtml(meta.gst || '');
   const invoice = escapeHtml(meta.invoiceNo || '');
@@ -14,7 +15,7 @@ function formatInvoiceHTML(meta, bodyHtml) {
 
   return `<!doctype html><html><head><meta charset="utf-8"/><style>
     body{font-family:monospace;font-size:12px;margin:0;padding:6px;color:#000}
-    .wrapper{width:80mm}
+    .wrapper{width:${paperWidth}}
     .center{text-align:center}
     .bold{font-weight:700}
     table{width:100%;border-collapse:collapse}

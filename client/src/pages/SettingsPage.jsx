@@ -40,8 +40,8 @@ const totalFields = [
 const defaultTotalsOrder = ['Subtotal', 'Discount', 'Tax', 'RoundOff', 'Savings'];
 
 const defaults = {
-  receiptWidth: '80mm',
-  thermalPaperWidth: '80mm',
+  receiptWidth: '72mm',
+  thermalPaperWidth: '72mm',
   receiptTopMargin: 2,
   receiptBottomMargin: 3,
   receiptMarginLeft: 3,
@@ -209,6 +209,7 @@ export function SettingsPage() {
             <Field label="Receipt Width">
               <select className="input" {...register('receiptWidth')}>
                 <option value="58mm">58mm</option>
+                <option value="72mm">72mm</option>
                 <option value="80mm">80mm</option>
                 <option value="A4">A4</option>
               </select>

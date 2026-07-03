@@ -1,4 +1,4 @@
-import { Edit2, Plus } from 'lucide-react';
+import { ArchiveRestore, Edit2, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -8,14 +8,17 @@ import { PageHeader } from '../components/PageHeader.jsx';
 export function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [showDeleted, setShowDeleted] = useState(false);
   const { register, handleSubmit, reset } = useForm();
 
   async function load() {
-    const { data } = await api.get('/suppliers');
+    const { data } = await api.get('/suppliers', { params: { showDeleted } });
     setSuppliers(data.suppliers);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [showDeleted]);
 
   async function save(values) {
     if (editing) {
@@ -27,6 +30,38 @@ export function Suppliers() {
     }
     setEditing(null);
     reset();
+    load();
+  }
+
+  async function toggleShowDeleted() {
+    setShowDeleted((current) => !current);
+  }
+
+  async function deleteSupplier(supplier) {
+    const confirmed = window.confirm(`Are you sure you want to delete supplier “${supplier.name}”?`);
+    if (!confirmed) return;
+
+    await api.delete(`/suppliers/${supplier._id}`);
+    toast.success('Supplier deleted');
+    load();
+  }
+
+  async function restoreSupplier(supplier) {
+    try {
+      await api.patch(`/suppliers/${supplier._id}/restore`);
+      toast.success('Supplier restored');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to restore supplier');
+    }
+  }
+
+  async function permanentlyDeleteSupplier(supplier) {
+    const confirmed = window.confirm(`Permanently delete supplier “${supplier.name}”? This cannot be undone.`);
+    if (!confirmed) return;
+
+    await api.delete(`/suppliers/${supplier._id}`, { params: { permanent: true } });
+    toast.success('Supplier permanently deleted');
     load();
   }
 
@@ -46,6 +81,15 @@ export function Suppliers() {
   return (
     <div>
       <PageHeader title="Suppliers" description="Manage supplier contacts used by purchase entries." />
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">{showDeleted ? 'Deleted Suppliers' : 'Active Suppliers'}</h2>
+          <p className="text-sm text-slate-500">{showDeleted ? 'Restore or permanently remove deleted supplier records.' : 'Soft delete suppliers from purchase workflows.'}</p>
+        </div>
+        <button className="btn-muted" type="button" onClick={toggleShowDeleted}>
+          {showDeleted ? 'Hide deleted' : 'Show deleted'}
+        </button>
+      </div>
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <form className="panel space-y-3 p-5" onSubmit={handleSubmit(save)}>
           <h2 className="font-semibold">{editing ? 'Edit supplier' : 'Add supplier'}</h2>
@@ -73,11 +117,49 @@ export function Suppliers() {
                   <td className="table-td">{supplier.mobile || '-'}</td>
                   <td className="table-td">{supplier.email || '-'}</td>
                   <td className="table-td">{supplier.gstNumber || '-'}</td>
-                  <td className="table-td text-right">
-                    <button className="btn-muted h-9 w-9 p-0" onClick={() => editSupplier(supplier)} title="Edit supplier">
+                  <td className="table-td">
+                  <div className="flex items-center justify-center gap-2 min-w-[96px]">
+                    <button
+                      type="button"
+                      className="h-9 w-9 rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-300 transition flex items-center justify-center"
+                      onClick={() => editSupplier(supplier)}
+                      title="Edit supplier"
+                    >
                       <Edit2 size={15} />
                     </button>
-                  </td>
+
+                    {supplier.active ? (
+                      <button
+                        type="button"
+                        onClick={() => deleteSupplier(supplier)}
+                        title="Delete supplier"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:border-red-300 transition"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-primary h-9 w-9 p-0 flex items-center justify-center"
+                          onClick={() => restoreSupplier(supplier)}
+                          title="Restore supplier"
+                        >
+                          <ArchiveRestore size={15} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn-danger h-9 w-9 p-0 flex items-center justify-center"
+                          onClick={() => permanentlyDeleteSupplier(supplier)}
+                          title="Permanently delete supplier"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </td>
                 </tr>
               ))}
             </tbody>

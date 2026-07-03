@@ -11,7 +11,9 @@ export const userRules = [
 ];
 
 export const listUsers = asyncHandler(async (req, res) => {
-  const users = await User.find().sort({ createdAt: -1 });
+  const showDeleted = String(req.query.showDeleted || 'false').toLowerCase() === 'true';
+  const filter = showDeleted ? {} : { active: true };
+  const users = await User.find(filter).sort({ createdAt: -1 });
   res.json({ users });
 });
 
@@ -21,7 +23,7 @@ export const createUser = asyncHandler(async (req, res) => {
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
-  const allowed = ['name', 'email', 'role', 'permissions', 'active', 'password'];
+  const allowed = ['name', 'email', 'phone', 'role', 'permissions', 'active', 'password'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
   const user = await User.findById(req.params.id).select('+password');
 
@@ -38,7 +40,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'You cannot delete your own account');
   }
 
-  const user = await User.findByIdAndDelete(req.params.id);
+  const user = await User.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!user) throw new ApiError(404, 'User not found');
-  res.json({ message: 'User deleted' });
+  res.json({ user, message: 'User soft deleted' });
 });

@@ -380112,6 +380112,7 @@ var userSchema = new import_mongoose.default.Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    phone: { type: String, trim: true },
     password: { type: String, required: true, minlength: 8, select: false },
     role: { type: String, enum: ["admin", "manager", "cashier"], default: "cashier" },
     permissions: [{ type: String }],
@@ -380311,6 +380312,8 @@ var customerSchema = new import_mongoose3.default.Schema(
     mobile: { type: String, required: true, unique: true, trim: true },
     email: { type: String, trim: true, lowercase: true },
     address: String,
+    gstNumber: String,
+    notes: String,
     loyaltyPoints: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
     totalCredit: { type: Number, default: 0 },
@@ -380323,7 +380326,8 @@ var customerSchema = new import_mongoose3.default.Schema(
     lastPaymentDate: Date,
     creditTransactions: { type: [creditTransactionSchema], default: [] },
     creditHistory: { type: [creditTransactionSchema], default: [] },
-    paymentHistory: { type: [creditPaymentSchema], default: [] }
+    paymentHistory: { type: [creditPaymentSchema], default: [] },
+    active: { type: Boolean, default: true }
   },
   { timestamps: true }
 );
@@ -380410,7 +380414,8 @@ var purchaseSchema = new import_mongoose6.default.Schema(
     total: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     user: { type: import_mongoose6.default.Schema.Types.ObjectId, ref: "User" },
-    notes: String
+    notes: String,
+    active: { type: Boolean, default: true }
   },
   { timestamps: true }
 );
@@ -381122,9 +381127,25 @@ var getBill = asyncHandler(async (req, res) => {
   res.json({ bill });
 });
 var updateBill = asyncHandler(async (req, res) => {
-  const { items, subtotal, taxTotal, discount } = req.body;
+  const {
+    items,
+    subtotal,
+    taxTotal,
+    discount,
+    total,
+    customerName,
+    customerMobile,
+    paymentMethod,
+    amountPaid,
+    discountPercent,
+    invoiceAt,
+    notes
+  } = req.body;
   const bill = await Bill_default.findById(req.params.id);
   if (!bill) throw new ApiError(404, "Bill not found");
+  if (!items || items.length === 0) {
+    throw new ApiError(400, "Bill must have at least one item");
+  }
   const normalizedItems = [];
   for (const it of items) {
     let pid = it.productId || it._id || null;
@@ -381146,10 +381167,23 @@ var updateBill = asyncHandler(async (req, res) => {
   await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
   await deductSoldStock(normalizedItems, bill, req.user?._id);
   bill.items = normalizedItems;
-  bill.subtotal = subtotal;
-  bill.taxTotal = taxTotal;
-  bill.discount = discount;
-  bill.total = subtotal + taxTotal - discount;
+  bill.subtotal = subtotal != null ? subtotal : bill.subtotal;
+  bill.taxTotal = taxTotal != null ? taxTotal : bill.taxTotal;
+  bill.discount = discount != null ? discount : bill.discount;
+  bill.discountPercent = discountPercent != null ? discountPercent : bill.discountPercent;
+  bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount;
+  bill.customerName = customerName || bill.customerName;
+  bill.customerMobile = customerMobile || bill.customerMobile;
+  bill.paymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
+  bill.paidAmount = bill.paymentMethod === "Credit" ? Number(amountPaid || bill.paidAmount || 0) : bill.total;
+  bill.dueAmount = Math.max(bill.total - bill.paidAmount, 0);
+  bill.balanceAmount = bill.paymentMethod === "Credit" ? Math.max(0, bill.paidAmount - bill.total) : 0;
+  bill.paymentStatus = paymentStatusFromAmounts(bill.total, bill.paidAmount);
+  bill.notes = notes != null ? notes : bill.notes;
+  if (invoiceAt) {
+    const at = new Date(invoiceAt);
+    if (!isNaN(at.getTime())) bill.invoiceAt = at;
+  }
   bill.updatedAt = /* @__PURE__ */ new Date();
   await bill.save();
   res.json({ bill, message: "Bill updated successfully" });
@@ -381167,6 +381201,51 @@ var deleteBill = asyncHandler(async (req, res) => {
   await restoreSoldStock(bill.items, `Deleted bill restore ${bill.invoiceNo}`, req.user?._id, bill._id);
   await Bill_default.findByIdAndDelete(req.params.id);
   res.json({ message: "Bill deleted successfully" });
+});
+var getDeletedBills = asyncHandler(async (req, res) => {
+  const deletedBills = await DeletedBill_default.find().populate("deletedBy", "name email").sort({ createdAt: -1 });
+  res.json({ deletedBills });
+});
+var restoreDeletedBill = asyncHandler(async (req, res) => {
+  const deletedBill = await DeletedBill_default.findById(req.params.id).lean();
+  if (!deletedBill) throw new ApiError(404, "Deleted bill not found");
+  const existingBill = await Bill_default.findOne({ invoiceNo: deletedBill.originalData.invoiceNo }).lean();
+  if (existingBill) {
+    throw new ApiError(409, "Invoice number already exists in active bills");
+  }
+  const originalItems = (deletedBill.originalData.items || []).map((it) => ({
+    productId: it.productId,
+    productName: it.productName || it.name || "",
+    quantity: Number(it.quantity || it.qty || 0),
+    unit: it.unit || "pcs",
+    price: Number(it.price || it.sellingPrice || it.rate || 0),
+    tax: Number(it.gst || it.taxRate || it.tax || 0),
+    total: Number(it.total || 0)
+  }));
+  await validateBillItemsForSale(originalItems);
+  await deductSoldStock(originalItems, { _id: deletedBill._id, invoiceNo: deletedBill.originalData.invoiceNo }, req.user?._id);
+  const restoredBillData = {
+    ...deletedBill.originalData,
+    _id: void 0,
+    invoiceNo: deletedBill.originalData.invoiceNo,
+    invoiceNumber: deletedBill.originalData.invoiceNumber || deletedBill.originalData.invoiceNo,
+    items: originalItems,
+    status: "Completed",
+    paidAmount: Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0),
+    dueAmount: Math.max(Number(deletedBill.originalData.dueAmount || 0), 0),
+    balanceAmount: Number(deletedBill.originalData.balanceAmount || 0),
+    paymentStatus: deletedBill.originalData.paymentStatus || paymentStatusFromAmounts(Number(deletedBill.originalData.total || 0), Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0)),
+    createdAt: deletedBill.originalData.createdAt,
+    updatedAt: /* @__PURE__ */ new Date()
+  };
+  const bill = await Bill_default.create(restoredBillData);
+  await DeletedBill_default.findByIdAndDelete(req.params.id);
+  res.json({ bill, message: "Deleted bill restored" });
+});
+var permanentlyDeleteDeletedBill = asyncHandler(async (req, res) => {
+  const bill = await DeletedBill_default.findByIdAndDelete(req.params.id);
+  if (!bill) throw new ApiError(404, "Deleted bill not found");
+  res.json({ message: "Deleted bill permanently removed" });
 });
 var getBills = asyncHandler(async (req, res) => {
   const { startDate, endDate, paymentMethod, customerMobile, page = 1, limit = 50 } = req.query;
@@ -381351,6 +381430,9 @@ billRoutes.post("/", createBill);
 billRoutes.post("/:id/delete", deleteBill);
 billRoutes.get("/stats/today", getTodaysSales);
 billRoutes.get("/search", searchBills);
+billRoutes.get("/deleted", getDeletedBills);
+billRoutes.post("/deleted/:id/restore", restoreDeletedBill);
+billRoutes.delete("/deleted/:id", permanentlyDeleteDeletedBill);
 billRoutes.get("/:id", getBill);
 billRoutes.put("/:id", updateBill);
 billRoutes.get("/", getBills);
@@ -381421,8 +381503,13 @@ var collectionRules = [
 ];
 var listCustomers = asyncHandler(async (req, res) => {
   const search = req.query.search?.trim();
-  const filter = search ? { $or: [{ name: new RegExp(search, "i") }, { mobile: new RegExp(search, "i") }, { email: new RegExp(search, "i") }] } : {};
-  const customers = await Customer.find(filter).sort({ updatedAt: -1 }).limit(100);
+  const showDeleted = String(req.query.showDeleted || "false").toLowerCase() === "true";
+  const filter = {
+    ...showDeleted ? {} : { active: true },
+    ...search ? { $or: [{ name: new RegExp(search, "i") }, { mobile: new RegExp(search, "i") }, { email: new RegExp(search, "i") }] } : {}
+  };
+  const limit = Math.min(Number(req.query.limit || 100), 1e3);
+  const customers = await Customer.find(filter).sort({ updatedAt: -1 }).limit(limit);
   res.json({ customers });
 });
 var createCustomer = asyncHandler(async (req, res) => {
@@ -381440,9 +381527,9 @@ var updateCustomer = asyncHandler(async (req, res) => {
   res.json({ customer });
 });
 var deleteCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findByIdAndDelete(req.params.id);
+  const customer = await Customer.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!customer) throw new ApiError(404, "Customer not found");
-  res.json({ message: "Customer deleted" });
+  res.json({ customer, message: "Customer soft deleted" });
 });
 var customerHistory = asyncHandler(async (req, res) => {
   const sales = await Sale.find({ customer: req.params.id }).sort({ createdAt: -1 }).limit(50);
@@ -381622,6 +381709,11 @@ var listProducts = asyncHandler(async (req, res) => {
     Product.countDocuments(filter)
   ]);
   res.json({ products, total, page, pages: Math.ceil(total / limit) });
+});
+var getProduct = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id).lean();
+  if (!product) throw new ApiError(404, "Product not found");
+  res.json({ product });
 });
 var createProduct = asyncHandler(async (req, res) => {
   let nextProductId;
@@ -381954,7 +382046,7 @@ productRoutes.get("/search", searchProducts);
 productRoutes.get("/id/:productId", searchByProductId);
 productRoutes.get("/next-id", getNextProductId);
 productRoutes.route("/").get(productQueryRules, validate, listProducts).post(authorize("admin", "manager"), upload.single("image"), productRules, validate, createProduct);
-productRoutes.route("/:id").patch(authorize("admin", "manager"), upload.single("image"), updateProduct).delete(authorize("admin"), deleteProduct);
+productRoutes.route("/:id").get(getProduct).patch(authorize("admin", "manager"), upload.single("image"), updateProduct).delete(authorize("admin"), deleteProduct);
 
 // ../server/src/routes/purchaseRoutes.js
 var import_express9 = __toESM(require_express2(), 1);
@@ -381968,7 +382060,9 @@ var purchaseRules = [
   (0, import_express_validator8.body)("items.*.costPrice").isFloat({ min: 0 })
 ];
 var listPurchases = asyncHandler(async (req, res) => {
-  const purchases = await Purchase.find().populate("supplier", "name mobile").populate("user", "name").sort({ purchaseDate: -1, createdAt: -1 });
+  const showDeleted = String(req.query.showDeleted || "false").toLowerCase() === "true";
+  const filter = showDeleted ? {} : { active: true };
+  const purchases = await Purchase.find(filter).populate("supplier", "name mobile").populate("user", "name").sort({ purchaseDate: -1, createdAt: -1 });
   res.json({ purchases });
 });
 async function getUnit(name) {
@@ -382093,12 +382187,17 @@ var updatePurchase = asyncHandler(async (req, res) => {
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
   res.json({ purchase });
 });
+var deletePurchase = asyncHandler(async (req, res) => {
+  const purchase = await Purchase.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
+  if (!purchase) throw new ApiError(404, "Purchase not found");
+  res.json({ purchase, message: "Purchase soft deleted" });
+});
 
 // ../server/src/routes/purchaseRoutes.js
 var purchaseRoutes = import_express9.default.Router();
 purchaseRoutes.use(protect, authorize("admin", "manager"));
 purchaseRoutes.route("/").get(listPurchases).post(purchaseRules, validate, createPurchase);
-purchaseRoutes.route("/:id").get(getPurchase).put(purchaseRules, validate, updatePurchase);
+purchaseRoutes.route("/:id").get(getPurchase).put(purchaseRules, validate, updatePurchase).delete(deletePurchase);
 
 // ../server/src/routes/reportRoutes.js
 var import_express10 = __toESM(require_express2(), 1);
@@ -382512,7 +382611,10 @@ var import_express13 = __toESM(require_express2(), 1);
 var import_express_validator10 = __toESM(require_lib4(), 1);
 var supplierRules = [(0, import_express_validator10.body)("name").trim().notEmpty()];
 var listSuppliers = asyncHandler(async (req, res) => {
-  const suppliers = await Supplier.find().sort({ name: 1 });
+  const showDeleted = String(req.query.showDeleted || "false").toLowerCase() === "true";
+  const filter = showDeleted ? {} : { active: true };
+  const limit = Math.min(Number(req.query.limit || 100), 1e3);
+  const suppliers = await Supplier.find(filter).sort({ name: 1 }).limit(limit);
   res.json({ suppliers });
 });
 var createSupplier = asyncHandler(async (req, res) => {
@@ -382525,15 +382627,27 @@ var updateSupplier = asyncHandler(async (req, res) => {
   res.json({ supplier });
 });
 var deleteSupplier = asyncHandler(async (req, res) => {
-  const supplier = await Supplier.findByIdAndDelete(req.params.id);
+  const { permanent } = req.query;
+  if (String(permanent) === "true") {
+    const supplier2 = await Supplier.findByIdAndDelete(req.params.id);
+    if (!supplier2) throw new ApiError(404, "Supplier not found");
+    return res.json({ message: "Supplier permanently deleted" });
+  }
+  const supplier = await Supplier.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!supplier) throw new ApiError(404, "Supplier not found");
-  res.json({ message: "Supplier deleted" });
+  res.json({ supplier, message: "Supplier soft deleted" });
+});
+var restoreSupplier = asyncHandler(async (req, res) => {
+  const supplier = await Supplier.findByIdAndUpdate(req.params.id, { active: true }, { new: true });
+  if (!supplier) throw new ApiError(404, "Supplier not found");
+  res.json({ supplier, message: "Supplier restored" });
 });
 
 // ../server/src/routes/supplierRoutes.js
 var supplierRoutes = import_express13.default.Router();
 supplierRoutes.use(protect, authorize("admin", "manager"));
 supplierRoutes.route("/").get(listSuppliers).post(supplierRules, validate, createSupplier);
+supplierRoutes.route("/:id/restore").patch(restoreSupplier);
 supplierRoutes.route("/:id").patch(supplierRules, validate, updateSupplier).delete(deleteSupplier);
 
 // ../server/src/routes/unitRoutes.js
@@ -382557,7 +382671,9 @@ var userRules = [
   (0, import_express_validator11.body)("password").optional().isLength({ min: 8 })
 ];
 var listUsers = asyncHandler(async (req, res) => {
-  const users = await User.find().sort({ createdAt: -1 });
+  const showDeleted = String(req.query.showDeleted || "false").toLowerCase() === "true";
+  const filter = showDeleted ? {} : { active: true };
+  const users = await User.find(filter).sort({ createdAt: -1 });
   res.json({ users });
 });
 var createUser = asyncHandler(async (req, res) => {
@@ -382565,7 +382681,7 @@ var createUser = asyncHandler(async (req, res) => {
   res.status(201).json({ user });
 });
 var updateUser = asyncHandler(async (req, res) => {
-  const allowed = ["name", "email", "role", "permissions", "active", "password"];
+  const allowed = ["name", "email", "phone", "role", "permissions", "active", "password"];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
   const user = await User.findById(req.params.id).select("+password");
   if (!user) throw new ApiError(404, "User not found");
@@ -382578,9 +382694,9 @@ var deleteUser = asyncHandler(async (req, res) => {
   if (String(req.user._id) === req.params.id) {
     throw new ApiError(400, "You cannot delete your own account");
   }
-  const user = await User.findByIdAndDelete(req.params.id);
+  const user = await User.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!user) throw new ApiError(404, "User not found");
-  res.json({ message: "User deleted" });
+  res.json({ user, message: "User soft deleted" });
 });
 
 // ../server/src/routes/userRoutes.js

@@ -16,7 +16,9 @@ export const purchaseRules = [
 ];
 
 export const listPurchases = asyncHandler(async (req, res) => {
-  const purchases = await Purchase.find().populate('supplier', 'name mobile').populate('user', 'name').sort({ purchaseDate: -1, createdAt: -1 });
+  const showDeleted = String(req.query.showDeleted || 'false').toLowerCase() === 'true';
+  const filter = showDeleted ? {} : { active: true };
+  const purchases = await Purchase.find(filter).populate('supplier', 'name mobile').populate('user', 'name').sort({ purchaseDate: -1, createdAt: -1 });
   res.json({ purchases });
 });
 
@@ -157,4 +159,10 @@ export const updatePurchase = asyncHandler(async (req, res) => {
 
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
   res.json({ purchase });
+});
+
+export const deletePurchase = asyncHandler(async (req, res) => {
+  const purchase = await Purchase.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
+  if (!purchase) throw new ApiError(404, 'Purchase not found');
+  res.json({ purchase, message: 'Purchase soft deleted' });
 });

@@ -60,6 +60,12 @@ export const listProducts = asyncHandler(async (req, res) => {
   res.json({ products, total, page, pages: Math.ceil(total / limit) });
 });
 
+export const getProduct = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id).lean();
+  if (!product) throw new ApiError(404, 'Product not found');
+  res.json({ product });
+});
+
 export const createProduct = asyncHandler(async (req, res) => {
 
   let nextProductId;

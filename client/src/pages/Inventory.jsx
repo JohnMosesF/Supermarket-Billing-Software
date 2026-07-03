@@ -46,7 +46,7 @@ export function Inventory() {
 
   return (
     <div>
-      <PageHeader title="Inventory" description="Track stock in, stock out, manual adjustments, and low-stock movement history." />
+      <PageHeader title="Inventory" description="Track stock movements, manual adjustments, and low-stock history with a fixed control panel." />
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <div className="space-y-5">
           <form className="panel space-y-3 p-5" onSubmit={handleSubmit(adjust)}>
@@ -77,23 +77,31 @@ export function Inventory() {
           </form>
         </div>
 
-        <div className="panel overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr><th className="table-th">Product</th><th className="table-th">Type</th><th className="table-th">Qty</th><th className="table-th">Stock</th><th className="table-th">Date</th></tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr key={log._id}>
-                  <td className="table-td"><strong>{log.product?.name}</strong><p className="text-xs text-slate-500">{log.reason}</p></td>
-                  <td className="table-td">{log.type}</td>
-                  <td className="table-td">{log.quantity} {log.product?.unit || ''}</td>
-                  <td className="table-td">{log.stockBefore} to {log.stockAfter} {log.product?.unit || ''}</td>
-                  <td className="table-td">{dateTime(log.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="scroll-panel">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+            <div>
+              <h2 className="font-semibold">Stock history</h2>
+              <p className="text-sm text-slate-500">Inventory movement history and stock reconciliation.</p>
+            </div>
+          </div>
+          <div className="table-shell">
+            <table className="w-full table-sticky">
+              <thead>
+                <tr><th className="table-th">Product</th><th className="table-th">Type</th><th className="table-th">Qty</th><th className="table-th">Stock</th><th className="table-th">Date</th></tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log._id}>
+                    <td className="table-td"><strong>{log.product?.name}</strong><p className="text-xs text-slate-500">{log.reason}</p></td>
+                    <td className="table-td">{log.type}</td>
+                    <td className="table-td">{log.quantity} {log.product?.unit || ''}</td>
+                    <td className="table-td">{log.stockBefore} to {log.stockAfter} {log.product?.unit || ''}</td>
+                    <td className="table-td">{dateTime(log.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

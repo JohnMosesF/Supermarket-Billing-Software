@@ -49,6 +49,8 @@ const customerSchema = new mongoose.Schema(
     mobile: { type: String, required: true, unique: true, trim: true },
     email: { type: String, trim: true, lowercase: true },
     address: String,
+    gstNumber: String,
+    notes: String,
     loyaltyPoints: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
     totalCredit: { type: Number, default: 0 },
@@ -61,7 +63,8 @@ const customerSchema = new mongoose.Schema(
     lastPaymentDate: Date,
     creditTransactions: { type: [creditTransactionSchema], default: [] },
     creditHistory: { type: [creditTransactionSchema], default: [] },
-    paymentHistory: { type: [creditPaymentSchema], default: [] }
+    paymentHistory: { type: [creditPaymentSchema], default: [] },
+    active: { type: Boolean, default: true }
   },
   { timestamps: true }
 );

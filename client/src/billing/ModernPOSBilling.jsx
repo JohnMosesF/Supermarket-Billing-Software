@@ -36,30 +36,6 @@ export default function ModernPOSBilling() {
   const windowId = params.get('windowId');
   // Cart state
   const [cart, setCart] = useState([]);
-
-      useEffect(() => {
-        if (!window.electronAPI?.onAppCloseRequest) return;
-
-        const handler = async () => {
-
-            if (cart.length === 0) {
-                await window.electronAPI.confirmAppClose();
-                return;
-            }
-
-            const ok = window.confirm(
-                "There are items in the cart. Close the application?"
-            );
-
-            if (ok) {
-                await window.electronAPI.confirmAppClose();
-            }
-        };
-
-        window.electronAPI.onAppCloseRequest(handler);
-
-    }, [cart]);
-
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
   useEffect(() => {
@@ -72,13 +48,17 @@ export default function ModernPOSBilling() {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [discountPercent, setDiscountPercent] = useState(0);
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [filteredCustomers, setFilteredCustomers] = useState([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [customerSuggestionIndex, setCustomerSuggestionIndex] = useState(-1);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [amountPaid, setAmountPaid] = useState(0);
   
   // UI state
-    const [showHoldBillsModal, setShowHoldBillsModal] = useState(false);
-    const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  const [showHoldBillsModal, setShowHoldBillsModal] = useState(false);
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  
   // Invoice date/time (editable)
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -111,6 +91,7 @@ export default function ModernPOSBilling() {
   const entryRef = useRef(null);
   const customerNameRef = useRef(null);
   const customerMobileRef = useRef(null);
+  const customerDropdownRef = useRef(null);
   const kmRef = useRef(null);
   const actionsRef = useRef({});
   const latestCartLenRef = useRef(0);
@@ -181,42 +162,93 @@ export default function ModernPOSBilling() {
     }
   }, [cart]);
 
-  const fetchCustomerSuggestions = async (query) => {
-    if (!query || String(query).trim().length < 2) {
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const res = await customerAPI.getCustomers({
+          page: 1,
+          limit: 10000,
+        });
+
+        const customers = res.data?.customers || [];
+
+        setAllCustomers(customers);
+        setFilteredCustomers(customers);
+      } catch (err) {
+        console.error("Failed to load customers", err);
+      }
+    };
+
+    loadCustomers();
+  }, []);
+
+  useEffect(() => {
+    if (!showCustomerDropdown) return;
+
+    const handleClickOutside = (event) => {
+      if (
+        customerDropdownRef.current &&
+        !customerDropdownRef.current.contains(event.target)
+      ) {
+        setShowCustomerDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCustomerDropdown]);
+
+  useEffect(() => {
+    const query = customerName.trim();
+
+    if (!query) {
+        setFilteredCustomers(allCustomers);
+        setCustomerSuggestions([]);
+        return;
+    }
+
+    const filtered = allCustomers.filter(customer =>
+        customer.name?.toLowerCase().includes(query.toLowerCase()) ||
+        customer.mobile?.includes(query)
+    );
+
+    setFilteredCustomers(filtered);
+
+    const timer = setTimeout(() => {
+        searchCustomers(query);
+    }, 250);
+
+    return () => clearTimeout(timer);
+
+}, [customerName, allCustomers]);
+
+  const selectCustomerSuggestion = (customer) => {
+      setCustomerName(customer.name || '');
+      setCustomerMobile(customer.mobile || '');
       setCustomerSuggestions([]);
+      setCustomerSuggestionIndex(-1);
+      setShowCustomerDropdown(false);
+      customerMobileRef.current?.focus();
+  };
+
+  const searchCustomers = async (query) => {
+    const trimmed = String(query || '').trim();
+    if (!trimmed) {
+      setCustomerSuggestions([]);
+      setCustomerSearchLoading(false);
       return;
     }
 
+    setCustomerSearchLoading(true);
     try {
-      setCustomerSearchLoading(true);
-      const res = await customerAPI.searchCustomers(query.trim());
-      setCustomerSuggestions(res.data?.customers || []);
-      setCustomerSuggestionIndex(-1);
+      const { data } = await customerAPI.searchCustomers(trimmed);
+      setCustomerSuggestions((data?.customers || []).slice(0, 10));
     } catch (err) {
       console.error('Customer search failed', err);
       setCustomerSuggestions([]);
     } finally {
       setCustomerSearchLoading(false);
     }
-  };
-
-  useEffect(() => {
-    const query = customerMobile?.trim() || customerName?.trim();
-    if (!query || query.length < 2) {
-      setCustomerSuggestions([]);
-      return;
-    }
-
-    const timer = window.setTimeout(() => fetchCustomerSuggestions(query), 250);
-    return () => clearTimeout(timer);
-  }, [customerMobile, customerName]);
-
-  const selectCustomerSuggestion = (customer) => {
-    setCustomerName(customer.name || '');
-    setCustomerMobile(customer.mobile || '');
-    setCustomerSuggestions([]);
-    setCustomerSuggestionIndex(-1);
-    customerMobileRef.current?.focus();
   };
 
   const ensureCustomerProfile = async () => {
@@ -298,13 +330,30 @@ export default function ModernPOSBilling() {
       throw new Error('Cart is empty');
     }
 
-    const subtotal = cart.reduce((s, it) => s + Number(it.rate || 0) * parseFloat(it.qty || 0), 0);
-    const taxTotal = cart.reduce((s, it) => {
-      const itemTotal = Number(it.rate || 0) * parseFloat(it.qty || 0);
-      return s + (itemTotal * Number(it.gst || 0)) / 100;
+    const subtotal = cart.reduce((sum, item) => {
+      const gross = Number(item.rate || 0) * parseFloat(item.qty || 0);
+      const gstRate = Number(item.gst || 0);
+
+      return sum + (
+        gstRate > 0
+          ? gross / (1 + gstRate / 100)
+          : gross
+      );
     }, 0);
-    
+
+    const taxTotal = cart.reduce((sum, item) => {
+      const gross = Number(item.rate || 0) * parseFloat(item.qty || 0);
+      const gstRate = Number(item.gst || 0);
+
+      if (gstRate <= 0) return sum;
+
+      const taxable = gross / (1 + gstRate / 100);
+
+      return sum + (gross - taxable);
+    }, 0);
+
     const discount = (subtotal * Number(discountPercent || 0)) / 100;
+
     const total = subtotal + taxTotal - discount;
 
     /**
@@ -504,11 +553,22 @@ export default function ModernPOSBilling() {
         printBackground: true,
         copies: Number(settings?.numberOfCopies || 1),
         deviceName: settings?.printerName || undefined,
+       
+        paperWidth:
+          settings?.receiptWidth ||
+          settings?.thermalPaperWidth ||
+          "80mm",
+
         meta: {
           storeName: settings?.storeName,
           gst: settings?.gstNumber,
           invoiceNo: saleToPrint.invoiceNumber,
-          date: saleToPrint.invoiceAt
+          date: saleToPrint.invoiceAt,
+
+          paperWidth:
+            settings?.receiptWidth ||
+            settings?.thermalPaperWidth ||
+            "80mm"
         }
       });
 
@@ -653,12 +713,30 @@ export default function ModernPOSBilling() {
   /**
    * Calculate totals
    */
-  const subtotal = cart.reduce((s, it) => s + Number(it.rate || 0) * parseFloat(it.qty || 0), 0);
-  const taxTotal = cart.reduce((s, it) => {
-    const itemTotal = Number(it.rate || 0) * parseFloat(it.qty || 0);
-    return s + (itemTotal * Number(it.gst || 0)) / 100;
+  const subtotal = cart.reduce((sum, item) => {
+    const gross = Number(item.rate || 0) * parseFloat(item.qty || 0);
+    const gstRate = Number(item.gst || 0);
+
+    return sum + (
+      gstRate > 0
+        ? gross / (1 + gstRate / 100)
+        : gross
+    );
   }, 0);
+
+  const taxTotal = cart.reduce((sum, item) => {
+    const gross = Number(item.rate || 0) * parseFloat(item.qty || 0);
+    const gstRate = Number(item.gst || 0);
+
+    if (gstRate <= 0) return sum;
+
+    const taxable = gross / (1 + gstRate / 100);
+
+    return sum + (gross - taxable);
+  }, 0);
+
   const discount = (subtotal * Number(discountPercent || 0)) / 100;
+
   const total = subtotal + taxTotal - discount;
   const balanceDue =
     paymentMethod === 'credit'
@@ -779,16 +857,95 @@ export default function ModernPOSBilling() {
                   Customer Details
                 </h2>
               <div className="space-y-2">
-                <div>
+                <div className="relative">
                   <label className="text-sm font-semibold">Name</label>
+
                   <input
-                    ref={customerNameRef}
-                    type="text"
-                    placeholder="Customer name (optional)"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                      ref={customerNameRef}
+                      list="customer-list"
+                      value={customerName}
+                      onFocus={() => setShowCustomerDropdown(true)}
+                      onChange={(e) => {
+                          const value = e.target.value;
+
+                          setCustomerName(value);
+                          setShowCustomerDropdown(true);
+
+                          if (!value.trim()) {
+                              setFilteredCustomers(allCustomers);
+                              setCustomerSuggestions([]);
+                              return;
+                          }
+
+                          const filtered = allCustomers.filter(customer =>
+                              customer.name?.toLowerCase().includes(value.toLowerCase()) ||
+                              customer.mobile?.includes(value)
+                          );
+
+                          setFilteredCustomers(filtered);
+                          searchCustomers(value);
+                      }}
+                      placeholder="Customer Name"
+                      className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
+
+                  <datalist id="customer-list">
+                      {filteredCustomers.map(customer => (
+                          <option
+                              key={customer._id}
+                              value={customer.name}
+                          />
+                      ))}
+                  </datalist>
+
+                  {showCustomerDropdown && (customerSearchLoading || customerSuggestions.length > 0 || filteredCustomers.length > 0) && (
+                    <div ref={customerDropdownRef} className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                      {customerSearchLoading ? (
+                        <div className="p-2 text-sm text-slate-500">
+                          Searching customers...
+                        </div>
+                      ) : customerSuggestions.length > 0 ? (
+                        customerSuggestions.map((customer, idx) => (
+                          <button
+                            key={customer._id || idx}
+                            type="button"
+                            onClick={() => selectCustomerSuggestion(customer)}
+                            className={`w-full px-3 py-2 text-left text-sm ${
+                              idx === customerSuggestionIndex
+                                ? 'bg-blue-100'
+                                : 'hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="font-medium">
+                              {customer.name}
+                            </div>
+
+                            <div className="text-xs text-slate-500">
+                              {customer.mobile || 'No mobile'}
+                            </div>
+                          </button>
+                        ))
+                      ) : filteredCustomers.length > 0 ? (
+                        filteredCustomers.slice(0, 10).map((customer, idx) => (
+                          <button
+                            key={customer._id || idx}
+                            type="button"
+                            onClick={() => selectCustomerSuggestion(customer)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                          >
+                            <div className="font-medium">
+                              {customer.name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {customer.mobile || 'No mobile'}
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-2 text-sm text-slate-500">No matching customers</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="relative">
                   <label className="text-sm font-semibold">Mobile</label>
@@ -800,26 +957,7 @@ export default function ModernPOSBilling() {
                     onChange={(e) => setCustomerMobile(e.target.value)}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
-                  {(customerSuggestions.length > 0 || customerSearchLoading) && (
-                    <div className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-                      {customerSearchLoading ? (
-                        <div className="p-2 text-sm text-slate-500">Searching customers...</div>
-                      ) : (
-                        customerSuggestions.map((customer, idx) => (
-                          <button
-                            key={customer._id || `${customer.mobile}-${idx}`}
-                            type="button"
-                            onClick={() => selectCustomerSuggestion(customer)}
-                            className={`w-full px-3 py-2 text-left text-sm ${idx === customerSuggestionIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
-                          >
-                            <div className="font-medium">{customer.name || customer.mobile}</div>
-                            <div className="text-xs text-slate-500">{customer.mobile}</div>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
+                  </div>
                 <div>
                   <label className="text-sm font-semibold">Payment Method</label>
                   <select

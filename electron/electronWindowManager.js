@@ -34,6 +34,17 @@ function createBillingWindow({ isDev, loadUrl, opts = {} }) {
     : `file://${path.join(process.resourcesPath, 'client', 'dist', 'index.html')}#/billing-window?invoiceNo=${encodeURIComponent(invoiceNo)}&windowId=${encodeURIComponent(windowId)}`;
 
   bw.loadURL(url);
+
+  const { ipcMain } = require("electron");
+
+  console.log("Listening for", `billing-cart-state-${windowId}`);
+
+  ipcMain.on(`billing-cart-state-${windowId}`, (event, hasItems) => {
+      console.log("EVENT RECEIVED", hasItems);
+
+      bw.__hasCartItems = !!hasItems;
+  });
+  
   // If caller passed resume data, send it to the billing window once it's ready
   if (opts && opts.resumeBill) {
     bw.webContents.once('did-finish-load', () => {
@@ -64,6 +75,12 @@ function createBillingWindow({ isDev, loadUrl, opts = {} }) {
       bw.__closeConfirmed = true;
       bw.destroy();
     }
+
+    console.log(
+        "Closing...",
+        bw.__hasCartItems,
+        bw.__closeConfirmed
+    );
   });
 
   bw.on('closed', () => windows.delete(windowId));

@@ -18,10 +18,13 @@ export const collectionRules = [
 
 export const listCustomers = asyncHandler(async (req, res) => {
   const search = req.query.search?.trim();
-  const filter = search
-    ? { $or: [{ name: new RegExp(search, 'i') }, { mobile: new RegExp(search, 'i') }, { email: new RegExp(search, 'i') }] }
-    : {};
-  const customers = await Customer.find(filter).sort({ updatedAt: -1 }).limit(100);
+  const showDeleted = String(req.query.showDeleted || 'false').toLowerCase() === 'true';
+  const filter = {
+    ...(showDeleted ? {} : { active: true }),
+    ...(search ? { $or: [{ name: new RegExp(search, 'i') }, { mobile: new RegExp(search, 'i') }, { email: new RegExp(search, 'i') }] } : {})
+  };
+  const limit = Math.min(Number(req.query.limit || 100), 1000);
+  const customers = await Customer.find(filter).sort({ updatedAt: -1 }).limit(limit);
   res.json({ customers });
 });
 
@@ -43,9 +46,9 @@ export const updateCustomer = asyncHandler(async (req, res) => {
 });
 
 export const deleteCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findByIdAndDelete(req.params.id);
+  const customer = await Customer.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!customer) throw new ApiError(404, 'Customer not found');
-  res.json({ message: 'Customer deleted' });
+  res.json({ customer, message: 'Customer soft deleted' });
 });
 
 export const customerHistory = asyncHandler(async (req, res) => {

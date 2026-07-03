@@ -24,7 +24,8 @@ const purchaseSchema = new mongoose.Schema(
     total: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    notes: String
+    notes: String,
+    active: { type: Boolean, default: true }
   },
   { timestamps: true }
 );

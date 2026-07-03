@@ -512,8 +512,8 @@ export function Products() {
           </div>
         </form>
 
-        <div className="panel overflow-hidden">
-          <div className="flex gap-2 p-4 border-b">
+        <div className="scroll-panel">
+          <div className="flex gap-2 border-b border-slate-100 p-4 dark:border-slate-800">
             <button
               type="button"
               className="btn-primary"
@@ -545,8 +545,8 @@ export function Products() {
             <input className="w-full bg-transparent text-sm outline-none" placeholder="Search product, SKU, or barcode" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
           {products.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="table-shell">
+              <table className="w-full table-sticky">
                 <thead>
                   <tr>
                     <th className="table-th">PID</th>

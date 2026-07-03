@@ -299,12 +299,28 @@ export const getBill = asyncHandler(async (req, res) => {
 
 // Update bill
 export const updateBill = asyncHandler(async (req, res) => {
-  const { items, subtotal, taxTotal, discount } = req.body;
-  const bill = await Bill.findById(req.params.id);
+  const {
+    items,
+    subtotal,
+    taxTotal,
+    discount,
+    total,
+    customerName,
+    customerMobile,
+    paymentMethod,
+    amountPaid,
+    discountPercent,
+    invoiceAt,
+    notes
+  } = req.body;
 
+  const bill = await Bill.findById(req.params.id);
   if (!bill) throw new ApiError(404, 'Bill not found');
 
-  // Normalize incoming items similar to create
+  if (!items || items.length === 0) {
+    throw new ApiError(400, 'Bill must have at least one item');
+  }
+
   const normalizedItems = [];
   for (const it of items) {
     let pid = it.productId || it._id || null;
@@ -327,12 +343,24 @@ export const updateBill = asyncHandler(async (req, res) => {
   await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
   await deductSoldStock(normalizedItems, bill, req.user?._id);
 
-  // Update bill fields
   bill.items = normalizedItems;
-  bill.subtotal = subtotal;
-  bill.taxTotal = taxTotal;
-  bill.discount = discount;
-  bill.total = subtotal + taxTotal - discount;
+  bill.subtotal = subtotal != null ? subtotal : bill.subtotal;
+  bill.taxTotal = taxTotal != null ? taxTotal : bill.taxTotal;
+  bill.discount = discount != null ? discount : bill.discount;
+  bill.discountPercent = discountPercent != null ? discountPercent : bill.discountPercent;
+  bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount;
+  bill.customerName = customerName || bill.customerName;
+  bill.customerMobile = customerMobile || bill.customerMobile;
+  bill.paymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
+  bill.paidAmount = bill.paymentMethod === 'Credit' ? Number(amountPaid || bill.paidAmount || 0) : bill.total;
+  bill.dueAmount = Math.max(bill.total - bill.paidAmount, 0);
+  bill.balanceAmount = bill.paymentMethod === 'Credit' ? Math.max(0, bill.paidAmount - bill.total) : 0;
+  bill.paymentStatus = paymentStatusFromAmounts(bill.total, bill.paidAmount);
+  bill.notes = notes != null ? notes : bill.notes;
+  if (invoiceAt) {
+    const at = new Date(invoiceAt);
+    if (!isNaN(at.getTime())) bill.invoiceAt = at;
+  }
   bill.updatedAt = new Date();
 
   await bill.save();
@@ -359,6 +387,62 @@ export const deleteBill = asyncHandler(async (req, res) => {
   await Bill.findByIdAndDelete(req.params.id);
 
   res.json({ message: 'Bill deleted successfully' });
+});
+
+export const getDeletedBills = asyncHandler(async (req, res) => {
+  const deletedBills = await DeletedBill.find()
+    .populate('deletedBy', 'name email')
+    .sort({ createdAt: -1 });
+  res.json({ deletedBills });
+});
+
+export const restoreDeletedBill = asyncHandler(async (req, res) => {
+  const deletedBill = await DeletedBill.findById(req.params.id).lean();
+  if (!deletedBill) throw new ApiError(404, 'Deleted bill not found');
+
+  const existingBill = await Bill.findOne({ invoiceNo: deletedBill.originalData.invoiceNo }).lean();
+  if (existingBill) {
+    throw new ApiError(409, 'Invoice number already exists in active bills');
+  }
+
+  const originalItems = (deletedBill.originalData.items || []).map((it) => ({
+    productId: it.productId,
+    productName: it.productName || it.name || '',
+    quantity: Number(it.quantity || it.qty || 0),
+    unit: it.unit || 'pcs',
+    price: Number(it.price || it.sellingPrice || it.rate || 0),
+    tax: Number(it.gst || it.taxRate || it.tax || 0),
+    total: Number(it.total || 0)
+  }));
+
+  await validateBillItemsForSale(originalItems);
+  await deductSoldStock(originalItems, { _id: deletedBill._id, invoiceNo: deletedBill.originalData.invoiceNo }, req.user?._id);
+
+  const restoredBillData = {
+    ...deletedBill.originalData,
+    _id: undefined,
+    invoiceNo: deletedBill.originalData.invoiceNo,
+    invoiceNumber: deletedBill.originalData.invoiceNumber || deletedBill.originalData.invoiceNo,
+    items: originalItems,
+    status: 'Completed',
+    paidAmount: Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0),
+    dueAmount: Math.max(Number(deletedBill.originalData.dueAmount || 0), 0),
+    balanceAmount: Number(deletedBill.originalData.balanceAmount || 0),
+    paymentStatus: deletedBill.originalData.paymentStatus || paymentStatusFromAmounts(Number(deletedBill.originalData.total || 0), Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0)),
+    createdAt: deletedBill.originalData.createdAt,
+    updatedAt: new Date()
+  };
+
+  const bill = await Bill.create(restoredBillData);
+  await DeletedBill.findByIdAndDelete(req.params.id);
+
+  res.json({ bill, message: 'Deleted bill restored' });
+});
+
+export const permanentlyDeleteDeletedBill = asyncHandler(async (req, res) => {
+  const bill = await DeletedBill.findByIdAndDelete(req.params.id);
+  if (!bill) throw new ApiError(404, 'Deleted bill not found');
+  res.json({ message: 'Deleted bill permanently removed' });
 });
 
 // Get all bills with filters

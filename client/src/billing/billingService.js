@@ -75,6 +75,14 @@ export const productAPI = {
     });
   },
 
+  // Get product by MongoDB object ID
+  getProductByObjectId: (productId) => {
+    return api.get(`/products/${productId}`).then((res) => {
+      const product = normalizeProductResult(res.data.product || {});
+      return { data: { product } };
+    });
+  },
+
   // Get next available product ID
   getNextProductId: () => api.get('/products/next-id'),
   
@@ -102,6 +110,11 @@ export const billingAPI = {
   // Search bills
   searchBills: (query) => api.get('/bills/search', { params: { q: query } }),
 
+  // Get deleted bills
+  getDeletedBills: () => api.get('/bills/deleted'),
+  restoreDeletedBill: (billId) => api.post(`/bills/deleted/${billId}/restore`),
+  permanentlyDeleteDeletedBill: (billId) => api.delete(`/bills/deleted/${billId}`),
+
   // Get today's sales
   getTodaysSales: () => api.get('/bills/stats/today'),
 
@@ -117,6 +130,7 @@ export const billingAPI = {
 
 // Customer API
 export const customerAPI = {
+  getCustomers: (params = {}) => api.get('/customers', { params }),
   searchCustomers: (search) => api.get('/customers', { params: { search } }),
   getCustomer: (customerId) => api.get(`/customers/${customerId}`),
   createCustomer: (customer) => api.post('/customers', customer),

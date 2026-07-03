@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  getProduct,
   createProduct,
   deleteProduct,
   generateSku,
@@ -24,5 +25,6 @@ productRoutes.route('/')
   .get(productQueryRules, validate, listProducts)
   .post(authorize('admin', 'manager'), upload.single('image'), productRules, validate, createProduct);
 productRoutes.route('/:id')
+  .get(getProduct)
   .patch(authorize('admin', 'manager'), upload.single('image'), updateProduct)
   .delete(authorize('admin'), deleteProduct);

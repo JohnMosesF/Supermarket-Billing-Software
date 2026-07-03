@@ -184,13 +184,35 @@ ipcMain.on('window-cart-state', (event, hasItems) => {
   }
 });
 
+function getPageSize(width) {
+    switch (width) {
+        case "58mm":
+            return { width: 58000, height: 210000 };
+
+        case "72mm":
+            return { width: 72000, height: 210000 };
+
+        case "80mm":
+        default:
+            return { width: 80000, height: 210000 };
+    }
+}
+
 ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
   if (!invoiceHtml || typeof invoiceHtml !== 'string' || invoiceHtml.trim().length < 50) {
     return { ok: false, error: 'Invoice HTML is empty' };
   }
 
   // use thermal formatter if asked
-  const html = options.useThermalFormatter ? formatInvoiceHTML(options.meta || {}, invoiceHtml) : invoiceHtml;
+  const html = options.useThermalFormatter
+    ? formatInvoiceHTML(
+        {
+          ...(options.meta || {}),
+          paperWidth: options.paperWidth || options.meta?.paperWidth || "80mm",
+        },
+        invoiceHtml
+      )
+    : invoiceHtml;
 
   const printWindow = new BrowserWindow({
     show: false,
@@ -201,7 +223,7 @@ ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
 
   await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-  return new Promise((resolve) => {
+    return new Promise((resolve) => {
     printWindow.webContents.print(
       {
         silent: options.silent !== undefined ? options.silent : true,
@@ -209,7 +231,7 @@ ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
         copies: Number(options.copies || 1),
         deviceName: options.deviceName || undefined,
         margins: { marginType: 'none' },
-        pageSize: options.pageSize || { width: 80000, height: 210000 }
+        pageSize: options.pageSize || getPageSize(options.paperWidth || "80mm"),
       },
       (success, failureReason) => {
         printWindow.close();

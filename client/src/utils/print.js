@@ -379,6 +379,7 @@ function pageSizeFromHtml(html, options = {}) {
   const match = String(html || '').match(/data-paper-width="([^"]+)"/);
   const width = match?.[1] || options.receiptWidth || '80mm';
   if (width === '58mm') return { width: 58000, height: 210000 };
+  if (width === '72mm') return { width: 72000, height: 210000 };
   if (width === '80mm') return { width: 80000, height: 210000 };
   return undefined;
 }

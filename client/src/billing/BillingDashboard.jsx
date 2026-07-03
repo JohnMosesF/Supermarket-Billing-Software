@@ -1,15 +1,15 @@
-import { useCallback, useState } from 'react';
-import { CreditCard, FilePlus, FileText, FolderPlus, Repeat, Trash2, Printer, Clock, Users } from 'lucide-react';
+import { CreditCard, FilePlus, FileText, FolderPlus, Repeat, Trash2, Printer, Clock, Users, ArchiveRestore, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BillHistoryModal from './BillHistoryModal.jsx';
 import ModifyBillModal from './ModifyBillModal.jsx';
 import DeleteBillModal from './DeleteBillModal.jsx';
 import HoldBillsModal from './HoldBillsModal.jsx';
 import RefundBillModal from './RefundBillModal.jsx';
+import DeletedBillsModal from './DeletedBillsModal.jsx';
 import TodaysSalesModal from './TodaysSalesModal.jsx';
 import { PageHeader } from '../components/PageHeader.jsx';
 import { productAPI } from './billingService.js';
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 export default function BillingDashboard() {
   const [modals, setModals] = useState({
@@ -19,6 +19,7 @@ export default function BillingDashboard() {
     hold: false,
     refund: false,
     sales: false,
+    deleted: false,
   });
 
   const openNewBill = useCallback(async () => {
@@ -112,6 +113,16 @@ export default function BillingDashboard() {
           <div className="text-sm text-slate-500">Process refunds</div>
         </button>
 
+        {/* Deleted Bills */}
+        <button
+          onClick={() => toggleModal('deleted')}
+          className="panel p-6 flex flex-col items-start gap-2 hover:shadow-lg transition hover:bg-slate-50 dark:hover:bg-slate-900/20"
+        >
+          <Archive size={28} className="text-slate-700 dark:text-slate-300" />
+          <div className="text-lg font-bold">Deleted Bills</div>
+          <div className="text-sm text-slate-500">Review and restore deleted invoices</div>
+        </button>
+
         {/* Today's Sales */}
         <button
           onClick={() => toggleModal('sales')}
@@ -134,6 +145,7 @@ export default function BillingDashboard() {
       <ModifyBillModal isOpen={modals.modify} onClose={() => toggleModal('modify')} />
       <DeleteBillModal isOpen={modals.delete} onClose={() => toggleModal('delete')} />
       <HoldBillsModal isOpen={modals.hold} onClose={() => toggleModal('hold')} onResumeHeldBill={handleResumeHeldBill} />
+      <DeletedBillsModal isOpen={modals.deleted} onClose={() => toggleModal('deleted')} />
       <RefundBillModal isOpen={modals.refund} onClose={() => toggleModal('refund')} />
       <TodaysSalesModal isOpen={modals.sales} onClose={() => toggleModal('sales')} />
     </div>

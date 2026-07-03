@@ -281,11 +281,26 @@ export function Billing() {
     );
 
     const result = await printInvoice(invoiceHtml, {
-      silent: settings?.silentPrinting !== false,
-      printBackground: true,
-      copies: Number(settings?.numberOfCopies || 1),
-      deviceName: settings?.printerName || undefined,
-      meta: { storeName: settings?.storeName, gst: settings?.gstNumber, invoiceNo: saleToPrint.invoiceNumber || saleToPrint.invoiceNo }
+        silent: settings?.silentPrinting !== false,
+        printBackground: true,
+        copies: Number(settings?.numberOfCopies || 1),
+        deviceName: settings?.printerName,
+
+        paperWidth:
+            settings?.receiptWidth ||
+            settings?.thermalPaperWidth ||
+            "80mm",
+
+        meta: {
+            storeName: settings?.storeName,
+            gst: settings?.gstNumber,
+            invoiceNo: saleToPrint.invoiceNumber,
+
+            paperWidth:
+                settings?.receiptWidth ||
+                settings?.thermalPaperWidth ||
+                "80mm",
+        }
     });
     if (!result || !result.ok) {
       console.error('Print failed:', result && result.error ? result.error : result);

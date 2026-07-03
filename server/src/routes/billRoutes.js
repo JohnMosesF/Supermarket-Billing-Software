@@ -14,6 +14,9 @@ billRoutes.post('/:id/delete', billController.deleteBill);
 // Bill search and list
 billRoutes.get('/stats/today', billController.getTodaysSales);
 billRoutes.get('/search', billController.searchBills);
+billRoutes.get('/deleted', billController.getDeletedBills);
+billRoutes.post('/deleted/:id/restore', billController.restoreDeletedBill);
+billRoutes.delete('/deleted/:id', billController.permanentlyDeleteDeletedBill);
 billRoutes.get('/:id', billController.getBill);
 billRoutes.put('/:id', billController.updateBill);
 billRoutes.get('/', billController.getBills);
