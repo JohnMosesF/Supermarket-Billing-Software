@@ -16,7 +16,7 @@ export function Inventory() {
   async function load() {
     const [logRes, productRes, supplierRes] = await Promise.all([
       api.get('/inventory/logs'),
-      api.get('/products', { params: { limit: 100 } }),
+      api.get('/products', { params: { limit: 10000 } }),
       api.get('/suppliers', { silent: true }).catch(() => ({ data: { suppliers: [] } }))
     ]);
     setLogs(logRes.data.logs);

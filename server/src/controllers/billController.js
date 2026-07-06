@@ -12,6 +12,7 @@ import mongoose from 'mongoose';
 import Refund from '../models/Refund.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
+import { normalizeBillItemSnapshot } from '../utils/billItemSnapshot.js';
 
 function normalizePaymentMethod(value) {
   const normalized = String(value || 'Cash').trim().toLowerCase();
@@ -83,6 +84,27 @@ async function deductSoldStock(items, bill, userId) {
       user: userId
     });
   }
+}
+
+function billItemsChanged(previousItems = [], nextItems = []) {
+  if ((previousItems || []).length !== (nextItems || []).length) return true;
+  const previousMap = new Map();
+  for (const item of previousItems || []) {
+    const key = String(item.productId || item.product || item._id || '');
+    const quantity = Number(item.quantity || item.qty || 0);
+    previousMap.set(key, (previousMap.get(key) || 0) + quantity);
+  }
+  const nextMap = new Map();
+  for (const item of nextItems || []) {
+    const key = String(item.productId || item.product || item._id || '');
+    const quantity = Number(item.quantity || item.qty || 0);
+    nextMap.set(key, (nextMap.get(key) || 0) + quantity);
+  }
+  if (previousMap.size !== nextMap.size) return true;
+  for (const [key, quantity] of previousMap.entries()) {
+    if (Number(nextMap.get(key) || 0) !== quantity) return true;
+  }
+  return false;
 }
 
 async function restoreSoldStock(items, reason, userId, billId) {
@@ -163,15 +185,28 @@ export const createBill = asyncHandler(async (req, res) => {
 
     const productIdObj = new mongoose.Types.ObjectId(String(pid));
 
-    const normalized = {
+    const product = await Product.findById(productIdObj).lean();
+    const normalized = normalizeBillItemSnapshot({
+      ...it,
       productId: productIdObj,
+      productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
       productName: it.productName || it.name || '',
-      quantity: parseFloat(it.quantity || it.qty || 0.001),
-      unit: String(it.unit || 'pcs').trim().toLowerCase(),
-      price: Number(it.price || it.sellingPrice || it.rate || 0),
-      tax: Number(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
-    };
+      quantity: it.quantity || it.qty || 0.001,
+      unit: it.unit || 'pcs',
+      price: it.price || it.sellingPrice || it.rate || 0,
+      gst: it.gst || it.taxRate || it.tax || 0,
+      total: it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)),
+      discount: it.discount || 0,
+      sku: it.sku || it.code || '',
+      barcode: it.barcode || '',
+      localName: it.localName || '',
+      purchasePrice: it.purchasePrice || '',
+      mrp: it.mrp || '',
+      category: it.category || '',
+      companyName: it.companyName || '',
+      stockAtSale: it.stockAtSale || product?.stock || 0,
+      metadata: it.metadata || {}
+    }, product);
 
     normalizedItems.push(normalized);
   }
@@ -311,7 +346,9 @@ export const updateBill = asyncHandler(async (req, res) => {
     amountPaid,
     discountPercent,
     invoiceAt,
-    notes
+    notes,
+    invoiceNo,
+    invoiceNumber
   } = req.body;
 
   const bill = await Bill.findById(req.params.id);
@@ -328,22 +365,40 @@ export const updateBill = asyncHandler(async (req, res) => {
       throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}`);
     }
     const productIdObj = new mongoose.Types.ObjectId(String(pid));
-    normalizedItems.push({
+    const product = await Product.findById(productIdObj).lean();
+    normalizedItems.push(normalizeBillItemSnapshot({
+      ...it,
       productId: productIdObj,
+      productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
       productName: it.productName || it.name || '',
-      quantity: parseFloat(it.quantity || it.qty || 0.001),
-      unit: String(it.unit || 'pcs').trim().toLowerCase(),
-      price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
-      tax: parseFloat(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
-    });
+      quantity: it.quantity || it.qty || 0.001,
+      unit: it.unit || 'pcs',
+      price: it.price || it.sellingPrice || it.rate || 0,
+      gst: it.gst || it.taxRate || it.tax || 0,
+      total: it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)),
+      discount: it.discount || 0,
+      sku: it.sku || it.code || '',
+      barcode: it.barcode || '',
+      localName: it.localName || '',
+      purchasePrice: it.purchasePrice || '',
+      mrp: it.mrp || '',
+      category: it.category || '',
+      companyName: it.companyName || '',
+      stockAtSale: it.stockAtSale || product?.stock || 0,
+      metadata: it.metadata || {}
+    }, product));
   }
 
   await validateBillItemsForSale(normalizedItems, bill.items);
-  await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
-  await deductSoldStock(normalizedItems, bill, req.user?._id);
+  const quantitiesChanged = billItemsChanged(bill.items, normalizedItems);
+  if (quantitiesChanged) {
+    await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
+    await deductSoldStock(normalizedItems, bill, req.user?._id);
+  }
 
   bill.items = normalizedItems;
+  bill.invoiceNo = invoiceNo || bill.invoiceNo;
+  bill.invoiceNumber = invoiceNumber || bill.invoiceNumber || bill.invoiceNo;
   bill.subtotal = subtotal != null ? subtotal : bill.subtotal;
   bill.taxTotal = taxTotal != null ? taxTotal : bill.taxTotal;
   bill.discount = discount != null ? discount : bill.discount;

@@ -3,12 +3,25 @@ import mongoose from 'mongoose';
 const billItemSchema = new mongoose.Schema(
   {
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    productIdNumber: { type: Number, min: 0 },
+    sku: { type: String, trim: true },
+    barcode: { type: String, trim: true },
     productName: { type: String, required: true, trim: true },
-    quantity: { type: Number, required: true, min: 0.001 },
+    localName: { type: String, trim: true },
     unit: { type: String, default: 'pcs', trim: true },
-    price: { type: Number, required: true, min: 0 },
-    tax: { type: Number, required: true, min: 0, default: 0 },
-    total: { type: Number, required: true, min: 0 }
+    quantity: { type: Number, required: true, min: 0.001 },
+    purchasePrice: { type: Number, min: 0, default: 0 },
+    sellingPrice: { type: Number, min: 0, default: 0 },
+    mrp: { type: Number, min: 0, default: 0 },
+    gst: { type: Number, required: true, min: 0, default: 0 },
+    gstAmount: { type: Number, min: 0, default: 0 },
+    taxableAmount: { type: Number, min: 0, default: 0 },
+    netAmount: { type: Number, required: true, min: 0, default: 0 },
+    discount: { type: Number, min: 0, default: 0 },
+    category: { type: String, trim: true },
+    companyName: { type: String, trim: true },
+    stockAtSale: { type: Number, min: 0, default: 0 },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
   },
   { _id: false }
 );

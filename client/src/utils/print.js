@@ -45,14 +45,16 @@ function cleanLines(lines) {
 }
 
 export function getReceiptSettings(settings = {}) {
-  const width = settings.receiptWidth || settings.thermalPaperWidth || '80mm';
-  const widthMm = width === '58mm' ? 58 : width === 'A4' ? 210 : 80;
-  const marginLeft = number(settings.receiptMarginLeft, width === '58mm' ? 2 : 3);
-  const marginRight = number(settings.receiptMarginRight, width === '58mm' ? 2 : 3);
-  const printableWidth = width === 'A4' ? 190 : Math.max(widthMm - marginLeft - marginRight, width === '58mm' ? 46 : 66);
+  const width = String(settings.receiptWidth || settings.thermalPaperWidth || '80mm').trim();
+  const normalizedWidth = width === '58mm' ? '58mm' : width === '72mm' ? '72mm' : width === 'A4' ? 'A4' : '80mm';
+  const widthMm = normalizedWidth === '58mm' ? 58 : normalizedWidth === '72mm' ? 72 : normalizedWidth === 'A4' ? 210 : 80;
+  const marginLeft = number(settings.receiptMarginLeft, normalizedWidth === '58mm' ? 2 : 3);
+  const marginRight = number(settings.receiptMarginRight, normalizedWidth === '58mm' ? 2 : 3);
+  const printableWidth = normalizedWidth === 'A4' ? 190 : Math.max(widthMm - marginLeft - marginRight, normalizedWidth === '58mm' ? 46 : normalizedWidth === '72mm' ? 60 : 66);
+
 
   return {
-    receiptWidth: width,
+    receiptWidth: normalizedWidth,
     widthMm,
     printableWidth,
     topMargin: number(settings.receiptTopMargin, 2),
@@ -80,17 +82,18 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
 
   const items = cart.map((item, index) => {
     const quantity = parseFloat(item.quantity ?? item.qty ?? 0);
-    const price = number(item.price ?? item.rate ?? item.sellingPrice, 0);
-    const gstRate = number(item.taxRate ?? item.gst ?? item.tax, 0);
+    const price = number(item.price ?? item.sellingPrice ?? item.rate ?? 0, 0);
+    const gstRate = number(item.taxRate ?? item.gst ?? item.tax ?? 0, 0);
     const discount = number(item.discount, 0);
     const taxable = Math.max(quantity * price - discount, 0);
     const gstAmount = number(item.gstAmount, (taxable * gstRate) / 100);
-    const lineTotal = number(item.lineTotal ?? item.total ?? item.amount, taxable + gstAmount);
+    const lineTotal = number(item.lineTotal ?? item.netAmount ?? item.total ?? item.amount, taxable + gstAmount);
 
     return {
       key: item._id || item.product || item.productId || item.sku || index,
       name: item.name || item.productName || item.itemName || 'Item',
       sku: item.sku || item.code || item.productCode || item.productId || '',
+      productId: item.productIdNumber ?? item.productIdValue ?? item.productId ?? item._id ?? '',
       productCode: item.productCode || item.code || item.sku || '',
       hsn: item.hsn || item.hsnCode || '',
       quantity,
@@ -215,6 +218,7 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
 
   const itemRows = invoice.items.map((item, index) => {
     const meta = cleanLines([
+      showField(rawSettings, 'ProductID', false) && item.productId ? `PID: ${item.productId}` : '',
       showField(rawSettings, 'SKU', false) && item.sku ? `SKU: ${item.sku}` : '',
       showField(rawSettings, 'ProductCode', false) && item.productCode ? `Code: ${item.productCode}` : '',
       showField(rawSettings, 'HSN', false) && item.hsn ? `HSN: ${item.hsn}` : ''

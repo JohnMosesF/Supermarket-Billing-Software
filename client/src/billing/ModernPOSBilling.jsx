@@ -69,6 +69,9 @@ export default function ModernPOSBilling() {
   const [resumedHoldId, setResumedHoldId] = useState(null);
   const [lastManualEdit, setLastManualEdit] = useState(0);
   const [settings, setSettings] = useState(null);
+  const [isEditingBill, setIsEditingBill] = useState(false);
+  const [editingBillId, setEditingBillId] = useState(null);
+  const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
 
   // Live date/time update: tick every second unless user edited recently
   useEffect(() => {
@@ -251,6 +254,17 @@ export default function ModernPOSBilling() {
     }
   };
 
+  const normalizePaymentMode = (value) => {
+    const normalized = String(value || 'cash').trim().toLowerCase();
+    if (normalized === 'upi') return 'upi';
+    if (normalized === 'card') return 'card';
+    if (normalized === 'credit') return 'credit';
+    if (normalized === 'cheque') return 'cheque';
+    if (normalized === 'wallet') return 'wallet';
+    if (normalized === 'online') return 'online';
+    return 'cash';
+  };
+
   const ensureCustomerProfile = async () => {
     const mobile = customerMobile?.trim();
     const name = customerName?.trim() || 'Walk-in Customer';
@@ -366,20 +380,35 @@ export default function ModernPOSBilling() {
       if (!pid) {
         throw new Error(`Cart item missing MongoDB ObjectId: ${JSON.stringify(it)}`);
       }
+      const quantity = parseFloat(it.qty ?? it.quantity ?? 1);
+      const price = parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0);
+      const gst = parseFloat(it.gst ?? it.taxRate ?? it.tax ?? 0);
+      const taxable = Math.max(quantity * price - Number(it.discount || 0), 0);
+      const gstAmount = (taxable * gst) / 100;
+      const netAmount = taxable + gstAmount;
       return {
         _id: pid,
         productId: pid,
         productName: it.productName || it.name || '',
-        quantity: parseFloat(it.qty ?? it.quantity ?? 1),
+        sku: it.sku || it.code || '',
+        barcode: it.barcode || '',
+        localName: it.localName || '',
+        quantity,
         unit: it.unit || 'pcs',
-        price: parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0),
-        gst: parseFloat(it.gst ?? it.taxRate ?? it.tax ?? 0),
-        total: Number(
-          it.amount != null
-            ? it.amount
-            : (parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0) *
-              parseFloat(it.qty ?? it.quantity ?? 1))
-        )
+        purchasePrice: Number(it.purchasePrice || 0),
+        sellingPrice: price,
+        mrp: Number(it.mrp || 0),
+        gst,
+        gstAmount,
+        taxableAmount: taxable,
+        netAmount,
+        discount: Number(it.discount || 0),
+        category: it.category || '',
+        companyName: it.companyName || '',
+        stockAtSale: Number(it.stockAtSale ?? it.stock ?? 0),
+        metadata: it.metadata || {},
+        price,
+        total: Number(it.amount != null ? it.amount : netAmount)
       };
     });
 
@@ -391,6 +420,8 @@ export default function ModernPOSBilling() {
       total,
 
       paymentMethod: paymentMethod || 'Cash',
+      invoiceNo: editingInvoiceNumber || undefined,
+      invoiceNumber: editingInvoiceNumber || undefined,
 
       customerName: customerName || 'Walk-in Customer',
       customerMobile: customerMobile || null,
@@ -424,7 +455,7 @@ export default function ModernPOSBilling() {
   /**
    * Save bill to database
    */
-  const handleSave = async () => {
+  const handleSave = async ({ clearAfterSave = true } = {}) => {
     try {
       if (cart.length === 0) {
         toast.error('Cart is empty');
@@ -455,9 +486,11 @@ export default function ModernPOSBilling() {
         return;
       }
       
-      await billingAPI.createBill(payload);
+      const response = isEditingBill && editingBillId
+        ? await billingAPI.updateBill(editingBillId, payload)
+        : await billingAPI.createBill(payload);
       await ensureCustomerProfile();
-      toast.success('Bill saved successfully');
+      toast.success(isEditingBill ? 'Bill updated successfully' : 'Bill saved successfully');
       console.log('Save successful', { invoiceNo: payload.invoiceNo, items: payload.items.length });
       // delete old held bill if we resumed from one
       if (resumedHoldId) {
@@ -469,20 +502,24 @@ export default function ModernPOSBilling() {
           console.error('Failed to delete held bill after save', e);
         }
       }
-      
-      // Reset after successful save
-      setCart([]);
-      setCustomerName('');
-      setCustomerMobile('');
-      setDiscountPercent(0);
-      setPaymentMethod('cash');
-      setSelectedIndex(-1);
-      
-      // Focus product ID for next entry
-      entryRef.current?.focusProductId();
+      if(clearAfterSave) {
+        setCart([]);
+        setCustomerName('');
+        setCustomerMobile('');
+        setDiscountPercent(0);
+        setPaymentMethod('cash');
+        setSelectedIndex(-1);
+        setIsEditingBill(false);
+        setEditingBillId(null);
+        setEditingInvoiceNumber('');
+        setAmountPaid(0);
+        entryRef.current?.focusProductId();
+      }
+      return response.data;
     } catch (err) {
       console.error('Save bill error:', err);
       toast.error(err.response?.data?.message || 'Failed to save bill');
+      return null;
     }
   };
 
@@ -528,20 +565,25 @@ export default function ModernPOSBilling() {
     }
 
     try {
-      const payload = makeBillPayload();
-      if (!payload.items?.length || Number(payload.total || 0) <= 0) {
-        toast.error('Invoice has no printable items or total is invalid');
+      const saved = await handleSave({
+        clearAfterSave: false
+      });
+
+      if (!saved) {
+        // Save failed or validation failed
         return;
       }
 
-      const saleToPrint = {
-        ...payload,
-        invoiceNumber: payload.invoiceNo || payload.invoiceNumber || 'AUTO',
-        invoiceAt: payload.invoiceAt || `${invoiceDate}T${invoiceTime}`,
-        paymentMethod,
-        items: payload.items
-      };
+      const saleToPrint = saved.bill || saved.sale || saved;
+      console.log("SALE TO PRINT", saleToPrint);
+      console.log("SALE ITEMS", saleToPrint.items);
+
+      console.log("SALE TO PRINT", saleToPrint);
+
       const html = makeInvoiceHtmlFromSale(saleToPrint, settings || {});
+
+      console.log("HTML LENGTH", html.length);
+      console.log(html);
 
       if (!html || html.trim().length < 50) {
         toast.error('Invoice preview is empty. Nothing was printed.');
@@ -571,11 +613,23 @@ export default function ModernPOSBilling() {
             "80mm"
         }
       });
+      console.log("PRINT RESULT", result);
 
       if (!result?.ok) {
-        toast.error(`Printing failed: ${result?.error || 'Unknown printer error'}`);
-        return;
+          toast.error(`Printing failed: ${result?.error || 'Unknown printer error'}`);
+          return;
       }
+
+      // Print completed successfully
+      setCart([]);
+      setCustomerName('');
+      setCustomerMobile('');
+      setDiscountPercent(0);
+      setPaymentMethod('cash');
+      setSelectedIndex(-1);
+      setResumedHoldId(null);
+
+      entryRef.current?.focusProductId();
 
       toast.success('Invoice sent to printer');
     } catch (err) {
@@ -599,9 +653,68 @@ export default function ModernPOSBilling() {
     setDiscountPercent(0);
     setPaymentMethod('cash');
     setSelectedIndex(-1);
-    
+    setIsEditingBill(false);
+    setEditingBillId(null);
+    setEditingInvoiceNumber('');
+    setAmountPaid(0);
     entryRef.current?.focusProductId();
     toast.info('New bill started');
+  };
+
+  const loadBillForEditing = (billLike) => {
+    const bill = billLike?.fullBill || billLike || {};
+    const restoredCart = (bill.items || []).map((item) => ({
+      _id: item.productId || item._id,
+      productId: item.productId || item._id,
+      name: item.productName || item.name || '',
+      sku: item.sku || '',
+      barcode: item.barcode || '',
+      localName: item.localName || '',
+      rate: item.sellingPrice || item.price || item.rate || 0,
+      qty: item.quantity || item.qty || 0,
+      gst: item.gst || item.tax || item.taxRate || 0,
+      unit: item.unit || 'pcs',
+      allowDecimalQty: item.allowDecimalQty || false,
+      amount: item.netAmount ?? item.total ?? (Number(item.sellingPrice || item.price || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)),
+      gstAmount: item.gstAmount ?? (((Number(item.sellingPrice || item.price || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100),
+      discount: item.discount || 0,
+      stockAtSale: item.stockAtSale || 0,
+      metadata: item.metadata || {},
+      purchasePrice: item.purchasePrice || 0,
+      mrp: item.mrp || 0,
+      companyName: item.companyName || '',
+      category: item.category || ''
+    }));
+
+    setCart(restoredCart);
+    setCustomerName(bill.customerName || '');
+    setCustomerMobile(bill.customerMobile || '');
+    setPaymentMethod(normalizePaymentMode(bill.paymentMethod || 'cash'));
+    setDiscountPercent(
+      bill.subtotal > 0
+        ? (Number(bill.discount || 0) / Number(bill.subtotal || 1)) * 100
+        : 0
+    );
+    setAmountPaid(Number(bill.paidAmount || 0));
+    setIsEditingBill(Boolean(bill._id));
+    setEditingBillId(bill._id || null);
+    setEditingInvoiceNumber(bill.invoiceNo || bill.invoiceNumber || '');
+    setResumedHoldId(null);
+
+    if (bill.invoiceAt || bill.createdAt) {
+      try {
+        const at = new Date(bill.invoiceAt || bill.createdAt);
+        if (!isNaN(at.getTime())) {
+          setInvoiceDate(at.toISOString().slice(0, 10));
+          setInvoiceTime(`${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`);
+        }
+      } catch (e) {}
+    }
+
+    setShowHoldBillsModal(false);
+    setSelectedIndex(-1);
+    entryRef.current?.focusProductId();
+    toast.success('Bill loaded for editing');
   };
 
   /**
@@ -609,8 +722,13 @@ export default function ModernPOSBilling() {
    */
   const handleResumeHeldBill = (heldBill) => {
     // Support multiple payload shapes: heldBill, resumeBill or direct items list
-    const payload = heldBill.heldBill || heldBill.resumeBill || heldBill || null;
+    const payload = heldBill?.heldBill || heldBill?.resumeBill || heldBill || null;
     if (!payload) return;
+
+    if (payload.mode === 'edit' || payload.editBillId) {
+      loadBillForEditing(payload.fullBill || payload);
+      return;
+    }
 
     // Confirm replace if cart not empty
     if (cart.length > 0) {
@@ -660,6 +778,32 @@ export default function ModernPOSBilling() {
     entryRef.current?.focusProductId();
     console.log('Billing state restored from held bill', { items: restoredCart.length, total: payload.total });
     toast.success('Held bill restored');
+  };
+
+  const handleUpdateBill = async () => {
+    try {
+      if (!editingBillId || cart.length === 0) {
+        toast.error('Nothing to update');
+        return;
+      }
+      const payload = makeBillPayload();
+      await billingAPI.updateBill(editingBillId, payload);
+      toast.success('Bill updated successfully');
+      setIsEditingBill(false);
+      setEditingBillId(null);
+      setEditingInvoiceNumber('');
+      setCart([]);
+      setCustomerName('');
+      setCustomerMobile('');
+      setDiscountPercent(0);
+      setPaymentMethod('cash');
+      setSelectedIndex(-1);
+      setAmountPaid(0);
+      entryRef.current?.focusProductId();
+    } catch (err) {
+      console.error('Update bill error:', err);
+      toast.error(err.response?.data?.message || 'Failed to update bill');
+    }
   };
 
   // Setup KeyboardManager and keep mutable refs pointing to latest handlers
@@ -763,8 +907,15 @@ export default function ModernPOSBilling() {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">POS Billing System</h1>
-            <p className="text-blue-100 text-sm">Keyboard-First Modern Interface</p>
+            <div>
+              <h1 className="text-2xl font-bold">POS Billing System</h1>
+              <p className="text-blue-100 text-sm">Keyboard-First Modern Interface</p>
+              {isEditingBill && editingInvoiceNumber ? (
+                <div className="mt-1 inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
+                  Editing Bill: {editingInvoiceNumber}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="text-right">
             <div className="text-3xl font-bold">{currency(total)}</div>
@@ -811,10 +962,10 @@ export default function ModernPOSBilling() {
           </div>
           <div className="mt-4 flex gap-3">
         <button
-          onClick={handleSave}
+          onClick={isEditingBill ? handleUpdateBill : handleSave}
           className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold"
         >
-        💾Save Bill
+        {isEditingBill ? '📝Update Bill' : '💾Save Bill'}
         </button>
 
         <button

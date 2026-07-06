@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { X, Search, Eye, Printer, Trash2 } from 'lucide-react';
+import { X, Search, Eye, Printer, Pencil } from 'lucide-react';
 import InvoicePreview from './InvoicePreview.jsx';
 import { currency } from '../utils/format.js';
 import toast from 'react-hot-toast';
 import { billingAPI } from './billingService.js';
-import { useNavigate } from 'react-router-dom';
 
 export default function BillHistoryModal({ isOpen, onClose }) {
   const [bills, setBills] = useState([]);
@@ -21,11 +20,6 @@ export default function BillHistoryModal({ isOpen, onClose }) {
   const [limit] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const navigate = useNavigate();
-
-  const openBillEditor = (bill) => {
-    navigate(`/billing/edit/${bill._id}`);
-  };
 
   const handleSearch = async (requestedPage = 1) => {
     setLoading(true);
@@ -87,28 +81,25 @@ export default function BillHistoryModal({ isOpen, onClose }) {
       const { data } = await billingAPI.getBill(bill._id);
       const b = data.bill || bill;
       const payload = {
-        items: (b.items || []).map((it) => ({
-          productId: it.product || it.productId || it._id,
-          productName: it.name || it.productName,
-          quantity: it.quantity || it.qty || 1,
-          unit: it.unit || 'pcs',
-          price: it.sellingPrice || it.price || it.rate || 0,
-          gst: it.taxRate || it.gst || 0,
-          total: it.total || (it.sellingPrice || it.price || 0) * (it.quantity || 0)
-        })),
+        mode: 'edit',
+        editBillId: b._id,
+        fullBill: b,
+        invoiceNo: b.invoiceNo,
+        invoiceNumber: b.invoiceNumber || b.invoiceNo,
+        customerName: b.customerName || '',
+        customerMobile: b.customerMobile || '',
+        paymentMethod: b.paymentMethod || 'Cash',
+        paidAmount: b.paidAmount || 0,
+        invoiceAt: b.invoiceAt || b.createdAt || null,
         subtotal: b.subtotal || 0,
         taxTotal: b.taxTotal || 0,
         discount: b.discount || 0,
+        discountPercent: b.discountPercent || 0,
         total: b.total || 0,
-        paymentMethod: b.paymentMethod || 'Cash',
-        customerName: b.customerName || '',
-        customerMobile: b.customerMobile || null,
-        invoiceNo: b.invoiceNo
+        notes: b.notes || ''
       };
-      payload.invoiceAt = b.createdAt || b.invoiceAt || null;
-      console.log('Opening billing editor from history for bill', bill._id);
       await window.electronAPI.createBillingWindow({ invoiceNo: b.invoiceNo, resumeBill: payload });
-      toast.success('Opened billing editor');
+      toast.success('Opened bill for editing');
     } catch (err) {
       console.error('Failed to open billing editor', err);
       toast.error('Failed to open billing editor');
@@ -192,16 +183,22 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                 </div>
                 <div className="w-48 flex flex-col gap-2">
                   <button
-                    onClick={() => handleReprint(selectedBill._id)}
-                    className="btn-primary"
+                    onClick={() => handleView(selectedBill)}
+                    className="btn-muted"
                   >
-                    <Printer size={14} /> Print
+                    <Eye size={14} /> View
                   </button>
                   <button
                     onClick={() => openBillInEditor(selectedBill)}
+                    className="btn-primary"
+                  >
+                    <Pencil size={14} /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleReprint(selectedBill._id)}
                     className="btn-muted"
                   >
-                    Open in Billing Editor
+                    <Printer size={14} /> Print
                   </button>
                   <button
                     onClick={() => { setSelectedBill(null); }}
@@ -249,7 +246,7 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                         <td className="px-4 py-2">
                           <button
                             className="text-blue-600 hover:underline font-medium"
-                            onClick={() => openBillInEditor(bill)}
+                            onClick={() => handleView(bill)}
                           >
                             {bill.invoiceNo}
                           </button>
@@ -267,9 +264,16 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                             <Eye size={16} />
                           </button>
                           <button
+                            onClick={() => openBillInEditor(bill)}
+                            className="text-amber-600 hover:text-amber-800 mr-2"
+                            title="Edit"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
                             onClick={() => handleReprint(bill._id)}
                             className="text-green-600 hover:text-green-800"
-                            title="Reprint"
+                            title="Print"
                           >
                             <Printer size={16} />
                           </button>
