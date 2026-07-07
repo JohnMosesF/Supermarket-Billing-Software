@@ -124,8 +124,6 @@ export const billingAPI = {
   // Get customer bills
   getCustomerBills: (customerMobile) => api.get('/bills/customer', { params: { mobile: customerMobile } }),
 
-  // Reprint bill
-  reprintBill: (billId) => api.get(`/bills/${billId}/print`),
 };
 
 // Customer API

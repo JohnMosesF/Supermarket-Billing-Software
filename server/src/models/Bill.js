@@ -13,6 +13,7 @@ const billItemSchema = new mongoose.Schema(
     purchasePrice: { type: Number, min: 0, default: 0 },
     sellingPrice: { type: Number, min: 0, default: 0 },
     mrp: { type: Number, min: 0, default: 0 },
+    wholesalePrice: { type: Number, min: 0, default: 0 },
     gst: { type: Number, required: true, min: 0, default: 0 },
     gstAmount: { type: Number, min: 0, default: 0 },
     taxableAmount: { type: Number, min: 0, default: 0 },
@@ -20,6 +21,7 @@ const billItemSchema = new mongoose.Schema(
     discount: { type: Number, min: 0, default: 0 },
     category: { type: String, trim: true },
     companyName: { type: String, trim: true },
+    hsnCode: { type: String, trim: true },
     stockAtSale: { type: Number, min: 0, default: 0 },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
   },
@@ -45,6 +47,7 @@ const billSchema = new mongoose.Schema(
     paidAmount: { type: Number, required: true, min: 0, default: 0 },
     balanceAmount: { type: Number, required: true, min: 0, default: 0 },
     dueAmount: { type: Number, required: true, min: 0, default: 0 },
+    returnCreditAmount: { type: Number, min: 0, default: 0 },
     paymentStatus: {
       type: String,
       enum: ['Paid', 'Partial', 'Unpaid'],

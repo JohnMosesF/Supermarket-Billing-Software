@@ -19,6 +19,8 @@ test('normalizeBillItemSnapshot preserves invoice-critical product fields', () =
     purchasePrice: 35,
     category: 'Dairy',
     companyName: 'Fresh Co',
+    hsnCode: '0401',
+    wholesalePrice: 38,
     stock: 10,
     productIdNumber: 1001,
     productIdValue: '1001',
@@ -32,6 +34,8 @@ test('normalizeBillItemSnapshot preserves invoice-critical product fields', () =
   assert.equal(item.purchasePrice, 35);
   assert.equal(item.category, 'Dairy');
   assert.equal(item.companyName, 'Fresh Co');
+  assert.equal(item.hsnCode, '0401');
+  assert.equal(item.wholesalePrice, 38);
   assert.equal(item.stockAtSale, 10);
   assert.equal(item.productIdNumber, 1001);
 });

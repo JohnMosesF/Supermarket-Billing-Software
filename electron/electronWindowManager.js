@@ -56,6 +56,13 @@ function createBillingWindow({ isDev, loadUrl, opts = {} }) {
     });
   }
 
+  // Historical invoices use a distinct channel and never enter the hold workflow.
+  if (opts && opts.invoicePayload) {
+    bw.webContents.once('did-finish-load', () => {
+      bw.webContents.send('load-invoice', opts.invoicePayload);
+    });
+  }
+
   bw.on('close', async (e) => {
     if (bw.__closeConfirmed || !bw.__hasCartItems) return;
 

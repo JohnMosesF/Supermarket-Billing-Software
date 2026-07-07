@@ -112,6 +112,17 @@ export function Dashboard() {
         <RetailKpi icon={AlertTriangle} label="Low Stock Products" value={totals.lowStockCount || 0} sub="Needs attention" tone={totals.lowStockCount ? 'red' : 'green'} />
         <RetailKpi icon={Users} label="Total Customers" value={customers.length} sub="Loaded customer base" tone="orange" />
         <RetailKpi icon={CreditCard} label="Pending Credit Bills" value={pendingCredit.length} sub="From recent bills" tone={pendingCredit.length ? 'red' : 'green'} />
+        <RetailKpi icon={CreditCard} label="Customer Outstanding" value={currency(totals.totalOutstandingReceivables)} sub={`${totals.customersWithDue || 0} customers`} tone="red" />
+        <RetailKpi icon={CreditCard} label="Supplier Outstanding" value={currency(totals.totalPayables)} sub="Total payables" tone="orange" />
+        <RetailKpi icon={TrendingUp} label="Today's Collections" value={currency(totals.todayCollections)} sub={`${totals.todayCollectionCount || 0} receipts`} tone="green" />
+        <RetailKpi icon={CreditCard} label="Today's Payments" value={currency(totals.todayPayments)} sub={`${totals.todayPaymentCount || 0} vouchers`} tone="orange" />
+        <RetailKpi icon={Receipt} label="Cash Balance" value={currency(totals.cashBalance)} sub="Day-book cash position" tone="blue" />
+        <RetailKpi icon={RefreshCcw} label="Monthly Returns" value={currency(totals.monthlyReturns)} sub={`${totals.monthlyReturnCount || 0} returns`} tone="slate" />
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div className="panel p-5"><h2 className="font-black">Recent Receipts</h2>{(data?.recentReceipts || []).map((entry) => <div key={entry._id} className="flex justify-between border-b py-2 text-sm"><span>{entry.receiptNo} · {entry.customer?.name || '-'}</span><b>{currency(entry.amount)}</b></div>)}</div>
+        <div className="panel p-5"><h2 className="font-black">Recent Supplier Payments</h2>{(data?.recentSupplierPayments || []).map((entry) => <div key={entry._id} className="flex justify-between border-b py-2 text-sm"><span>{entry.voucherNo} · {entry.supplier?.name || '-'}</span><b>{currency(entry.amount)}</b></div>)}</div>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">

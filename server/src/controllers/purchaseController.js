@@ -2,11 +2,14 @@ import { body } from 'express-validator';
 import { InventoryLog } from '../models/InventoryLog.js';
 import { Product } from '../models/Product.js';
 import { Purchase } from '../models/Purchase.js';
+import { PurchaseReturn } from '../models/PurchaseReturn.js';
+import { Supplier } from '../models/Supplier.js';
 import { Unit } from '../models/Unit.js';
 import { ensureDefaultUnits } from './unitController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { makeSku } from '../utils/invoice.js';
+import { reconcileSupplierAccounting, rebuildDayBook } from '../services/accountingService.js';
 
 export const purchaseRules = [
   body('items').isArray({ min: 1 }),
@@ -115,6 +118,24 @@ async function applyPurchaseStock(items, purchase, userId, direction = 1) {
   }
 }
 
+async function recalculateSupplier(supplierId) {
+  if (!supplierId) return;
+  const [purchases, returns] = await Promise.all([
+    Purchase.find({ supplier: supplierId, active: true }).lean(),
+    PurchaseReturn.find({ supplier: supplierId, status: 'Completed' }).lean()
+  ]);
+  const grossPurchases = purchases.reduce((sum, purchase) => sum + Number(purchase.total || 0), 0);
+  const paid = purchases.reduce((sum, purchase) => sum + Number(purchase.paidAmount || 0), 0);
+  const returned = returns.reduce((sum, entry) => sum + Number(entry.returnAmount || 0), 0);
+  await Supplier.updateOne({ _id: supplierId }, {
+    $set: {
+      totalReturns: returned,
+      totalPurchases: Math.max(grossPurchases - returned, 0),
+      outstandingBalance: Math.max(grossPurchases - paid - returned, 0)
+    }
+  });
+}
+
 export const createPurchase = asyncHandler(async (req, res) => {
   const items = await resolvePurchaseItems(req.body.items || []);
   const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
@@ -131,6 +152,9 @@ export const createPurchase = asyncHandler(async (req, res) => {
   });
 
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
+  await recalculateSupplier(purchase.supplier);
+  await reconcileSupplierAccounting(purchase.supplier);
+  await rebuildDayBook();
 
   res.status(201).json({ purchase });
 });
@@ -144,6 +168,7 @@ export const getPurchase = asyncHandler(async (req, res) => {
 export const updatePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findById(req.params.id);
   if (!purchase) throw new ApiError(404, 'Purchase not found');
+  const previousSupplier = purchase.supplier;
 
   const items = await resolvePurchaseItems(req.body.items || []);
   await applyPurchaseStock(purchase.items, purchase, req.user?._id, -1);
@@ -158,11 +183,19 @@ export const updatePurchase = asyncHandler(async (req, res) => {
   await purchase.save();
 
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
+  await recalculateSupplier(previousSupplier);
+  if (String(previousSupplier || '') !== String(purchase.supplier || '')) await recalculateSupplier(purchase.supplier);
+  await reconcileSupplierAccounting(previousSupplier);
+  if (String(previousSupplier || '') !== String(purchase.supplier || '')) await reconcileSupplierAccounting(purchase.supplier);
+  await rebuildDayBook();
   res.json({ purchase });
 });
 
 export const deletePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!purchase) throw new ApiError(404, 'Purchase not found');
+  await recalculateSupplier(purchase.supplier);
+  await reconcileSupplierAccounting(purchase.supplier);
+  await rebuildDayBook();
   res.json({ purchase, message: 'Purchase soft deleted' });
 });

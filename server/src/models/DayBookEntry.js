@@ -1,0 +1,3 @@
+import mongoose from 'mongoose';
+const schema = new mongoose.Schema({ referenceId: mongoose.Schema.Types.ObjectId, sourceModel: String, sourceKey: { type: String, unique: true, sparse: true }, transactionType: { type: String, required: true }, documentNo: String, narration: String, cashIn: { type: Number, default: 0 }, cashOut: { type: Number, default: 0 }, amount: { type: Number, required: true }, createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, transactionDate: { type: Date, required: true, index: true }, branch: String }, { timestamps: true });
+export const DayBookEntry = mongoose.model('DayBookEntry', schema);

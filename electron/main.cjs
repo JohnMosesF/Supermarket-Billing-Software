@@ -186,6 +186,8 @@ ipcMain.on('window-cart-state', (event, hasItems) => {
 
 function getPageSize(width) {
     switch (width) {
+        case "A4":
+            return "A4";
         case "58mm":
             return { width: 58000, height: 210000 };
 

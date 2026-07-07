@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { currency } from '../utils/format.js';
+import { normalizeBillItem } from '../utils/normalizeBillItem.js';
 
 function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1, onUpdateItem = () => {}, onRemove = () => {} }) {
   const tableRef = useRef(null);
@@ -30,10 +31,7 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
     return () => window.removeEventListener('keydown', handler);
   }, [cart, onSelectIndex, onRemove, selectedIndex]);
 
-  const total = cart.reduce(
-    (s, it) => s + Number(it.rate || 0) * Number(it.qty || 0),
-    0
-  );
+  const total = cart.reduce((sum, item) => sum + normalizeBillItem(item).netAmount, 0);
 
   return (
     <div ref={tableRef} className="text-sm" tabIndex={0}>
@@ -51,54 +49,44 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
 
       <div>
         {cart.map((item, i) => {
-          console.log("TABLE ITEM", item);
-          const net = Number(item.rate || 0) * parseFloat(item.qty || 0);
-          const gstRate = Number(item.gst || 0);
-          const amount =
-            gstRate > 0
-              ? net / (1 + gstRate / 100)
-              : net;
-          const gstAmt = net - amount;
-          const code = item.productId && /^[0-9]+$/.test(String(item.productId))
-            ? String(item.productId)
-            : (item.sku || '');
+          const normalized = normalizeBillItem(item);
           return (
             <div key={i} className={`${i === selectedIndex ? 'bg-blue-100 ring-1 ring-blue-200' : ''} grid grid-cols-10 gap-1 items-center text-xs px-1 py-1 border-b cursor-pointer`} onClick={() => onSelectIndex(i)}>
               <div className="truncate">
                 
-                {item.productId || '-'}
+                {normalized.productId || '-'}
                 </div>
 
                 <div className="truncate">
-                {item.sku || '-'}
+                {normalized.sku || '-'}
                 </div>
 
                 <div className="col-span-2 truncate font-medium">
-                {item.name}
+                {normalized.productName || '-'}
                 </div>
 
                 <div className="text-right">
-                {currency(Number(item.rate || 0))}
+                {currency(normalized.price)}
                 </div>
 
                 <div className="text-right">
-                {formatQty(item.qty, item.allowDecimalQty)}
+                {formatQty(normalized.quantity, normalized.allowDecimalQty)}
                 </div>
 
                 <div className="text-center">
-                {item.unit || 'pcs'}
+                {normalized.unit}
                 </div>
 
                 <div className="text-right">
-                {item.gst || 0}
+                {normalized.gstRate}
                 </div>
 
                 <div className="text-right">
-                {currency(gstAmt)}
+                {currency(normalized.gstAmount)}
                 </div>
 
                 <div className="text-right font-semibold">
-                {currency(net)}
+                {currency(normalized.netAmount)}
                 </div>
             </div>
           );

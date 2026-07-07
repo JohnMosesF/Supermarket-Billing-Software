@@ -4,6 +4,8 @@ import Bill from '../models/Bill.js';
 import { Sale } from '../models/Sale.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { CustomerReceipt } from '../models/CustomerReceipt.js';
+import { reconcileCustomerAccounting, rebuildDayBook } from '../services/accountingService.js';
 
 export const customerRules = [
   body('name').trim().notEmpty(),
@@ -108,9 +110,24 @@ export const recordCollection = asyncHandler(async (req, res) => {
   });
   await customer.save();
 
+  const embeddedReceipt = customer.paymentHistory[customer.paymentHistory.length - 1];
+  await CustomerReceipt.create({
+    receiptNo: embeddedReceipt.receiptNo,
+    customer: customer._id,
+    amount,
+    paymentMethod: req.body.paymentMethod === 'Bank Transfer' ? 'Bank' : req.body.paymentMethod,
+    allocationType: 'Allocated',
+    allocations: appliedTo.map((entry) => ({ bill: entry.billId, invoiceNo: entry.invoiceNo, amount: entry.amount })),
+    unallocatedAmount: 0,
+    notes: req.body.notes,
+    createdBy: req.user._id
+  });
+  await reconcileCustomerAccounting(customer._id);
+  await rebuildDayBook();
+
   res.status(201).json({
     message: 'Collection recorded',
     customer,
-    receipt: customer.paymentHistory[customer.paymentHistory.length - 1]
+    receipt: embeddedReceipt
   });
 });

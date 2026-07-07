@@ -22,6 +22,9 @@ export function Products() {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
+  const [sortField, setSortField] = useState("productId");
+  const [sortDirection, setSortDirection] = useState("asc");
+
 // --- Load Products & Categories ---
   async function load() {
     try {
@@ -188,7 +191,7 @@ export function Products() {
 // --- Excel Import/Export ---
   function exportProducts() {
     const worksheet = XLSX.utils.json_to_sheet(
-      products.map(product => ({
+      sortedProducts.map(product => ({
         ProductID: product.productId,
         SKU: product.sku,
         Name: product.name,
@@ -422,6 +425,39 @@ export function Products() {
     }
   }
 
+  const sortedProducts = [...products].sort((a, b) => {
+    const getValue = (product, field) => {
+      switch (field) {
+        case "category":
+          return product.category?.name || "";
+        default:
+          return product[field] ?? "";
+      }
+    };
+
+    const valueA = getValue(a, sortField);
+    const valueB = getValue(b, sortField);
+
+    if (typeof valueA === "number" && typeof valueB === "number") {
+      return sortDirection === "asc"
+        ? valueA - valueB
+        : valueB - valueA;
+    }
+
+    return sortDirection === "asc"
+      ? String(valueA).localeCompare(String(valueB))
+      : String(valueB).localeCompare(String(valueA));
+  });
+
+  function handleSort(field) {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  }
+
   return (
     <div>
     
@@ -549,27 +585,139 @@ export function Products() {
               <table className="w-full table-sticky">
                 <thead>
                   <tr>
-                    <th className="table-th">PID</th>
-                    <th className="table-th">SKU</th>
-                    <th className="table-th">Name</th>
-                    <th className="table-th">Local Name</th>
-                    <th className="table-th">Company</th>
-                    <th className="table-th">Category</th>
-                    <th className="table-th">Unit</th>
-                    <th className="table-th">MRP</th>
-                    <th className="table-th">Purchase</th>
-                    <th className="table-th">Wholesale</th>
-                    <th className="table-th">Sale</th>
-                    <th className="table-th">Stock</th>
-                    <th className="table-th">Low Stock</th>
-                    <th className="table-th">GST</th>
-                    <th className="table-th">Discount</th>
-                    <th className="table-th">HSN</th>
+                    <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("productId")}
+                    >
+                      PID
+                      {sortField === "productId" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("sku")}
+                    >
+                      SKU
+                      {sortField === "sku" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("name")}
+                    >
+                      Name
+                      {sortField === "name" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("localName")}
+                    >
+                      Local Name
+                      {sortField === "localName" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("companyName")}
+                    >
+                      Company
+                      {sortField === "companyName" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("category")}
+                    >
+                      Category
+                      {sortField === "category" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("unit")}
+                    >
+                      Unit
+                      {sortField === "unit" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("mrp")}
+                    >
+                      MRP
+                      {sortField === "mrp" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("purchasePrice")}
+                    >
+                      Purchase
+                      {sortField === "purchasePrice" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("wholesalePrice")}
+                    >
+                      Wholesale
+                      {sortField === "wholesalePrice" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("sellingPrice")}
+                    >
+                      Sale
+                      {sortField === "sellingPrice" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("stock")}
+                    >
+                      Stock
+                      {sortField === "stock" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("lowStockThreshold")}
+                    >
+                      Low Stock
+                      {sortField === "lowStockThreshold" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("taxRate")}
+                    >
+                      GST
+                      {sortField === "taxRate" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("discount")}
+                    >
+                      Discount
+                      {sortField === "discount" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
+                                        <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("hsnCode")}
+                    >
+                      HSN
+                      {sortField === "hsnCode" &&
+                        (sortDirection === "asc" ? " ▲" : " ▼")}
+                    </th>
                     <th className="table-th"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map((product) => (
+                  {sortedProducts.map((product) => (
                     <tr
                       key={product._id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/60"

@@ -9,6 +9,12 @@ const supplierSchema = new mongoose.Schema(
     gstNumber: String,
     address: String,
     notes: String,
+    totalPurchases: { type: Number, default: 0, min: 0 },
+    totalReturns: { type: Number, default: 0, min: 0 },
+    outstandingBalance: { type: Number, default: 0, min: 0 },
+    totalPayments: { type: Number, default: 0, min: 0 },
+    lastPurchaseDate: Date,
+    lastPaymentDate: Date,
     active: { type: Boolean, default: true }
   },
   { timestamps: true }

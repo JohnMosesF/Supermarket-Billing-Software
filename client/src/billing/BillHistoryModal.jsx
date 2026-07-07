@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { X, Search, Eye, Printer, Pencil } from 'lucide-react';
+import { X, Search, Eye, Printer, Pencil, Trash2 } from 'lucide-react';
 import InvoicePreview from './InvoicePreview.jsx';
 import { currency } from '../utils/format.js';
 import toast from 'react-hot-toast';
 import { billingAPI } from './billingService.js';
+import { normalizeBillItems } from '../utils/normalizeBillItem.js';
 
 export default function BillHistoryModal({ isOpen, onClose }) {
   const [bills, setBills] = useState([]);
@@ -52,11 +53,13 @@ export default function BillHistoryModal({ isOpen, onClose }) {
 
   const handleReprint = async (billId) => {
     try {
-      const { data } = await billingAPI.reprintBill(billId);
-      // If server returns a print-ready HTML or PDF URL, handle accordingly.
-      // Fallback: open print dialog for current window (user can implement print iframe).
-      window.print();
-      toast.success('Bill reprinted');
+      const { data } = await billingAPI.getBill(billId);
+      const bill = data.bill;
+      await window.electronAPI.createBillingWindow({
+        invoiceNo: bill.invoiceNo,
+        invoicePayload: { mode: 'view', bill, autoPrint: true }
+      });
+      toast.success('Invoice opened for printing');
     } catch (err) {
       console.error(err);
       toast.error('Failed to reprint bill');
@@ -67,7 +70,11 @@ export default function BillHistoryModal({ isOpen, onClose }) {
     try {
       setLoading(true);
       const { data } = await billingAPI.getBill(bill._id);
-      setSelectedBill(data.bill || bill);
+      const selected = data.bill || bill;
+      await window.electronAPI.createBillingWindow({
+        invoiceNo: selected.invoiceNo,
+        invoicePayload: { mode: 'view', bill: selected }
+      });
     } catch (err) {
       console.error(err);
       toast.error('Failed to load bill');
@@ -76,29 +83,28 @@ export default function BillHistoryModal({ isOpen, onClose }) {
     }
   };
 
+  const handleDelete = async (bill) => {
+    const reason = window.prompt(`Reason for deleting ${bill.invoiceNo}:`);
+    if (reason === null) return;
+    if (!reason.trim()) return toast.error('A deletion reason is required');
+    try {
+      await billingAPI.deleteBill(bill._id, reason.trim());
+      setBills((current) => current.filter((entry) => entry._id !== bill._id));
+      if (selectedBill?._id === bill._id) setSelectedBill(null);
+      toast.success('Bill moved to Deleted Bills');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete bill');
+    }
+  };
+
   const openBillInEditor = async (bill) => {
     try {
       const { data } = await billingAPI.getBill(bill._id);
       const b = data.bill || bill;
-      const payload = {
-        mode: 'edit',
-        editBillId: b._id,
-        fullBill: b,
+      await window.electronAPI.createBillingWindow({
         invoiceNo: b.invoiceNo,
-        invoiceNumber: b.invoiceNumber || b.invoiceNo,
-        customerName: b.customerName || '',
-        customerMobile: b.customerMobile || '',
-        paymentMethod: b.paymentMethod || 'Cash',
-        paidAmount: b.paidAmount || 0,
-        invoiceAt: b.invoiceAt || b.createdAt || null,
-        subtotal: b.subtotal || 0,
-        taxTotal: b.taxTotal || 0,
-        discount: b.discount || 0,
-        discountPercent: b.discountPercent || 0,
-        total: b.total || 0,
-        notes: b.notes || ''
-      };
-      await window.electronAPI.createBillingWindow({ invoiceNo: b.invoiceNo, resumeBill: payload });
+        invoicePayload: { mode: 'edit', bill: b }
+      });
       toast.success('Opened bill for editing');
     } catch (err) {
       console.error('Failed to open billing editor', err);
@@ -176,7 +182,7 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                         invoiceNumber: selectedBill.invoiceNo || selectedBill.invoiceNumber,
                         customerName: selectedBill.customerName,
                       }}
-                      cart={selectedBill.items || selectedBill.items || []}
+                      cart={normalizeBillItems(selectedBill.items)}
                       totals={{ subtotal: selectedBill.subtotal, taxTotal: selectedBill.taxTotal, discount: selectedBill.discount, total: selectedBill.total }}
                     />
                   </div>
@@ -276,6 +282,13 @@ export default function BillHistoryModal({ isOpen, onClose }) {
                             title="Print"
                           >
                             <Printer size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(bill)}
+                            className="text-red-600 hover:text-red-800 ml-2"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </td>
                       </tr>

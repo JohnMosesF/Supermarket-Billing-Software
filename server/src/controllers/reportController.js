@@ -3,6 +3,8 @@ import PDFDocument from 'pdfkit';
 import { Customer } from '../models/Customer.js';
 import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
+import { SalesReturn } from '../models/SalesReturn.js';
+import { PurchaseReturn } from '../models/PurchaseReturn.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 function dateFilter(req) {
@@ -187,4 +189,46 @@ export const paymentCollectionReport = asyncHandler(async (req, res) => {
     totalCollected: collections.reduce((sum, item) => sum + item.amount, 0),
     collections
   });
+});
+
+function returnQuery(req, type) {
+  const query = { status: 'Completed' };
+  const range = dateFilter(req).createdAt;
+  if (range) query.returnDate = range;
+  const escaped = (value) => new RegExp(String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  if (type === 'sales' && req.query.customer) query.customerName = escaped(req.query.customer);
+  if (type === 'purchase' && req.query.supplier) query.supplierName = escaped(req.query.supplier);
+  if (req.query.product) query['items.productName'] = escaped(req.query.product);
+  return query;
+}
+
+export const returnsReport = (type) => asyncHandler(async (req, res) => {
+  const Model = type === 'sales' ? SalesReturn : PurchaseReturn;
+  const returns = await Model.find(returnQuery(req, type)).sort({ returnDate: -1 }).limit(1000).lean();
+  const amountKey = type === 'sales' ? 'refundAmount' : 'returnAmount';
+  res.json({ returns, summary: { count: returns.length, value: returns.reduce((sum, entry) => sum + Number(entry[amountKey] || 0), 0) } });
+});
+
+export const exportReturnsExcel = (type) => asyncHandler(async (req, res) => {
+  const Model = type === 'sales' ? SalesReturn : PurchaseReturn;
+  const entries = await Model.find(returnQuery(req, type)).sort({ returnDate: -1 }).lean();
+  const amountKey = type === 'sales' ? 'refundAmount' : 'returnAmount';
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(type === 'sales' ? 'Sales Returns' : 'Purchase Returns');
+  sheet.columns = [{ header: 'Return No', key: 'returnNo', width: 24 }, { header: 'Original Invoice', key: 'originalInvoiceNo', width: 20 }, { header: type === 'sales' ? 'Customer' : 'Supplier', key: 'party', width: 28 }, { header: 'Date', key: 'date', width: 22 }, { header: 'GST', key: 'gst', width: 14 }, { header: 'Value', key: 'value', width: 16 }, { header: 'Reason', key: 'reason', width: 35 }];
+  entries.forEach((entry) => sheet.addRow({ returnNo: entry.returnNo, originalInvoiceNo: entry.originalInvoiceNo, party: type === 'sales' ? entry.customerName : entry.supplierName, date: new Date(entry.returnDate).toISOString(), gst: entry.gstAmount, value: entry[amountKey], reason: entry.reason }));
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${type}-returns.xlsx`);
+  await workbook.xlsx.write(res); res.end();
+});
+
+export const exportReturnsPdf = (type) => asyncHandler(async (req, res) => {
+  const Model = type === 'sales' ? SalesReturn : PurchaseReturn;
+  const entries = await Model.find(returnQuery(req, type)).sort({ returnDate: -1 }).limit(500).lean();
+  const amountKey = type === 'sales' ? 'refundAmount' : 'returnAmount';
+  const doc = new PDFDocument({ margin: 36, size: 'A4' });
+  res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `attachment; filename=${type}-returns.pdf`); doc.pipe(res);
+  doc.fontSize(18).text(type === 'sales' ? 'Sales Return Report' : 'Purchase Return Report').moveDown();
+  entries.forEach((entry) => doc.fontSize(9).text(`${entry.returnNo} | ${entry.originalInvoiceNo || '-'} | ${new Date(entry.returnDate).toLocaleString()} | ${type === 'sales' ? entry.customerName || 'Walk-in' : entry.supplierName || '-'} | ${Number(entry[amountKey] || 0).toFixed(2)}`));
+  doc.end();
 });

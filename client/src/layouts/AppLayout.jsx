@@ -14,6 +14,9 @@ import {
   ShoppingCart,
   Sun,
   Truck,
+  Undo2,
+  BookOpen,
+  WalletCards,
   Users
 } from 'lucide-react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
@@ -28,6 +31,16 @@ const navItems = [
   { to: '/customers', label: 'Customers', icon: Users },
   { to: '/inventory', label: 'Inventory', icon: Boxes },
   { to: '/purchases', label: 'Purchases', icon: ClipboardList },
+  { to: '/sales-returns', label: 'Sales Returns', icon: Undo2 },
+  { to: '/purchase-returns', label: 'Purchase Returns', icon: Undo2 },
+  { to: '/accounting/customer-ledger', label: 'Customer Ledger', icon: BookOpen },
+  { to: '/accounting/supplier-ledger', label: 'Supplier Ledger', icon: BookOpen, manager: true },
+  { to: '/accounting/customer-outstanding', label: 'Customer Outstanding', icon: WalletCards },
+  { to: '/accounting/supplier-outstanding', label: 'Supplier Outstanding', icon: WalletCards, manager: true },
+  { to: '/accounting/receipts', label: 'Receipts', icon: WalletCards },
+  { to: '/accounting/supplier-payments', label: 'Supplier Payments', icon: WalletCards, manager: true },
+  { to: '/accounting/day-book', label: 'Day Book', icon: BookOpen, manager: true },
+  { to: '/accounting/collections', label: 'Collections', icon: WalletCards },
   { to: '/suppliers', label: 'Suppliers', icon: Truck },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/users', label: 'Users', icon: Users, admin: true },
@@ -44,7 +57,7 @@ export function AppLayout() {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  const visibleItems = navItems.filter((item) => !item.admin || user?.role === 'admin');
+  const visibleItems = navItems.filter((item) => (!item.admin || user?.role === 'admin') && (!item.manager || ['admin', 'manager'].includes(user?.role)));
 
   return (
     <div className="min-h-screen bg-mist text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -61,18 +74,32 @@ export function AppLayout() {
           ) : null}
         </div>
 
-        <nav className="space-y-1 p-3">
+        <nav
+          className="
+            h-[calc(100vh-64px)]
+            overflow-y-auto
+            space-y-1
+            p-3
+            scrollbar-thin
+            scrollbar-thumb-slate-400
+            scrollbar-track-transparent
+          "
+        >
           {visibleItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => clsx(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition',
-                isActive ? 'bg-emerald-50 text-leaf dark:bg-emerald-950/40' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-              )}
+              className={({ isActive }) =>
+                clsx(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition",
+                  isActive
+                    ? "bg-emerald-50 text-leaf dark:bg-emerald-950/40"
+                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                )
+              }
             >
               <item.icon size={19} />
-              {!collapsed ? <span>{item.label}</span> : null}
+              {!collapsed && <span>{item.label}</span>}
             </NavLink>
           ))}
         </nav>

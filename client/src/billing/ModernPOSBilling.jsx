@@ -10,6 +10,20 @@ import { api } from '../api/http.js';
 import { currency, dateTime } from '../utils/format.js';
 import toast from 'react-hot-toast';
 import { printInvoice, makeInvoiceHtmlFromSale } from '../utils/print';
+import { normalizeBillItem } from '../utils/normalizeBillItem.js';
+
+const toCartItem = (item) => {
+  const normalized = normalizeBillItem(item);
+  return {
+    ...normalized,
+    _id: normalized.mongoId,
+    name: normalized.productName,
+    rate: normalized.price,
+    qty: normalized.quantity,
+    gst: normalized.gstRate,
+    amount: normalized.netAmount
+  };
+};
 
 /**
  * ModernPOSBilling - Complete keyboard-first billing interface
@@ -72,11 +86,16 @@ export default function ModernPOSBilling() {
   const [isEditingBill, setIsEditingBill] = useState(false);
   const [editingBillId, setEditingBillId] = useState(null);
   const [editingInvoiceNumber, setEditingInvoiceNumber] = useState('');
+  const [invoiceMode, setInvoiceMode] = useState('new');
+  const [loadedBill, setLoadedBill] = useState(null);
+  const [pendingAutoPrint, setPendingAutoPrint] = useState(false);
+  const isReadOnly = invoiceMode === 'view';
 
   // Live date/time update: tick every second unless user edited recently
   useEffect(() => {
     api.get('/settings', { silent: true }).then((res) => setSettings(res.data.settings)).catch(() => {});
     const id = setInterval(() => {
+      if (invoiceMode !== 'new') return;
       const now = new Date();
       const pad = (n) => String(n).padStart(2, '0');
       const sysDate = now.toISOString().slice(0, 10);
@@ -87,7 +106,7 @@ export default function ModernPOSBilling() {
       setInvoiceTime((t) => (t === sysTime ? t : sysTime));
     }, 1000);
     return () => clearInterval(id);
-  }, [lastManualEdit]);
+  }, [lastManualEdit, invoiceMode]);
   
 
   // Refs
@@ -114,6 +133,7 @@ export default function ModernPOSBilling() {
   const hasCartItems = cart.some(
     item => Number(item.qty || item.quantity || 0) > 0
   );
+  const hasUnsavedChanges = hasCartItems && invoiceMode !== 'view';
 
   function getQueryParams() {
       const hash = window.location.hash;
@@ -134,14 +154,14 @@ export default function ModernPOSBilling() {
     if (window.electronAPI?.sendBillingEvent && windowId) {
       window.electronAPI.sendBillingEvent(
         `billing-cart-state-${windowId}`,
-        cart.length > 0
+        hasUnsavedChanges
       );
     }
-  }, [cart, windowId]);
+  }, [hasUnsavedChanges, windowId]);
 
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      if (!hasCartItems) return;
+      if (!hasUnsavedChanges) return;
 
       e.preventDefault();
       e.returnValue = '';
@@ -152,7 +172,7 @@ export default function ModernPOSBilling() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [hasCartItems]);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     if (window?.electronAPI?.onBillingEvent) {
@@ -164,6 +184,16 @@ export default function ModernPOSBilling() {
       return () => {};
     }
   }, [cart]);
+
+  useEffect(() => {
+    if (!window?.electronAPI?.onBillingEvent) return undefined;
+    return window.electronAPI.onBillingEvent('load-invoice', (payload) => {
+      if (payload?.bill) {
+        loadHistoricalInvoice(payload.bill, payload.mode);
+        setPendingAutoPrint(Boolean(payload.autoPrint));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const loadCustomers = async () => {
@@ -376,39 +406,19 @@ export default function ModernPOSBilling() {
      * where _id or productId is MongoDB ObjectId
      */
     const items = cart.map((it) => {
-      const pid = it._id || it.productId;
+      const normalized = normalizeBillItem(it);
+      const pid = normalized.mongoId;
       if (!pid) {
         throw new Error(`Cart item missing MongoDB ObjectId: ${JSON.stringify(it)}`);
       }
-      const quantity = parseFloat(it.qty ?? it.quantity ?? 1);
-      const price = parseFloat(it.rate ?? it.sellingPrice ?? it.price ?? 0);
-      const gst = parseFloat(it.gst ?? it.taxRate ?? it.tax ?? 0);
-      const taxable = Math.max(quantity * price - Number(it.discount || 0), 0);
-      const gstAmount = (taxable * gst) / 100;
-      const netAmount = taxable + gstAmount;
       return {
+        ...normalized,
         _id: pid,
         productId: pid,
-        productName: it.productName || it.name || '',
-        sku: it.sku || it.code || '',
-        barcode: it.barcode || '',
-        localName: it.localName || '',
-        quantity,
-        unit: it.unit || 'pcs',
-        purchasePrice: Number(it.purchasePrice || 0),
-        sellingPrice: price,
-        mrp: Number(it.mrp || 0),
-        gst,
-        gstAmount,
-        taxableAmount: taxable,
-        netAmount,
-        discount: Number(it.discount || 0),
-        category: it.category || '',
-        companyName: it.companyName || '',
-        stockAtSale: Number(it.stockAtSale ?? it.stock ?? 0),
-        metadata: it.metadata || {},
-        price,
-        total: Number(it.amount != null ? it.amount : netAmount)
+        productIdNumber: normalized.productId,
+        mongoId: undefined,
+        gst: normalized.gstRate,
+        total: normalized.netAmount
       };
     });
 
@@ -558,29 +568,30 @@ export default function ModernPOSBilling() {
   /**
    * Print current bill
    */
-  const handlePrint = async () => {
+  const handlePrint = async (paperWidth) => {
     if (cart.length === 0) {
       toast.error('Cart is empty');
       return;
     }
 
     try {
-      const saved = await handleSave({
-        clearAfterSave: false
-      });
-
-      if (!saved) {
-        // Save failed or validation failed
-        return;
+      let saleToPrint;
+      if (invoiceMode === 'new') {
+        const saved = await handleSave({ clearAfterSave: false });
+        if (!saved) return;
+        saleToPrint = saved.bill || saved.sale || saved;
+      } else if (invoiceMode === 'view') {
+        saleToPrint = loadedBill;
+      } else {
+        saleToPrint = { ...loadedBill, ...makeBillPayload(), _id: editingBillId };
       }
-
-      const saleToPrint = saved.bill || saved.sale || saved;
       console.log("SALE TO PRINT", saleToPrint);
       console.log("SALE ITEMS", saleToPrint.items);
 
       console.log("SALE TO PRINT", saleToPrint);
 
-      const html = makeInvoiceHtmlFromSale(saleToPrint, settings || {});
+      const printSettings = { ...(settings || {}), ...(paperWidth ? { receiptWidth: paperWidth } : {}) };
+      const html = makeInvoiceHtmlFromSale(saleToPrint, printSettings);
 
       console.log("HTML LENGTH", html.length);
       console.log(html);
@@ -597,7 +608,7 @@ export default function ModernPOSBilling() {
         deviceName: settings?.printerName || undefined,
        
         paperWidth:
-          settings?.receiptWidth ||
+          paperWidth || settings?.receiptWidth ||
           settings?.thermalPaperWidth ||
           "80mm",
 
@@ -608,7 +619,7 @@ export default function ModernPOSBilling() {
           date: saleToPrint.invoiceAt,
 
           paperWidth:
-            settings?.receiptWidth ||
+            paperWidth || settings?.receiptWidth ||
             settings?.thermalPaperWidth ||
             "80mm"
         }
@@ -620,16 +631,7 @@ export default function ModernPOSBilling() {
           return;
       }
 
-      // Print completed successfully
-      setCart([]);
-      setCustomerName('');
-      setCustomerMobile('');
-      setDiscountPercent(0);
-      setPaymentMethod('cash');
-      setSelectedIndex(-1);
-      setResumedHoldId(null);
-
-      entryRef.current?.focusProductId();
+      if (invoiceMode === 'new') handleNewBill();
 
       toast.success('Invoice sent to printer');
     } catch (err) {
@@ -656,35 +658,16 @@ export default function ModernPOSBilling() {
     setIsEditingBill(false);
     setEditingBillId(null);
     setEditingInvoiceNumber('');
+    setInvoiceMode('new');
+    setLoadedBill(null);
     setAmountPaid(0);
     entryRef.current?.focusProductId();
     toast.info('New bill started');
   };
 
-  const loadBillForEditing = (billLike) => {
+  const loadHistoricalInvoice = (billLike, mode = 'view') => {
     const bill = billLike?.fullBill || billLike || {};
-    const restoredCart = (bill.items || []).map((item) => ({
-      _id: item.productId || item._id,
-      productId: item.productId || item._id,
-      name: item.productName || item.name || '',
-      sku: item.sku || '',
-      barcode: item.barcode || '',
-      localName: item.localName || '',
-      rate: item.sellingPrice || item.price || item.rate || 0,
-      qty: item.quantity || item.qty || 0,
-      gst: item.gst || item.tax || item.taxRate || 0,
-      unit: item.unit || 'pcs',
-      allowDecimalQty: item.allowDecimalQty || false,
-      amount: item.netAmount ?? item.total ?? (Number(item.sellingPrice || item.price || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)),
-      gstAmount: item.gstAmount ?? (((Number(item.sellingPrice || item.price || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100),
-      discount: item.discount || 0,
-      stockAtSale: item.stockAtSale || 0,
-      metadata: item.metadata || {},
-      purchasePrice: item.purchasePrice || 0,
-      mrp: item.mrp || 0,
-      companyName: item.companyName || '',
-      category: item.category || ''
-    }));
+    const restoredCart = (bill.items || []).map(toCartItem);
 
     setCart(restoredCart);
     setCustomerName(bill.customerName || '');
@@ -696,7 +679,9 @@ export default function ModernPOSBilling() {
         : 0
     );
     setAmountPaid(Number(bill.paidAmount || 0));
-    setIsEditingBill(Boolean(bill._id));
+    setInvoiceMode(mode === 'edit' ? 'edit' : 'view');
+    setLoadedBill(bill);
+    setIsEditingBill(mode === 'edit' && Boolean(bill._id));
     setEditingBillId(bill._id || null);
     setEditingInvoiceNumber(bill.invoiceNo || bill.invoiceNumber || '');
     setResumedHoldId(null);
@@ -714,8 +699,16 @@ export default function ModernPOSBilling() {
     setShowHoldBillsModal(false);
     setSelectedIndex(-1);
     entryRef.current?.focusProductId();
-    toast.success('Bill loaded for editing');
+    toast.success(mode === 'edit' ? 'Invoice ready to edit' : 'Invoice opened read-only');
   };
+
+  useEffect(() => {
+    if (!pendingAutoPrint || !loadedBill || invoiceMode !== 'view') return;
+    setPendingAutoPrint(false);
+    handlePrint();
+  }, [pendingAutoPrint, loadedBill, invoiceMode]);
+
+  const loadBillForEditing = (billLike) => loadHistoricalInvoice(billLike, 'edit');
 
   /**
    * Resume a held bill
@@ -737,18 +730,7 @@ export default function ModernPOSBilling() {
     }
 
     const items = (payload.items && payload.items.length) ? payload.items : (payload.fullBill?.items || []);
-    const restoredCart = (items || []).map((item) => ({
-      _id: item.productId,
-      productId: item.productId,
-      name: item.productName || item.name || item.productName || item.name || '',
-      rate: item.price || item.sellingPrice || item.rate || 0,
-      qty: item.quantity || item.qty || 0,
-      gst: item.gst || item.tax || item.taxRate || 0,
-      unit: item.unit || 'pcs',
-      allowDecimalQty: item.allowDecimalQty || false,
-      amount: item.total != null ? item.total : (Number(item.price || item.sellingPrice || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)),
-      gstAmount: ((Number(item.price || item.sellingPrice || item.rate || 0) * parseFloat(item.quantity || item.qty || 0)) * (Number(item.gst || item.tax || item.taxRate || 0))) / 100
-    }));
+    const restoredCart = (items || []).map(toCartItem);
 
     setCart(restoredCart);
     setCustomerName(payload.customerName || payload.customer || '');
@@ -789,17 +771,8 @@ export default function ModernPOSBilling() {
       const payload = makeBillPayload();
       await billingAPI.updateBill(editingBillId, payload);
       toast.success('Bill updated successfully');
-      setIsEditingBill(false);
-      setEditingBillId(null);
-      setEditingInvoiceNumber('');
-      setCart([]);
-      setCustomerName('');
-      setCustomerMobile('');
-      setDiscountPercent(0);
-      setPaymentMethod('cash');
-      setSelectedIndex(-1);
-      setAmountPaid(0);
-      entryRef.current?.focusProductId();
+      const { data } = await billingAPI.getBill(editingBillId);
+      loadHistoricalInvoice(data.bill, 'view');
     } catch (err) {
       console.error('Update bill error:', err);
       toast.error(err.response?.data?.message || 'Failed to update bill');
@@ -817,12 +790,12 @@ export default function ModernPOSBilling() {
     handleResumeRef.current = (payload) => handleResumeHeldBill(payload);
 
     actionsRef.current = {
-      focusProduct: () => entryRef.current?.focusProductId(),
+      focusProduct: () => { if (!isReadOnly) entryRef.current?.focusProductId(); },
       newBill: () => handleNewBillRef.current?.(),
-      resumeHoldBill: () => setShowHoldBillsModal(true),
-      deleteItem: () => removeSelectedRef.current?.(),
-      save: () => handleSaveRef.current?.(),
-      hold: () => handleHoldRef.current?.(),
+      resumeHoldBill: () => { if (invoiceMode === 'new') setShowHoldBillsModal(true); },
+      deleteItem: () => { if (!isReadOnly) removeSelectedRef.current?.(); },
+      save: () => { if (invoiceMode === 'new') handleSaveRef.current?.(); else if (invoiceMode === 'edit') handleUpdateBill(); },
+      hold: () => { if (invoiceMode === 'new') handleHoldRef.current?.(); },
       print: () => handlePrintRef.current?.(),
       printInvoice: () => handlePrintRef.current?.(),
       clearRow: () => entryRef.current?.focusProductId(),
@@ -852,7 +825,7 @@ export default function ModernPOSBilling() {
     return () => {
       kmRef.current?.stop();
     };
-  }, [cart.length, customerName, customerMobile, paymentMethod, discountPercent]);
+  }, [cart.length, customerName, customerMobile, paymentMethod, discountPercent, invoiceMode]);
 
   /**
    * Calculate totals
@@ -882,10 +855,15 @@ export default function ModernPOSBilling() {
   const discount = (subtotal * Number(discountPercent || 0)) / 100;
 
   const total = subtotal + taxTotal - discount;
+  const displayedSubtotal = isReadOnly && loadedBill ? Number(loadedBill.subtotal || 0) : subtotal;
+  const displayedTaxTotal = isReadOnly && loadedBill ? Number(loadedBill.taxTotal || 0) : taxTotal;
+  const displayedDiscount = isReadOnly && loadedBill ? Number(loadedBill.discount || 0) : discount;
+  const displayedTotal = isReadOnly && loadedBill ? Number(loadedBill.total || 0) : total;
   const balanceDue =
     paymentMethod === 'credit'
       ? Math.max(0, total - Number(amountPaid || 0))
       : 0;
+  const displayedBalanceDue = isReadOnly && loadedBill ? Number(loadedBill.dueAmount || 0) : balanceDue;
   const itemCount = cart.length;
   const quantity = cart.reduce((sum, it) => sum + parseFloat(it.qty || 0), 0);
   const liveInvoiceSale = {
@@ -895,10 +873,10 @@ export default function ModernPOSBilling() {
     customerMobile,
     paymentMethod,
     items: cart,
-    subtotal,
-    taxTotal,
-    discount,
-    total
+    subtotal: displayedSubtotal,
+    taxTotal: displayedTaxTotal,
+    discount: displayedDiscount,
+    total: displayedTotal
   };
 
   return (
@@ -910,24 +888,22 @@ export default function ModernPOSBilling() {
             <div>
               <h1 className="text-2xl font-bold">POS Billing System</h1>
               <p className="text-blue-100 text-sm">Keyboard-First Modern Interface</p>
-              {isEditingBill && editingInvoiceNumber ? (
-                <div className="mt-1 inline-flex rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
-                  Editing Bill: {editingInvoiceNumber}
-                </div>
-              ) : null}
+              <div className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${invoiceMode === 'view' ? 'bg-cyan-500' : invoiceMode === 'edit' ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                {invoiceMode === 'view' ? `Viewing Invoice ${editingInvoiceNumber}` : invoiceMode === 'edit' ? `Editing Invoice ${editingInvoiceNumber}` : 'New Invoice'}
+              </div>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold">{currency(total)}</div>
+            <div className="text-3xl font-bold">{currency(displayedTotal)}</div>
               <div className="text-blue-100 text-sm">{itemCount} items • {quantity} qty</div>
             <div className="mt-2 flex items-center gap-2 text-sm">
               <div className="flex items-center gap-2">
                 <label className="text-xs text-blue-100">Date</label>
-                <input type="date" value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setLastManualEdit(Date.now()); }} className="p-1 rounded text-sm text-black" />
+                <input disabled={invoiceMode !== 'new'} type="date" value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setLastManualEdit(Date.now()); }} className="p-1 rounded text-sm text-black disabled:opacity-70" />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs text-blue-100">Time</label>
-                <input type="time" value={invoiceTime} onChange={(e) => { setInvoiceTime(e.target.value); setLastManualEdit(Date.now()); }} className="p-1 rounded text-sm text-black" />
+                <input disabled={invoiceMode !== 'new'} type="time" value={invoiceTime} onChange={(e) => { setInvoiceTime(e.target.value); setLastManualEdit(Date.now()); }} className="p-1 rounded text-sm text-black disabled:opacity-70" />
               </div>
             </div>
           </div>
@@ -940,7 +916,7 @@ export default function ModernPOSBilling() {
         <div className="flex-1 flex flex-col gap-3 min-w-0">
           {/* Entry row */}
           <div className="bg-white shadow-md rounded-lg p-3">
-            <BillingEntryRow ref={entryRef} onAddItem={handleAddItem} />
+            {isReadOnly ? <div className="rounded-lg bg-cyan-50 p-3 text-sm font-semibold text-cyan-800">Read-only invoice — click Edit to change items</div> : <BillingEntryRow ref={entryRef} onAddItem={handleAddItem} />}
           </div>
           
           {/* Cart items table */}
@@ -953,6 +929,7 @@ export default function ModernPOSBilling() {
                 selectedIndex={selectedIndex}
                 onUpdateItem={updateItem}
                 onRemove={(i) => {
+                  if (isReadOnly) return;
                   setCart((p) => p.filter((_, idx) => idx !== i));
                   setSelectedIndex(-1);
                   setTimeout(() => entryRef.current?.focusProductId(), 50);
@@ -963,24 +940,30 @@ export default function ModernPOSBilling() {
           <div className="mt-4 flex gap-3">
         <button
           onClick={isEditingBill ? handleUpdateBill : handleSave}
-          className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold"
+          className={`${invoiceMode === 'view' ? 'hidden' : ''} flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold`}
         >
         {isEditingBill ? '📝Update Bill' : '💾Save Bill'}
         </button>
 
         <button
           onClick={handleHold}
-          className="flex-1 bg-yellow-500 text-white py-3 rounded-lg font-semibold"
+          className={`${invoiceMode !== 'new' ? 'hidden' : ''} flex-1 bg-yellow-500 text-white py-3 rounded-lg font-semibold`}
         >
         ⏸Hold
         </button>
 
+        {invoiceMode === 'view' && <button onClick={() => { setInvoiceMode('edit'); setIsEditingBill(true); }} className="flex-1 bg-amber-500 text-white py-3 rounded-lg font-semibold">Edit</button>}
+
         <button
-          onClick={handlePrint}
+          onClick={() => handlePrint()}
           className="flex-1 bg-slate-700 text-white py-3 rounded-lg font-semibold"
         >
           🖨Print
         </button>
+        {invoiceMode !== 'new' && <button onClick={() => handlePrint('72mm')} className="flex-1 bg-indigo-600 text-white py-3 rounded-lg font-semibold">72mm Print</button>}
+        {invoiceMode !== 'new' && <button onClick={() => handlePrint('80mm')} className="flex-1 bg-indigo-700 text-white py-3 rounded-lg font-semibold">80mm</button>}
+        {invoiceMode !== 'new' && <button onClick={() => handlePrint('A4')} className="flex-1 bg-purple-700 text-white py-3 rounded-lg font-semibold">A4</button>}
+        {invoiceMode !== 'new' && <button onClick={() => window.close()} className="flex-1 bg-red-600 text-white py-3 rounded-lg font-semibold">Close</button>}
       </div>
           
         </div>
@@ -991,10 +974,10 @@ export default function ModernPOSBilling() {
           <div className="bg-white shadow-md rounded-lg p-3">
             <BillingSummaryPanel
               cart={cart}
-              subtotal={subtotal}
-              taxTotal={taxTotal}
-              discount={discount}
-              total={total}
+              subtotal={displayedSubtotal}
+              taxTotal={displayedTaxTotal}
+              discount={displayedDiscount}
+              total={displayedTotal}
               invoiceAt={`${invoiceDate}T${invoiceTime}`}
               onSave={handleSave}
               onHold={handleHold}
@@ -1013,6 +996,7 @@ export default function ModernPOSBilling() {
 
                   <input
                       ref={customerNameRef}
+                      disabled={isReadOnly}
                       list="customer-list"
                       value={customerName}
                       onFocus={() => setShowCustomerDropdown(true)}
@@ -1102,6 +1086,7 @@ export default function ModernPOSBilling() {
                   <label className="text-sm font-semibold">Mobile</label>
                   <input
                     ref={customerMobileRef}
+                    disabled={isReadOnly}
                     type="tel"
                     placeholder="Customer mobile (optional)"
                     value={customerMobile}
@@ -1112,6 +1097,7 @@ export default function ModernPOSBilling() {
                 <div>
                   <label className="text-sm font-semibold">Payment Method</label>
                   <select
+                    disabled={isReadOnly}
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -1129,6 +1115,7 @@ export default function ModernPOSBilling() {
                   <label className="text-sm font-semibold">Discount %</label>
                   <input
                     type="number"
+                    disabled={isReadOnly}
                     min="0"
                     max="100"
                     step="0.5"
@@ -1147,6 +1134,7 @@ export default function ModernPOSBilling() {
 
                 <input
                   type="number"
+                  disabled={isReadOnly}
                   min="0"
                   step="0.01"
                   value={amountPaid}
@@ -1162,7 +1150,7 @@ export default function ModernPOSBilling() {
                   </div>
 
                   <div className="text-2xl font-bold text-red-600">
-                    ₹{balanceDue.toFixed(2)}
+                    ₹{displayedBalanceDue.toFixed(2)}
                   </div>
                 </div>
               )}

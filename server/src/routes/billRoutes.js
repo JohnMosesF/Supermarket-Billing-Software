@@ -17,15 +17,16 @@ billRoutes.get('/search', billController.searchBills);
 billRoutes.get('/deleted', billController.getDeletedBills);
 billRoutes.post('/deleted/:id/restore', billController.restoreDeletedBill);
 billRoutes.delete('/deleted/:id', billController.permanentlyDeleteDeletedBill);
-billRoutes.get('/:id', billController.getBill);
-billRoutes.put('/:id', billController.updateBill);
-billRoutes.get('/', billController.getBills);
-
 // Hold bills
 billRoutes.post('/hold', billController.holdBill);
 billRoutes.get('/hold/all', billController.getHeldBills);
 billRoutes.get('/hold/:id', billController.resumeHeldBill);
 billRoutes.delete('/hold/:id', billController.deleteHeldBill);
+
+// Dynamic bill routes must come after /hold and /deleted routes.
+billRoutes.get('/:id', billController.getBill);
+billRoutes.put('/:id', billController.updateBill);
+billRoutes.get('/', billController.getBills);
 
 // Refunds
 billRoutes.post('/refunds', billController.createRefund);

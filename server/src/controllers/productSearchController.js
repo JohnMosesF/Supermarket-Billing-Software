@@ -130,12 +130,11 @@ export const searchProducts = asyncHandler(async (req, res) => {
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,
     stock: product.stock,
-    unit: product.unit,
+    unit: product.unit || 'pcs',
     taxRate: product.taxRate || 0,
     tax: product.taxRate || 0,
     available: product.stock > 0,
     allowDecimalQty: product.allowDecimalQty || false,
-    unit: product.unit || 'pcs',
   }));
 
   console.log(`Found ${payload.length} products matching "${query}"`);

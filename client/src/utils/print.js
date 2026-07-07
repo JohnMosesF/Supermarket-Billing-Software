@@ -1,3 +1,5 @@
+import { normalizeBillItem } from './normalizeBillItem.js';
+
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;')
@@ -81,26 +83,21 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
   const cart = raw.cart || state.cart || raw.items || [];
 
   const items = cart.map((item, index) => {
-    const quantity = parseFloat(item.quantity ?? item.qty ?? 0);
-    const price = number(item.price ?? item.sellingPrice ?? item.rate ?? 0, 0);
-    const gstRate = number(item.taxRate ?? item.gst ?? item.tax ?? 0, 0);
-    const discount = number(item.discount, 0);
-    const taxable = Math.max(quantity * price - discount, 0);
-    const gstAmount = number(item.gstAmount, (taxable * gstRate) / 100);
-    const lineTotal = number(item.lineTotal ?? item.netAmount ?? item.total ?? item.amount, taxable + gstAmount);
+    const normalized = normalizeBillItem(item);
+    const { quantity, price, discount, taxableAmount: taxable, gstAmount, netAmount: lineTotal } = normalized;
 
     return {
-      key: item._id || item.product || item.productId || item.sku || index,
-      name: item.name || item.productName || item.itemName || 'Item',
-      sku: item.sku || item.code || item.productCode || item.productId || '',
-      productId: item.productIdNumber ?? item.productIdValue ?? item.productId ?? item._id ?? '',
-      productCode: item.productCode || item.code || item.sku || '',
-      hsn: item.hsn || item.hsnCode || '',
+      key: normalized.mongoId || normalized.productId || normalized.sku || index,
+      name: normalized.productName || 'Item',
+      sku: normalized.sku,
+      productId: normalized.productId,
+      productCode: normalized.sku,
+      hsn: normalized.hsnCode,
       quantity,
-      unit: item.unit || 'pcs',
+      unit: normalized.unit,
       quantityText: formatQuantity(quantity),
       price,
-      gstRate,
+      gstRate: normalized.gstRate,
       gstAmount,
       discount,
       taxable,

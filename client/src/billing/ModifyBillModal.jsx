@@ -4,6 +4,12 @@ import toast from 'react-hot-toast';
 import { billingAPI } from './billingService.js';
 import { currency } from '../utils/format.js';
 import ProductSearch from './ProductSearch.jsx';
+import { normalizeBillItem } from '../utils/normalizeBillItem.js';
+
+const itemKey = (item) => {
+  const normalized = normalizeBillItem(item);
+  return normalized.mongoId || normalized.productId || normalized.sku;
+};
 
 export default function ModifyBillModal({ isOpen, onClose }) {
   const [invoiceNo, setInvoiceNo] = useState('');
@@ -33,16 +39,28 @@ export default function ModifyBillModal({ isOpen, onClose }) {
 
   const handleAddProduct = (product) => {
     if (!bill) return;
-    const existing = bill.items.find((it) => String(it.productId || it.product || it._id) === String(product._id));
+    const existing = bill.items.find((item) => String(itemKey(item)) === String(product._id));
     if (existing) {
       existing.quantity = Math.min(existing.quantity + 1, product.stock);
     } else {
       bill.items.push({
         productId: product._id,
+        productIdNumber: product.productId,
+        sku: product.sku,
+        barcode: product.barcode,
         productName: product.name,
+        localName: product.localName,
+        companyName: product.companyName,
+        category: product.category,
+        hsnCode: product.hsnCode,
         quantity: 1,
         price: product.sellingPrice,
-        tax: product.taxRate,
+        gst: product.taxRate,
+        purchasePrice: product.purchasePrice,
+        sellingPrice: product.sellingPrice,
+        wholesalePrice: product.wholesalePrice,
+        mrp: product.mrp,
+        stockAtSale: product.stock,
         unit: product.unit || 'pcs',
         total: product.sellingPrice
       });
@@ -52,12 +70,12 @@ export default function ModifyBillModal({ isOpen, onClose }) {
 
   const handleRemoveItem = (productId) => {
     if (!bill) return;
-    setBill({ ...bill, items: bill.items.filter((it) => String(it.productId || it.product || it._id) !== String(productId)) });
+    setBill({ ...bill, items: bill.items.filter((item) => String(itemKey(item)) !== String(productId)) });
   };
 
   const handleChangeQty = (productId, delta) => {
     if (!bill) return;
-    const item = bill.items.find((it) => String(it.productId || it.product || it._id) === String(productId));
+    const item = bill.items.find((entry) => String(itemKey(entry)) === String(productId));
     if (item) {
       item.quantity = Math.max(1, Number(item.quantity || 0) + delta);
       setBill({ ...bill });
@@ -68,10 +86,11 @@ export default function ModifyBillModal({ isOpen, onClose }) {
     if (!bill) return;
     setLoading(true);
     try {
+      const normalizedItems = bill.items.map(normalizeBillItem);
       await billingAPI.updateBill(bill._id, {
-        items: bill.items,
-        subtotal: bill.items.reduce((s, it) => s + Number(it.price || it.sellingPrice || 0) * Number(it.quantity || 0), 0),
-        taxTotal: bill.items.reduce((s, it) => s + ((Number(it.price || it.sellingPrice || 0) * Number(it.quantity || 0)) * Number(it.tax || it.taxRate || 0)) / 100, 0),
+        items: normalizedItems.map((item) => ({ ...item, productId: item.mongoId, productIdNumber: item.productId })),
+        subtotal: normalizedItems.reduce((sum, item) => sum + item.taxableAmount, 0),
+        taxTotal: normalizedItems.reduce((sum, item) => sum + item.gstAmount, 0),
         discount: bill.discount || 0
       });
       toast.success('Bill updated successfully');
@@ -87,15 +106,7 @@ export default function ModifyBillModal({ isOpen, onClose }) {
     if (!bill) return;
     try {
       const payload = {
-        items: (bill.items || []).map((it) => ({
-          productId: it.product || it.productId || it._id,
-          productName: it.productName || it.name,
-          quantity: it.quantity,
-          unit: it.unit || 'pcs',
-          price: it.sellingPrice || it.price || 0,
-          gst: it.taxRate || it.gst || 0,
-          total: (it.sellingPrice || it.price || 0) * (it.quantity || 0)
-        })),
+        items: (bill.items || []).map(normalizeBillItem),
         subtotal: bill.subtotal || 0,
         taxTotal: bill.taxTotal || 0,
         discount: bill.discount || 0,
@@ -165,15 +176,18 @@ export default function ModifyBillModal({ isOpen, onClose }) {
 
               <div className="mt-4">
                 <h3 className="font-semibold mb-2 text-sm">Items</h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
+                <div className="overflow-x-auto max-h-60 overflow-y-auto">
+                  <div className="grid grid-cols-11 gap-2 min-w-[900px] px-2 pb-1 text-xs font-semibold text-slate-500">
+                    <span>PID</span><span>SKU</span><span className="col-span-2">Product / Local</span><span>Unit</span><span>Qty</span><span>Rate</span><span>GST</span><span>Amount</span><span className="col-span-2">Actions</span>
+                  </div>
                   {bill.items?.map((item) => {
-                      const pid = item.productId || item.product || item._id;
+                      const normalized = normalizeBillItem(item);
+                      const pid = itemKey(item);
                       return (
-                        <div key={pid} className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
-                          <div className="flex-1">
-                            <div className="font-semibold text-sm">{item.productName || item.name}</div>
-                            <div className="text-xs text-slate-500">{item.quantity} {item.unit || 'pcs'} x {currency(item.price || item.sellingPrice)}</div>
-                          </div>
+                        <div key={pid} className="grid grid-cols-11 gap-2 min-w-[900px] items-center p-2 bg-slate-50 dark:bg-slate-800 rounded text-xs">
+                          <span>{normalized.productId || '-'}</span><span>{normalized.sku || '-'}</span>
+                          <div className="col-span-2"><div className="font-semibold">{normalized.productName || '-'}</div><div className="text-slate-500">{normalized.localName || '-'}</div></div>
+                          <span>{normalized.unit}</span><span>{normalized.quantity}</span><span>{currency(normalized.price)}</span><span>{normalized.gstRate}%</span><span>{currency(normalized.netAmount)}</span>
                           <div className="flex items-center gap-1 border rounded">
                             <button
                               className="p-1"
@@ -181,7 +195,7 @@ export default function ModifyBillModal({ isOpen, onClose }) {
                             >
                               <Minus size={14} />
                             </button>
-                            <span className="w-6 text-center text-sm">{item.quantity}</span>
+                            <span className="w-6 text-center text-sm">{normalized.quantity}</span>
                             <button
                               className="p-1"
                               onClick={() => handleChangeQty(pid, 1)}

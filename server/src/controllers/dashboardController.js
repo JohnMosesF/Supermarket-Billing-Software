@@ -3,6 +3,12 @@ import { Product } from '../models/Product.js';
 import Bill from '../models/Bill.js';
 import { Sale } from '../models/Sale.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { SalesReturn } from '../models/SalesReturn.js';
+import { PurchaseReturn } from '../models/PurchaseReturn.js';
+import { Supplier } from '../models/Supplier.js';
+import { CustomerReceipt } from '../models/CustomerReceipt.js';
+import { SupplierPayment } from '../models/SupplierPayment.js';
+import { DayBookEntry } from '../models/DayBookEntry.js';
 
 function startOfToday() {
   const date = new Date();
@@ -21,7 +27,7 @@ export const getDashboard = asyncHandler(async (req, res) => {
   const overdueDate = new Date();
   overdueDate.setDate(overdueDate.getDate() - 30);
 
-  const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart, receivableAgg, customersWithDue, overdueCreditBills, todayCreditSalesAgg, collectedTodayAgg] = await Promise.all([
+  const [totalSalesAgg, todaySalesAgg, productCount, lowStock, recentTransactions, revenueChart, receivableAgg, customersWithDue, overdueCreditBills, todayCreditSalesAgg, collectedTodayAgg, todaySalesReturns, todayPurchaseReturns, monthlySalesReturns, monthlyPurchaseReturns, mostReturnedProducts] = await Promise.all([
     Bill.aggregate([{ $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } }]),
     Bill.aggregate([{ $match: { createdAt: { $gte: today } } }, { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 } } }]),
     Product.countDocuments({ active: true }),
@@ -40,7 +46,21 @@ export const getDashboard = asyncHandler(async (req, res) => {
       { $unwind: '$paymentHistory' },
       { $match: { 'paymentHistory.date': { $gte: today, $lt: tomorrow } } },
       { $group: { _id: null, total: { $sum: '$paymentHistory.amount' }, count: { $sum: 1 } } }
-    ])
+    ]),
+    SalesReturn.aggregate([{ $match: { returnDate: { $gte: today, $lt: tomorrow }, status: 'Completed' } }, { $group: { _id: null, value: { $sum: '$refundAmount' }, count: { $sum: 1 } } }]),
+    PurchaseReturn.aggregate([{ $match: { returnDate: { $gte: today, $lt: tomorrow }, status: 'Completed' } }, { $group: { _id: null, value: { $sum: '$returnAmount' }, count: { $sum: 1 } } }]),
+    SalesReturn.aggregate([{ $match: { returnDate: { $gte: monthStart }, status: 'Completed' } }, { $group: { _id: null, value: { $sum: '$refundAmount' }, count: { $sum: 1 } } }]),
+    PurchaseReturn.aggregate([{ $match: { returnDate: { $gte: monthStart }, status: 'Completed' } }, { $group: { _id: null, value: { $sum: '$returnAmount' }, count: { $sum: 1 } } }]),
+    SalesReturn.aggregate([{ $match: { returnDate: { $gte: monthStart }, status: 'Completed' } }, { $unwind: '$items' }, { $group: { _id: '$items.product', name: { $first: '$items.productName' }, quantity: { $sum: '$items.quantity' }, value: { $sum: '$items.refundAmount' } } }, { $sort: { quantity: -1 } }, { $limit: 5 }])
+  ]);
+
+  const [supplierPayables, todaysReceipts, todaysPayments, recentReceipts, recentSupplierPayments, cashSummary] = await Promise.all([
+    Supplier.aggregate([{ $group: { _id: null, total: { $sum: '$outstandingBalance' } } }]),
+    CustomerReceipt.aggregate([{ $match: { receiptDate: { $gte: today, $lt: tomorrow }, status: 'Posted' } }, { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }]),
+    SupplierPayment.aggregate([{ $match: { paymentDate: { $gte: today, $lt: tomorrow }, status: 'Posted' } }, { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }]),
+    CustomerReceipt.find({ status: 'Posted' }).populate('customer', 'name mobile').sort({ receiptDate: -1 }).limit(5).lean(),
+    SupplierPayment.find({ status: 'Posted' }).populate('supplier', 'name mobile').sort({ paymentDate: -1 }).limit(5).lean(),
+    DayBookEntry.aggregate([{ $group: { _id: null, cashIn: { $sum: '$cashIn' }, cashOut: { $sum: '$cashOut' } } }])
   ]);
 
   res.json({
@@ -57,10 +77,25 @@ export const getDashboard = asyncHandler(async (req, res) => {
       todayCreditSales: todayCreditSalesAgg[0]?.total || 0,
       todayCreditBills: todayCreditSalesAgg[0]?.count || 0,
       collectedToday: collectedTodayAgg[0]?.total || 0,
-      collectionCountToday: collectedTodayAgg[0]?.count || 0
+      collectionCountToday: collectedTodayAgg[0]?.count || 0,
+      todaySalesReturns: todaySalesReturns[0]?.value || 0,
+      todaySalesReturnCount: todaySalesReturns[0]?.count || 0,
+      todayPurchaseReturns: todayPurchaseReturns[0]?.value || 0,
+      todayPurchaseReturnCount: todayPurchaseReturns[0]?.count || 0,
+      monthlyReturns: (monthlySalesReturns[0]?.value || 0) + (monthlyPurchaseReturns[0]?.value || 0),
+      monthlyReturnCount: (monthlySalesReturns[0]?.count || 0) + (monthlyPurchaseReturns[0]?.count || 0)
+      , totalPayables: supplierPayables[0]?.total || 0
+      , todayCollections: todaysReceipts[0]?.total || 0
+      , todayCollectionCount: todaysReceipts[0]?.count || 0
+      , todayPayments: todaysPayments[0]?.total || 0
+      , todayPaymentCount: todaysPayments[0]?.count || 0
+      , cashBalance: (cashSummary[0]?.cashIn || 0) - (cashSummary[0]?.cashOut || 0)
     },
     lowStock,
     recentTransactions,
-    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue, profit: item.profit || 0 }))
+    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue, profit: item.profit || 0 })),
+    mostReturnedProducts,
+    recentReceipts,
+    recentSupplierPayments
   });
 });

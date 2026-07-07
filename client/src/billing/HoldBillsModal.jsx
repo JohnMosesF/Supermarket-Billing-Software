@@ -3,6 +3,7 @@ import { X, Play, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { holdBillAPI } from './billingService.js';
 import { currency } from '../utils/format.js';
+import { normalizeBillItem } from '../utils/normalizeBillItem.js';
 
 export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
   const [heldBills, setHeldBills] = useState([]);
@@ -83,7 +84,10 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{heldBill.items?.length || 0} items</p>
                     <p className="text-xs text-slate-500">
-                      {(heldBill.items || []).slice(0, 3).map((item) => `${item.productName || item.name}: ${item.quantity || item.qty} ${item.unit || 'pcs'}`).join(', ')}
+                      {(heldBill.items || []).slice(0, 3).map((item) => {
+                        const normalized = normalizeBillItem(item);
+                        return `${normalized.productName || 'Item'}: ${normalized.quantity} ${normalized.unit}`;
+                      }).join(', ')}
                     </p>
                     <p className="text-xs text-slate-500">
                       {heldBill.customerMobile && `Customer: ${heldBill.customerMobile}`}

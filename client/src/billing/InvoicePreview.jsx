@@ -1,8 +1,11 @@
 import React from 'react';
 import { makeReceiptBodyHtml, makeReceiptCss } from '../utils/print.js';
+import { normalizeBillItems } from '../utils/normalizeBillItem.js';
 
 export default function InvoicePreview({ sale, settings = {}, state = {}, totals = {}, cart = [] }) {
-  const receiptSale = sale || { state, totals, cart };
+  const source = sale || { state, totals, cart };
+  const normalizedCart = normalizeBillItems(source.cart || source.state?.cart || source.items || cart);
+  const receiptSale = { ...source, cart: normalizedCart, items: normalizedCart, state: { ...(source.state || state), cart: normalizedCart } };
   const width = settings?.receiptWidth === '58mm' || settings?.thermalPaperWidth === '58mm'
     ? '58mm'
     : settings?.receiptWidth === '72mm' || settings?.thermalPaperWidth === '72mm'

@@ -15,6 +15,9 @@ import { Purchases } from './pages/Purchases.jsx';
 import { Reports } from './pages/Reports.jsx';
 import { SettingsPage } from './pages/SettingsPage.jsx';
 import { Suppliers } from './pages/Suppliers.jsx';
+import { SalesReturns } from './pages/SalesReturns.jsx';
+import { PurchaseReturns } from './pages/PurchaseReturns.jsx';
+import { CollectionReport, DayBook, LedgerPage, OutstandingPage, ReceiptEntry, SupplierPaymentEntry } from './pages/Accounting.jsx';
 import { UsersPage } from './pages/UsersPage.jsx';
 
 export default function App() {
@@ -32,6 +35,16 @@ export default function App() {
             <Route path="inventory" element={<Inventory />} />
             <Route path="purchases" element={<Purchases />} />
             <Route path="suppliers" element={<Suppliers />} />
+            <Route path="sales-returns" element={<SalesReturns />} />
+            <Route path="purchase-returns" element={<PurchaseReturns />} />
+            <Route path="accounting/customer-ledger" element={<LedgerPage type="customer" />} />
+            <Route path="accounting/supplier-ledger" element={<LedgerPage type="supplier" />} />
+            <Route path="accounting/customer-outstanding" element={<OutstandingPage type="customer" />} />
+            <Route path="accounting/supplier-outstanding" element={<OutstandingPage type="supplier" />} />
+            <Route path="accounting/receipts" element={<ReceiptEntry />} />
+            <Route path="accounting/supplier-payments" element={<SupplierPaymentEntry />} />
+            <Route path="accounting/day-book" element={<DayBook />} />
+            <Route path="accounting/collections" element={<CollectionReport />} />
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="settings" element={<SettingsPage />} />

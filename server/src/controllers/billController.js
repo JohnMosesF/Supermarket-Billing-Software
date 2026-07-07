@@ -13,6 +13,7 @@ import Refund from '../models/Refund.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { normalizeBillItemSnapshot } from '../utils/billItemSnapshot.js';
+import { reconcileCustomerAccounting, rebuildDayBook } from '../services/accountingService.js';
 
 function normalizePaymentMethod(value) {
   const normalized = String(value || 'Cash').trim().toLowerCase();
@@ -86,27 +87,6 @@ async function deductSoldStock(items, bill, userId) {
   }
 }
 
-function billItemsChanged(previousItems = [], nextItems = []) {
-  if ((previousItems || []).length !== (nextItems || []).length) return true;
-  const previousMap = new Map();
-  for (const item of previousItems || []) {
-    const key = String(item.productId || item.product || item._id || '');
-    const quantity = Number(item.quantity || item.qty || 0);
-    previousMap.set(key, (previousMap.get(key) || 0) + quantity);
-  }
-  const nextMap = new Map();
-  for (const item of nextItems || []) {
-    const key = String(item.productId || item.product || item._id || '');
-    const quantity = Number(item.quantity || item.qty || 0);
-    nextMap.set(key, (nextMap.get(key) || 0) + quantity);
-  }
-  if (previousMap.size !== nextMap.size) return true;
-  for (const [key, quantity] of previousMap.entries()) {
-    if (Number(nextMap.get(key) || 0) !== quantity) return true;
-  }
-  return false;
-}
-
 async function restoreSoldStock(items, reason, userId, billId) {
   for (const it of items || []) {
     const quantity = Math.abs(Number(it.quantity || it.qty || 0));
@@ -146,6 +126,51 @@ async function resolveBillCustomer({ customerId, customerMobile, customerName, c
     await customer.save();
   }
   return customer;
+}
+
+async function recalculateCustomerBillingTotals(customerId) {
+  if (!customerId) return;
+  const customer = await Customer.findById(customerId);
+  if (!customer) return;
+  const bills = await Bill.find({ customer: customerId, status: { $ne: 'Cancelled' } }).lean();
+  const creditBills = bills.filter((bill) => bill.paymentMethod === 'Credit');
+  const paidAmount = bills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
+  const creditPaid = creditBills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
+  const dueAmount = creditBills.reduce((sum, bill) => sum + Number(bill.dueAmount || 0), 0);
+
+  customer.totalSpent = bills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
+  customer.loyaltyPoints = Math.floor(customer.totalSpent / 100);
+  customer.totalCredit = creditBills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
+  customer.totalCreditSales = customer.totalCredit;
+  customer.totalPaid = paidAmount;
+  customer.totalPaidAmount = paidAmount;
+  customer.outstandingBalance = dueAmount;
+  customer.creditBalance = dueAmount;
+
+  const billTransactions = creditBills.map((bill) => ({
+    billId: bill._id,
+    billModel: 'Bill',
+    invoiceNo: bill.invoiceNo,
+    billAmount: bill.total,
+    paidAmount: bill.paidAmount,
+    dueAmount: bill.dueAmount,
+    paymentMethod: 'Credit',
+    paymentStatus: bill.paymentStatus,
+    date: bill.invoiceAt || bill.createdAt
+  }));
+  customer.creditTransactions = [
+    ...customer.creditTransactions.filter((entry) => entry.billModel !== 'Bill'),
+    ...billTransactions
+  ];
+  customer.creditHistory = [
+    ...customer.creditHistory.filter((entry) => entry.billModel !== 'Bill'),
+    ...billTransactions
+  ];
+  customer.lastCreditDate = creditBills.length ? new Date(Math.max(...creditBills.map((bill) => new Date(bill.invoiceAt || bill.createdAt).getTime()))) : undefined;
+  customer.lastPaymentDate = creditPaid > 0 || paidAmount > 0
+    ? new Date(Math.max(...bills.filter((bill) => Number(bill.paidAmount || 0) > 0).map((bill) => new Date(bill.invoiceAt || bill.createdAt).getTime())))
+    : undefined;
+  await customer.save();
 }
 
 // Create bill
@@ -201,7 +226,9 @@ export const createBill = asyncHandler(async (req, res) => {
       barcode: it.barcode || '',
       localName: it.localName || '',
       purchasePrice: it.purchasePrice || '',
+      wholesalePrice: it.wholesalePrice || '',
       mrp: it.mrp || '',
+      hsnCode: it.hsnCode || it.hsn || '',
       category: it.category || '',
       companyName: it.companyName || '',
       stockAtSale: it.stockAtSale || product?.stock || 0,
@@ -320,7 +347,9 @@ export const createBill = asyncHandler(async (req, res) => {
     }
 
     await customer.save();
+    await reconcileCustomerAccounting(customer._id);
   }
+  await rebuildDayBook();
 
   res.status(201).json({ bill, message: 'Bill created successfully' });
 });
@@ -345,14 +374,13 @@ export const updateBill = asyncHandler(async (req, res) => {
     paymentMethod,
     amountPaid,
     discountPercent,
-    invoiceAt,
     notes,
-    invoiceNo,
-    invoiceNumber
+    customerAddress
   } = req.body;
 
   const bill = await Bill.findById(req.params.id);
   if (!bill) throw new ApiError(404, 'Bill not found');
+  const previousCustomerId = bill.customer ? String(bill.customer) : null;
 
   if (!items || items.length === 0) {
     throw new ApiError(400, 'Bill must have at least one item');
@@ -381,7 +409,9 @@ export const updateBill = asyncHandler(async (req, res) => {
       barcode: it.barcode || '',
       localName: it.localName || '',
       purchasePrice: it.purchasePrice || '',
+      wholesalePrice: it.wholesalePrice || '',
       mrp: it.mrp || '',
+      hsnCode: it.hsnCode || it.hsn || '',
       category: it.category || '',
       companyName: it.companyName || '',
       stockAtSale: it.stockAtSale || product?.stock || 0,
@@ -389,36 +419,49 @@ export const updateBill = asyncHandler(async (req, res) => {
     }, product));
   }
 
+  const customer = await resolveBillCustomer({
+    customerId: req.body.customer,
+    customerMobile,
+    customerName,
+    customerAddress
+  });
+  if (normalizePaymentMethod(paymentMethod || bill.paymentMethod) === 'Credit' && !customer) {
+    throw new ApiError(400, 'Customer name and mobile number are required for credit bills');
+  }
+
   await validateBillItemsForSale(normalizedItems, bill.items);
-  const quantitiesChanged = billItemsChanged(bill.items, normalizedItems);
-  if (quantitiesChanged) {
-    await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
+  await restoreSoldStock(bill.items, `Bill edit restore ${bill.invoiceNo}`, req.user?._id, bill._id);
+  try {
     await deductSoldStock(normalizedItems, bill, req.user?._id);
+  } catch (error) {
+    await deductSoldStock(bill.items, bill, req.user?._id);
+    throw error;
   }
 
   bill.items = normalizedItems;
-  bill.invoiceNo = invoiceNo || bill.invoiceNo;
-  bill.invoiceNumber = invoiceNumber || bill.invoiceNumber || bill.invoiceNo;
   bill.subtotal = subtotal != null ? subtotal : bill.subtotal;
   bill.taxTotal = taxTotal != null ? taxTotal : bill.taxTotal;
   bill.discount = discount != null ? discount : bill.discount;
   bill.discountPercent = discountPercent != null ? discountPercent : bill.discountPercent;
   bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount;
-  bill.customerName = customerName || bill.customerName;
-  bill.customerMobile = customerMobile || bill.customerMobile;
+  bill.customer = customer?._id || undefined;
+  bill.customerName = customerName || 'Walk-in Customer';
+  bill.customerMobile = customerMobile || undefined;
+  bill.customerAddress = customerAddress || customer?.address || '';
   bill.paymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
-  bill.paidAmount = bill.paymentMethod === 'Credit' ? Number(amountPaid || bill.paidAmount || 0) : bill.total;
-  bill.dueAmount = Math.max(bill.total - bill.paidAmount, 0);
+  bill.paidAmount = bill.paymentMethod === 'Credit' ? Number(amountPaid ?? bill.paidAmount ?? 0) : bill.total;
+  bill.dueAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
   bill.balanceAmount = bill.paymentMethod === 'Credit' ? Math.max(0, bill.paidAmount - bill.total) : 0;
   bill.paymentStatus = paymentStatusFromAmounts(bill.total, bill.paidAmount);
   bill.notes = notes != null ? notes : bill.notes;
-  if (invoiceAt) {
-    const at = new Date(invoiceAt);
-    if (!isNaN(at.getTime())) bill.invoiceAt = at;
-  }
-  bill.updatedAt = new Date();
-
   await bill.save();
+  await recalculateCustomerBillingTotals(previousCustomerId);
+  if (customer?._id && String(customer._id) !== previousCustomerId) {
+    await recalculateCustomerBillingTotals(customer._id);
+  }
+  await reconcileCustomerAccounting(previousCustomerId);
+  if (customer?._id && String(customer._id) !== previousCustomerId) await reconcileCustomerAccounting(customer._id);
+  await rebuildDayBook();
   res.json({ bill, message: 'Bill updated successfully' });
 });
 
@@ -428,6 +471,7 @@ export const deleteBill = asyncHandler(async (req, res) => {
   const bill = await Bill.findById(req.params.id);
 
   if (!bill) throw new ApiError(404, 'Bill not found');
+  const customerId = bill.customer;
 
   // Create deleted bill record
   await DeletedBill.create({
@@ -440,6 +484,9 @@ export const deleteBill = asyncHandler(async (req, res) => {
 
   // Delete bill
   await Bill.findByIdAndDelete(req.params.id);
+  await recalculateCustomerBillingTotals(customerId);
+  await reconcileCustomerAccounting(customerId);
+  await rebuildDayBook();
 
   res.json({ message: 'Bill deleted successfully' });
 });
@@ -460,15 +507,9 @@ export const restoreDeletedBill = asyncHandler(async (req, res) => {
     throw new ApiError(409, 'Invoice number already exists in active bills');
   }
 
-  const originalItems = (deletedBill.originalData.items || []).map((it) => ({
-    productId: it.productId,
-    productName: it.productName || it.name || '',
-    quantity: Number(it.quantity || it.qty || 0),
-    unit: it.unit || 'pcs',
-    price: Number(it.price || it.sellingPrice || it.rate || 0),
-    tax: Number(it.gst || it.taxRate || it.tax || 0),
-    total: Number(it.total || 0)
-  }));
+  const originalItems = (deletedBill.originalData.items || []).map((item) =>
+    normalizeBillItemSnapshot(item)
+  );
 
   await validateBillItemsForSale(originalItems);
   await deductSoldStock(originalItems, { _id: deletedBill._id, invoiceNo: deletedBill.originalData.invoiceNo }, req.user?._id);
@@ -489,6 +530,8 @@ export const restoreDeletedBill = asyncHandler(async (req, res) => {
   };
 
   const bill = await Bill.create(restoredBillData);
+  await reconcileCustomerAccounting(bill.customer);
+  await rebuildDayBook();
   await DeletedBill.findByIdAndDelete(req.params.id);
 
   res.json({ bill, message: 'Deleted bill restored' });
@@ -622,15 +665,13 @@ export const holdBill = asyncHandler(async (req, res) => {
 
     const productIdObj = new mongoose.Types.ObjectId(String(pid));
 
-    const normalized = {
+    const product = await Product.findById(productIdObj).lean();
+    const normalized = normalizeBillItemSnapshot({
+      ...it,
       productId: productIdObj,
-      productName: it.productName || it.name || '',
-      quantity: parseFloat(it.quantity || it.qty || 0.001),
-      unit: String(it.unit || 'pcs').trim().toLowerCase(),
-      price: parseFloat(it.price || it.sellingPrice || it.rate || 0),
-      gst: parseFloat(it.gst || it.taxRate || it.tax || 0),
-      total: Number(it.total != null ? it.total : (Number(it.price || it.sellingPrice || it.rate || 0) * parseFloat(it.quantity || it.qty || 0.001)))
-    };
+      productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
+      stockAtSale: it.stockAtSale ?? product?.stock ?? 0
+    }, product);
 
     normalizedItems.push(normalized);
   }
