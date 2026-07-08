@@ -34,7 +34,13 @@ function lineMath(item) {
   return { gross, discount, gstAmount, netAmount: taxable + gstAmount };
 }
 
-function makeDraftSale(cart, totals, paymentMethod, customer, settings) {
+function productDisplayName(item, settings) {
+  const language = String(settings?.invoiceLanguage || '').trim().toLowerCase();
+  const useLocal = language === 'local language' || language === 'local';
+  return useLocal ? (item.localName || item.name) : item.name;
+}
+
+function makeDraftSale(cart, totals, paymentMethod, customer, settings, paidAmount = totals.grandTotal) {
   return {
     invoiceNumber: 'PREVIEW',
     createdAt: new Date(),
@@ -45,6 +51,8 @@ function makeDraftSale(cart, totals, paymentMethod, customer, settings) {
     taxTotal: totals.gst,
     discount: totals.discount,
     total: totals.grandTotal,
+    paidAmount,
+    balanceAmount: Math.max(totals.grandTotal - Number(paidAmount || 0), 0),
     items: cart.map((item) => ({ ...item, lineTotal: lineMath(item).netAmount })),
     settings
   };
@@ -144,16 +152,16 @@ export function Billing() {
   }, [cart, discount]);
 
 // Calculate payment and customer credit details  
-  const paid = Number(paidAmount || 0);
+  const isCredit = paymentMethod === 'credit';
+  const paid = paidAmount === '' ? (isCredit ? 0 : totals.grandTotal) : Number(paidAmount || 0);
   const balanceAmount = Math.max(totals.grandTotal - paid, 0);
   const changeReturn = Math.max(paid - totals.grandTotal, 0);
-  const isCredit = paymentMethod === 'credit';
   const customerOutstanding = Number(customer.outstandingBalance || 0);
   const customerTotalCredit = Number(customer.totalCredit || 0);
   const customerCreditBills = customer.creditTransactions?.filter((tx) => Number(tx.dueAmount || 0) > 0) || [];
   const lastDue = customerCreditBills[0]?.dueAmount || 0;
   const activeProduct = products[highlightedSuggestion];
-  const draftSale = sale || makeDraftSale(cart, totals, paymentMethod, customer, settings);
+  const draftSale = sale || makeDraftSale(cart, totals, paymentMethod, customer, settings, paid);
 
   function resetBill() {
     setCart([]);
@@ -249,7 +257,7 @@ export function Billing() {
       })),
       paymentMethod,
       paymentStatus: paymentMethod === 'credit' ? 'pending' : 'paid',
-      paidAmount: paymentMethod === 'credit' ? paid : Math.max(paid, totals.grandTotal),
+      paidAmount: paid,
       customer: customer._id,
       customerName: customer.name,
       customerMobile: customer.mobile,
@@ -461,7 +469,7 @@ export function Billing() {
                       <tr key={item._id} onClick={() => setSelectedRow(index)} className={`${selected ? 'bg-blue-50 text-blue-950 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/40 dark:text-blue-100' : index % 2 ? 'bg-slate-50/70 dark:bg-slate-900' : 'bg-white dark:bg-slate-950'} cursor-default`}>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800"><input type="radio" checked={selected} onChange={() => setSelectedRow(index)} /></td>
                         <td className="border-b border-slate-100 px-3 py-2 font-mono dark:border-slate-800">{item.sku}</td>
-                        <td className="border-b border-slate-100 px-3 py-2 font-semibold dark:border-slate-800">{item.name}</td>
+                        <td className="border-b border-slate-100 px-3 py-2 font-semibold dark:border-slate-800">{productDisplayName(item, settings)}</td>
                         <td className="border-b border-slate-100 px-3 py-2 dark:border-slate-800">
                           <input className="h-9 w-24 rounded-md border border-slate-200 px-2 text-right dark:border-slate-700 dark:bg-slate-900" type="number" step="0.01" value={item.price} onChange={(event) => updateCartItem(item._id, { price: Number(event.target.value) })} />
                         </td>

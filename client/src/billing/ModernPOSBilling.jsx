@@ -25,6 +25,14 @@ const toCartItem = (item) => {
   };
 };
 
+const paymentAmount = (amountPaid, total, paymentMethod) => {
+  const paid = Number(amountPaid);
+  if (String(paymentMethod || '').trim().toLowerCase() === 'credit') {
+    return Number.isFinite(paid) ? Math.max(paid, 0) : 0;
+  }
+  return Number.isFinite(paid) && paid > 0 ? paid : Number(total || 0);
+};
+
 /**
  * ModernPOSBilling - Complete keyboard-first billing interface
  * 
@@ -422,6 +430,9 @@ export default function ModernPOSBilling() {
       };
     });
 
+    const paidAmount = paymentAmount(amountPaid, total, paymentMethod);
+    const balanceAmount = Math.max(0, total - paidAmount);
+
     const payload = {
       items,
       subtotal,
@@ -436,20 +447,14 @@ export default function ModernPOSBilling() {
       customerName: customerName || 'Walk-in Customer',
       customerMobile: customerMobile || null,
 
-      // CREDIT SUPPORT
-      amountPaid:
-        paymentMethod === 'credit'
-          ? Number(amountPaid || 0)
-          : total,
+      amountPaid: paidAmount,
+      paidAmount,
 
-      balanceDue:
-        paymentMethod === 'credit'
-          ? Math.max(0, total - Number(amountPaid || 0))
-          : 0,
+      balanceDue: balanceAmount,
+      balanceAmount,
 
       paymentStatus:
-        paymentMethod === 'credit' &&
-        Math.max(0, total - Number(amountPaid || 0)) > 0
+        balanceAmount > 0
           ? 'PARTIAL'
           : 'PAID'
     };
@@ -860,9 +865,7 @@ export default function ModernPOSBilling() {
   const displayedDiscount = isReadOnly && loadedBill ? Number(loadedBill.discount || 0) : discount;
   const displayedTotal = isReadOnly && loadedBill ? Number(loadedBill.total || 0) : total;
   const balanceDue =
-    paymentMethod === 'credit'
-      ? Math.max(0, total - Number(amountPaid || 0))
-      : 0;
+    Math.max(0, total - paymentAmount(amountPaid, total, paymentMethod));
   const displayedBalanceDue = isReadOnly && loadedBill ? Number(loadedBill.dueAmount || 0) : balanceDue;
   const itemCount = cart.length;
   const quantity = cart.reduce((sum, it) => sum + parseFloat(it.qty || 0), 0);
@@ -876,7 +879,9 @@ export default function ModernPOSBilling() {
     subtotal: displayedSubtotal,
     taxTotal: displayedTaxTotal,
     discount: displayedDiscount,
-    total: displayedTotal
+    total: displayedTotal,
+    paidAmount: paymentAmount(amountPaid, displayedTotal, paymentMethod),
+    balanceAmount: Math.max(0, displayedTotal - paymentAmount(amountPaid, displayedTotal, paymentMethod))
   };
 
   return (
@@ -925,6 +930,7 @@ export default function ModernPOSBilling() {
             <div className="flex-1 overflow-auto">
               <BillingTable
                 cart={cart}
+                invoiceLanguage={settings?.invoiceLanguage}
                 onSelectIndex={setSelectedIndex}
                 selectedIndex={selectedIndex}
                 onUpdateItem={updateItem}

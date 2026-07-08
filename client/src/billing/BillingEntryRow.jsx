@@ -27,6 +27,7 @@ import { currency } from '../utils/format.js';
   const [mongoId, setMongoId] = useState(null); // MongoDB ObjectId (_id)
   const [productId, setProductId] = useState(''); // Numeric product ID
   const [name, setName] = useState('');
+  const [localName, setLocalName] = useState('');
   const [sku, setSku] = useState('');
   const [rate, setRate] = useState('0');
   const [qty, setQty] = useState('1');
@@ -74,6 +75,7 @@ import { currency } from '../utils/format.js';
       setMongoId(null);
       setProductId('');
       setName('');
+      setLocalName('');
       setRate('0');
       setQty('1');
       setGst('0');
@@ -99,6 +101,7 @@ import { currency } from '../utils/format.js';
     setProductId('');
     setSku('');
     setName('');
+    setLocalName('');
     setRate('0');
     setQty('1');
     setStock(null);
@@ -133,6 +136,7 @@ import { currency } from '../utils/format.js';
         setProductId(String(found.productId || ''));
         setSku(found.sku || '');
         setName(found.productName || found.name || '');
+        setLocalName(found.localName || '');
         setRate(String(found.sellingPrice ?? 0));
         setGst(String(found.taxRate ?? 0));
         setQty('1');
@@ -205,6 +209,7 @@ import { currency } from '../utils/format.js';
     setMongoId(product._id || null); // PRESERVE MongoDB ObjectId
     setProductId(String(product.productId || ''));
     setName(product.productName || product.name || '');
+    setLocalName(product.localName || '');
     setRate(String(product.sellingPrice ?? 0));
     setGst(String(product.taxRate || product.tax || 0));
     setQty('1');
@@ -336,6 +341,7 @@ import { currency } from '../utils/format.js';
 
       productName: name,
       name,
+      localName,
 
       qty: parseFloat(qty || 0.001),
       unit,

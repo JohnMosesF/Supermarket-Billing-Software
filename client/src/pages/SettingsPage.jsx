@@ -51,6 +51,7 @@ const defaults = {
   receiptLineHeight: 1.25,
   printDensity: 'normal',
   dividerStyle: 'dashed',
+  invoiceLanguage: 'English',
   centerHeader: true,
   boldStoreName: true,
   showDividers: true,
@@ -246,6 +247,17 @@ export function SettingsPage() {
             <Checkbox register={register} name="centerHeader" label="Center Header" />
             <Checkbox register={register} name="boldStoreName" label="Bold Store Name" />
             <Checkbox register={register} name="showDividers" label="Show Dividers" />
+          </div>
+        </Section>
+
+        <Section title="Invoice Settings">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Invoice Language">
+              <select className="input" {...register('invoiceLanguage')}>
+                <option value="English">English</option>
+                <option value="Local Language">Local Language</option>
+              </select>
+            </Field>
           </div>
         </Section>
 

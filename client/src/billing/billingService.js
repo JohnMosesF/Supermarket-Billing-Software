@@ -21,6 +21,7 @@ function normalizeProductResult(product) {
     productId: product.productId != null ? Number(product.productId) : undefined,
     name: product.name || product.productName || '',
     productName: product.productName || product.name || '',
+    localName: product.localName || '',
     sku: product.sku || '',
     unit: product.unit || '',
     barcode: product.barcode || '',

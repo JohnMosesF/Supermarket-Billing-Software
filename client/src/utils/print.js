@@ -46,6 +46,12 @@ function cleanLines(lines) {
   return lines.map((line) => String(line || '').trim()).filter(Boolean);
 }
 
+function normalizeCurrencySymbol(value, fallback = '₹') {
+  const symbol = String(value || '').trim();
+  if (!symbol || symbol === 'â‚¹' || symbol === '&#8377;') return fallback;
+  return symbol;
+}
+
 export function getReceiptSettings(settings = {}) {
   const width = String(settings.receiptWidth || settings.thermalPaperWidth || '80mm').trim();
   const normalizedWidth = width === '58mm' ? '58mm' : width === '72mm' ? '72mm' : width === 'A4' ? 'A4' : '80mm';
@@ -72,7 +78,7 @@ export function getReceiptSettings(settings = {}) {
     boldStoreName: bool(settings.boldStoreName, true),
     showDividers: bool(settings.showDividers, true),
     paperFeedAfterPrint: number(settings.paperFeedAfterPrint, 8),
-    currencySymbol: settings.currencySymbol || (settings.currency === 'INR' || !settings.currency ? '₹' : settings.currency)
+    currencySymbol: normalizeCurrencySymbol(settings.currencySymbol, settings.currency === 'INR' || !settings.currency ? '₹' : settings.currency)
   };
 }
 
@@ -89,6 +95,8 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
     return {
       key: normalized.mongoId || normalized.productId || normalized.sku || index,
       name: normalized.productName || 'Item',
+      localName: normalized.localName,
+      displayName: getItemDisplayName(normalized, settings),
       sku: normalized.sku,
       productId: normalized.productId,
       productCode: normalized.sku,
@@ -113,7 +121,8 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
   const discount = number(raw.discount ?? totals.discount, computedDiscount);
   const total = number(raw.total ?? raw.grandTotal ?? raw.totalAmount ?? totals.total ?? totals.grandTotal, subtotal + taxTotal - discount);
   const roundOff = number(raw.roundOff ?? totals.roundOff, total - (subtotal + taxTotal - discount));
-  const paidAmount = number(raw.paidAmount ?? raw.paid, total);
+  const paidAmount = number(raw.paidAmount ?? raw.amountPaid ?? raw.paid, total);
+  const balanceAmount = Math.max(total - paidAmount, 0);
 
   return {
     storeName: settings.storeName || raw.storeName || 'StoreDesk POS',
@@ -138,7 +147,7 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
     customerGst: raw.customerGst || raw.customerGST || raw.customer?.gstNumber || '',
     paymentMethod: raw.paymentMethod || state.paymentMethod || 'cash',
     paidAmount,
-    balanceAmount: number(raw.balanceAmount ?? raw.dueAmount, Math.max(total - paidAmount, 0)),
+    balanceAmount,
     savings: number(raw.savings ?? totals.savings, discount),
     items,
     subtotal,
@@ -152,6 +161,12 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
 
 function showField(settings, key, fallback = true) {
   return bool(settings[`show${key}`], fallback);
+}
+
+function getItemDisplayName(item, settings = {}) {
+  const language = String(settings.invoiceLanguage || '').trim().toLowerCase();
+  if (language === 'local language' || language === 'local') return item.localName || item.productName || item.name || 'Item';
+  return item.productName || item.name || 'Item';
 }
 
 function dividerMarkup(settings, className = '') {
@@ -213,26 +228,22 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
     invoice.website
   ]);
 
-  const itemRows = invoice.items.map((item, index) => {
-    const meta = cleanLines([
-      showField(rawSettings, 'ProductID', false) && item.productId ? `PID: ${item.productId}` : '',
-      showField(rawSettings, 'SKU', false) && item.sku ? `SKU: ${item.sku}` : '',
-      showField(rawSettings, 'ProductCode', false) && item.productCode ? `Code: ${item.productCode}` : '',
-      showField(rawSettings, 'HSN', false) && item.hsn ? `HSN: ${item.hsn}` : ''
-    ]);
-
-    return `<div class="item">
-      <div class="item-title"><span>${index + 1}. ${escapeHtml(item.name)}</span><b>${escapeHtml(money(item.lineTotal, settings.currencySymbol))}</b></div>
-      ${meta.length ? `<div class="item-meta">${escapeHtml(meta.join(' | '))}</div>` : ''}
-      <div class="item-grid">
-        <span>${escapeHtml(item.quantityText)}</span>
-        <span>${showField(rawSettings, 'Unit', true) ? escapeHtml(item.unit) : ''}</span>
-        <span>${escapeHtml(money(item.price, settings.currencySymbol))}</span>
-        <span>${showField(rawSettings, 'GSTPercent', true) ? escapeHtml(`${item.gstRate.toFixed(2).replace(/\.00$/, '')}%`) : ''}</span>
-        <strong>${escapeHtml(money(item.lineTotal, settings.currencySymbol))}</strong>
-      </div>
+  const itemRows = invoice.items.map((item) => {
+    return `<div class="item-row">
+      <span class="item-rate">${escapeHtml(money(item.price, settings.currencySymbol))}</span>
+      <span class="item-name">${escapeHtml(item.displayName || item.name || 'Item')}</span>
+      <span class="item-qty">${escapeHtml(item.quantityText)}</span>
+      <span class="item-amount">${escapeHtml(money(item.lineTotal, settings.currencySymbol))}</span>
     </div>`;
   }).join('');
+  const totalQty = invoice.items.reduce((sum, item) => sum + number(item.quantity, 0), 0);
+  const itemSummary = `<div class="summary-divider"></div><div class="item-summary">Total Items : ${escapeHtml(formatQuantity(totalQty))}</div><div class="summary-divider"></div>`;
+  const itemHeader = `<div class="item-row item-header">
+      <span class="item-rate">Rate</span>
+      <span class="item-name">Product</span>
+      <span class="item-qty">Qty</span>
+      <span class="item-amount">Amount</span>
+    </div>`;
 
   const totalsOrder = Array.isArray(rawSettings.totalsOrder) && rawSettings.totalsOrder.length
     ? rawSettings.totalsOrder
@@ -274,9 +285,11 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
     ${dividerMarkup(settings)}
 
     <section class="items">
-      <div class="item-grid item-head"><span>Qty</span><span>Unit</span><span>Rate</span><span>GST</span><strong>Amount</strong></div>
+      ${itemHeader}
       ${itemRows || '<div class="empty">No items</div>'}
     </section>
+
+    ${itemSummary}
 
     ${dividerMarkup(settings)}
 
@@ -332,16 +345,14 @@ export function makeReceiptCss(rawSettings = {}, options = {}) {
     .info-row span::after { content: " :"; }
     .info-row b, .total-row b { text-align: right; overflow-wrap: anywhere; }
     .items { break-inside: auto; }
-    .item { padding: ${1.15 * density}mm 0; border-bottom: 1px dotted #999; break-inside: avoid; }
-    .item:last-child { border-bottom: 0; }
-    .item-title { display: grid; grid-template-columns: 1fr auto; gap: 2mm; font-weight: 700; }
-    .item-title span { overflow-wrap: anywhere; word-break: break-word; }
-    .item-meta { font-size: ${Math.max(settings.fontSize - 2, 8)}px; margin-top: 0.5mm; color: #111; overflow-wrap: anywhere; }
-    .item-grid { display: grid; grid-template-columns: 11mm 10mm 1fr 10mm 1.15fr; gap: 1mm; align-items: baseline; margin-top: 0.75mm; }
-    .receipt-58 .item-grid { grid-template-columns: 8mm 8mm 1fr 8mm 1.1fr; gap: 0.75mm; }
-    .item-grid > * { min-width: 0; text-align: right; white-space: nowrap; }
-    .item-grid > *:first-child, .item-grid > *:nth-child(2) { text-align: left; }
-    .item-head { margin: 0 0 1mm; padding-bottom: 1mm; border-bottom: 1px solid #000; font-size: ${Math.max(settings.fontSize - 1.5, 8)}px; font-weight: 700; }
+    .item-row { display: grid; grid-template-columns: 18mm minmax(0, 1fr) 11mm 18mm; gap: 1.5mm; align-items: center; padding: ${0.45 * density}mm 0; break-inside: avoid; }
+    .receipt-58 .item-row { grid-template-columns: 16mm minmax(0, 1fr) 9mm 16mm; gap: 1mm; }
+    .item-header { padding-top: 0; padding-bottom: 0.9mm; font-size: ${Math.max(settings.fontSize - 1, 8)}px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 0.8mm; }
+    .item-rate { text-align: left; white-space: nowrap; }
+    .item-qty, .item-amount { text-align: right; white-space: nowrap; }
+    .item-name { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+    .item-summary { text-align: left; padding: 0.5mm 0; font-weight: 700; }
+    .summary-divider { width: 100%; height: 0; margin: 1mm 0; border-top: 1px dashed #000; }
     .empty { padding: 5mm 0; text-align: center; }
     .totals { break-inside: avoid; }
     .total-row { grid-template-columns: 1fr auto; margin: 0.75mm 0; }

@@ -29,6 +29,10 @@ function paymentStatusFromAmounts(total, paid) {
   return 'Unpaid';
 }
 
+function requestPaidAmount(body, fallback = 0) {
+  return Number(body.paidAmount ?? body.amountPaid ?? body.paid ?? fallback);
+}
+
 function isWholeNumber(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
 }
@@ -136,7 +140,7 @@ async function recalculateCustomerBillingTotals(customerId) {
   const creditBills = bills.filter((bill) => bill.paymentMethod === 'Credit');
   const paidAmount = bills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
   const creditPaid = creditBills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
-  const dueAmount = creditBills.reduce((sum, bill) => sum + Number(bill.dueAmount || 0), 0);
+  const dueAmount = creditBills.reduce((sum, bill) => sum + Number(bill.balanceAmount ?? 0), 0);
 
   customer.totalSpent = bills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
   customer.loyaltyPoints = Math.floor(customer.totalSpent / 100);
@@ -248,8 +252,8 @@ export const createBill = asyncHandler(async (req, res) => {
 
   const billTotal = Number(total || 0);
   const paidAmount = paymentMethod === 'Credit'
-    ? Number(req.body.paidAmount || 0)
-    : Number(req.body.paidAmount ?? billTotal);
+    ? requestPaidAmount(req.body, 0)
+    : requestPaidAmount(req.body, billTotal);
 
   if (paidAmount < 0) {
     throw new ApiError(400, 'Amount paid cannot be negative');
@@ -449,9 +453,10 @@ export const updateBill = asyncHandler(async (req, res) => {
   bill.customerMobile = customerMobile || undefined;
   bill.customerAddress = customerAddress || customer?.address || '';
   bill.paymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
-  bill.paidAmount = bill.paymentMethod === 'Credit' ? Number(amountPaid ?? bill.paidAmount ?? 0) : bill.total;
-  bill.dueAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
-  bill.balanceAmount = bill.paymentMethod === 'Credit' ? Math.max(0, bill.paidAmount - bill.total) : 0;
+  bill.paidAmount = requestPaidAmount(req.body, bill.paymentMethod === 'Credit' ? bill.paidAmount ?? 0 : bill.total);
+  const balanceAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
+  bill.dueAmount = balanceAmount;
+  bill.balanceAmount = balanceAmount;
   bill.paymentStatus = paymentStatusFromAmounts(bill.total, bill.paidAmount);
   bill.notes = notes != null ? notes : bill.notes;
   await bill.save();
@@ -521,7 +526,7 @@ export const restoreDeletedBill = asyncHandler(async (req, res) => {
     invoiceNumber: deletedBill.originalData.invoiceNumber || deletedBill.originalData.invoiceNo,
     items: originalItems,
     status: 'Completed',
-    paidAmount: Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0),
+    paidAmount: Number(deletedBill.originalData.paidAmount ?? deletedBill.originalData.total ?? 0),
     dueAmount: Math.max(Number(deletedBill.originalData.dueAmount || 0), 0),
     balanceAmount: Number(deletedBill.originalData.balanceAmount || 0),
     paymentStatus: deletedBill.originalData.paymentStatus || paymentStatusFromAmounts(Number(deletedBill.originalData.total || 0), Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0)),

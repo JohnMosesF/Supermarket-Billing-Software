@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
-const allocationSchema = new mongoose.Schema({ bill: { type: mongoose.Schema.Types.ObjectId, ref: 'Bill' }, invoiceNo: String, amount: { type: Number, min: 0.01 } }, { _id: false });
+const allocationSchema = new mongoose.Schema({
+  bill: { type: mongoose.Schema.Types.ObjectId, refPath: 'billModel' },
+  billModel: { type: String, enum: ['Sale', 'Bill'], default: 'Bill' },
+  invoiceNo: String,
+  amount: { type: Number, min: 0.01 }
+}, { _id: false });
 const schema = new mongoose.Schema({
   receiptNo: { type: String, required: true, unique: true, index: true },
   customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },

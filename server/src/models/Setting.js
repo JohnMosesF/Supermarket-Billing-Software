@@ -22,6 +22,7 @@ const settingSchema = new mongoose.Schema(
     taxInclusive: { type: Boolean, default: false },
     gstExclusive: { type: Boolean, default: false },
     gstMode: { type: String, enum: ['cgst_sgst', 'igst'], default: 'cgst_sgst' },
+    invoiceLanguage: { type: String, enum: ['English', 'Local Language'], default: 'English' },
     defaultTaxRate: { type: Number, default: 0 },
     invoicePrefix: { type: String, default: 'INV' },
     invoiceFooter: { type: String, default: 'Thank you for shopping with us.' },

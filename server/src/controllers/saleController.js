@@ -8,6 +8,7 @@ import { ensureDefaultUnits } from './unitController.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { makeInvoiceNumber } from '../utils/invoice.js';
+import { reconcileCustomerAccounting, reconcileSalePaymentFields, rebuildDayBook } from '../services/accountingService.js';
 
 async function resolveCustomerForSale(req) {
   if (req.body.customer) return req.body.customer;
@@ -39,6 +40,10 @@ export const saleRules = [
 
 function isWholeNumber(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
+}
+
+function requestPaidAmount(body, fallback = 0) {
+  return Number(body.paidAmount ?? body.amountPaid ?? body.paid ?? fallback);
 }
 
 async function getUnitRule(unitName) {
@@ -110,6 +115,7 @@ export const createSale = asyncHandler(async (req, res) => {
     saleItems.push({
       product: product._id,
       name: product.name,
+      localName: product.localName || '',
       sku: product.sku,
       quantity: item.quantity,
       unit: unit.name,
@@ -124,15 +130,14 @@ export const createSale = asyncHandler(async (req, res) => {
   const discount = Number(req.body.discount || 0);
   const count = await Sale.countDocuments();
   const total = Math.max(subtotal + taxTotal - discount, 0);
-  const paidAmount = Number(req.body.paidAmount ?? (req.body.paymentMethod === 'credit' ? 0 : total));
+  const paidAmount = requestPaidAmount(req.body, req.body.paymentMethod === 'credit' ? 0 : total);
   if (paidAmount < 0) {
     throw new ApiError(400, 'Paid amount cannot be negative');
   }
   if (req.body.paymentMethod === 'credit' && paidAmount > total) {
     throw new ApiError(400, 'Amount paid cannot exceed bill total for credit sales');
   }
-  const balanceAmount = Math.max(total - paidAmount, 0);
-  const paymentStatus = req.body.paymentStatus || (balanceAmount <= 0 ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid');
+  const paymentState = reconcileSalePaymentFields(total, paidAmount);
 
   if (req.body.paymentMethod === 'credit' && !req.body.customer) {
     throw new ApiError(400, 'Customer account is required for credit sales');
@@ -150,9 +155,9 @@ export const createSale = asyncHandler(async (req, res) => {
     total,
     profit: Math.max(profit - discount, 0),
     paymentMethod: req.body.paymentMethod,
-    paymentStatus,
-    paidAmount,
-    balanceAmount,
+    paymentStatus: paymentState.paymentStatus,
+    paidAmount: paymentState.paidAmount,
+    balanceAmount: paymentState.balanceAmount,
     changeReturn: Math.max(paidAmount - total, 0),
     cashier: req.user._id,
     notes: req.body.notes
@@ -184,9 +189,9 @@ export const createSale = asyncHandler(async (req, res) => {
     };
 
     if (req.body.paymentMethod === 'credit') {
-      const creditStatus = sale.balanceAmount <= 0 ? 'Paid' : sale.paidAmount > 0 ? 'Partial' : 'Unpaid';
-      customerUpdates.$inc.totalCredit = sale.total;
+      customerUpdates.$inc.totalCredit = sale.balanceAmount;
       customerUpdates.$inc.outstandingBalance = sale.balanceAmount;
+      customerUpdates.$inc.creditBalance = sale.balanceAmount;
       customerUpdates.$inc.totalPaid = sale.paidAmount;
       customerUpdates.$push = {
         creditTransactions: {
@@ -197,7 +202,7 @@ export const createSale = asyncHandler(async (req, res) => {
           paidAmount: sale.paidAmount,
           dueAmount: sale.balanceAmount,
           paymentMethod: 'Credit',
-          paymentStatus: creditStatus
+          paymentStatus: sale.paymentStatus === 'paid' ? 'Paid' : sale.paymentStatus === 'partial' ? 'Partial' : 'Unpaid'
         }
       };
       if (sale.paidAmount > 0) {
@@ -212,6 +217,8 @@ export const createSale = asyncHandler(async (req, res) => {
       new: true,
       runValidators: true
     });
+    await reconcileCustomerAccounting(req.body.customer);
+    await rebuildDayBook();
   }
 
   res.status(201).json({ sale });

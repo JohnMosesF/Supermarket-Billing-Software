@@ -2,7 +2,13 @@ import React, { useRef, useEffect } from 'react';
 import { currency } from '../utils/format.js';
 import { normalizeBillItem } from '../utils/normalizeBillItem.js';
 
-function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1, onUpdateItem = () => {}, onRemove = () => {} }) {
+function displayProductName(item, invoiceLanguage) {
+  const language = String(invoiceLanguage || '').trim().toLowerCase();
+  const useLocal = language === 'local language' || language === 'local';
+  return useLocal ? (item.localName || item.productName || '-') : (item.productName || '-');
+}
+
+function BillingTable({ cart = [], invoiceLanguage = 'English', onSelectIndex = () => {}, selectedIndex = -1, onUpdateItem = () => {}, onRemove = () => {} }) {
   const tableRef = useRef(null);
 
   const formatQty = (qty, allowDecimalQty) => {
@@ -61,8 +67,8 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
                 {normalized.sku || '-'}
                 </div>
 
-                <div className="col-span-2 truncate font-medium">
-                {normalized.productName || '-'}
+                <div className="col-span-2 font-medium">
+                {displayProductName(normalized, invoiceLanguage)}
                 </div>
 
                 <div className="text-right">
@@ -100,6 +106,7 @@ function BillingTable({ cart = [], onSelectIndex = () => {}, selectedIndex = -1,
 
 export default React.memo(BillingTable, (prev, next) => {
   // shallow compare cart length and selectedIndex to avoid deep comparisons
+  if (prev.invoiceLanguage !== next.invoiceLanguage) return false;
   if (prev.selectedIndex !== next.selectedIndex) return false;
   if (prev.cart.length !== next.cart.length) return false;
   // fallback: compare JSON string of cart (acceptable for small carts)

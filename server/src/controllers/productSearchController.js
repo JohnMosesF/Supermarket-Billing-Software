@@ -33,6 +33,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
     const prod = await Product.findOne({ productId: Number(query), active: true }, {
       productId: 1,
       name: 1,
+      localName: 1,
       sku: 1,
       barcode: 1,
       sellingPrice: 1,
@@ -49,6 +50,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
         productId: prod.productId,
         productName: prod.name,
         name: prod.name,
+        localName: prod.localName || '',
         sku: prod.sku,
         barcode: prod.barcode,
         sellingPrice: prod.sellingPrice,
@@ -69,6 +71,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
   const prefixResults = await Product.find({ active: true, $or: [{ name: prefixRegex }, { sku: prefixRegex }] }, {
     productId: 1,
     name: 1,
+    localName: 1,
     sku: 1,
     barcode: 1,
     sellingPrice: 1,
@@ -85,6 +88,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
       productId: product.productId,
       productName: product.name,
       name: product.name,
+      localName: product.localName || '',
       sku: product.sku,
       barcode: product.barcode,
       sellingPrice: product.sellingPrice,
@@ -105,6 +109,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
   const candidates = await Product.find({ active: true, $or: [{ name: containsRegex }, { sku: containsRegex }, { barcode: containsRegex }] }, {
     productId: 1,
     name: 1,
+    localName: 1,
     sku: 1,
     barcode: 1,
     sellingPrice: 1,
@@ -126,6 +131,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
     productId: product.productId,
     productName: product.name,
     name: product.name,
+    localName: product.localName || '',
     sku: product.sku,
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,
@@ -154,6 +160,7 @@ export const searchByProductId = asyncHandler(async (req, res) => {
   const product = await Product.findOne({ productId, active: true }, {
     productId: 1,
     name: 1,
+    localName: 1,
     sku: 1,
     barcode: 1,
     sellingPrice: 1,
@@ -173,6 +180,7 @@ export const searchByProductId = asyncHandler(async (req, res) => {
     productId: product.productId,
     productName: product.name,
     name: product.name,
+    localName: product.localName || '',
     sku: product.sku,
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,

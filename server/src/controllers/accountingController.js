@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import Bill from '../models/Bill.js';
+import { Sale } from "../models/Sale.js";
 import { Purchase } from '../models/Purchase.js';
 import { Customer } from '../models/Customer.js';
 import { Supplier } from '../models/Supplier.js';
@@ -11,11 +12,82 @@ import { SupplierPayment } from '../models/SupplierPayment.js';
 import { DayBookEntry } from '../models/DayBookEntry.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
-import { rebuildDayBook, reconcileCustomerAccounting, reconcileSupplierAccounting } from '../services/accountingService.js';
+import { rebuildDayBook, reconcileCustomerAccounting, reconcileSalePaymentFields, reconcileSupplierAccounting } from '../services/accountingService.js';
 
 const number = (value) => Number(value || 0);
 const docNo = (prefix) => `${prefix}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-7)}`;
 const dateQuery = (from, to) => { const query = {}; if (from) query.$gte = new Date(from); if (to) { const date = new Date(to); date.setHours(23, 59, 59, 999); query.$lte = date; } return Object.keys(query).length ? query : null; };
+const invoiceNoOf = (bill) => bill.invoiceNo || bill.invoiceNumber || String(bill._id);
+const unpaidLegacyBillFilter = (customerId) => ({
+  customer: customerId,
+  status: { $ne: 'Cancelled' },
+  balanceAmount: { $gt: 0 }
+});
+
+function normalizeReceivableDocument(bill, sourceModel) {
+  const invoiceNo = invoiceNoOf(bill);
+  return {
+    ...bill,
+    sourceModel,
+    invoiceNo,
+    invoiceNumber: bill.invoiceNumber || invoiceNo,
+    dueAmount: Number(bill.balanceAmount ?? 0)
+  };
+}
+
+async function pendingCustomerDocuments(customerId) {
+  const [sales, bills] = await Promise.all([
+    Sale.find({ customer: customerId, balanceAmount: { $gt: 0 } }).sort({ createdAt: 1 }).lean(),
+    Bill.find(unpaidLegacyBillFilter(customerId)).sort({ createdAt: 1 }).lean()
+  ]);
+  return [
+    ...sales.map((bill) => normalizeReceivableDocument(bill, 'Sale')),
+    ...bills.map((bill) => normalizeReceivableDocument(bill, 'Bill'))
+  ].sort((a, b) => new Date(a.invoiceAt || a.createdAt || 0) - new Date(b.invoiceAt || b.createdAt || 0));
+}
+
+async function pendingCustomerRecords(customerId) {
+  const [sales, bills] = await Promise.all([
+    Sale.find({ customer: customerId, balanceAmount: { $gt: 0 } }).sort({ createdAt: 1 }),
+    Bill.find(unpaidLegacyBillFilter(customerId)).sort({ createdAt: 1 })
+  ]);
+  return [
+    ...sales.map((document) => ({ document, sourceModel: 'Sale' })),
+    ...bills.map((document) => ({ document, sourceModel: 'Bill' }))
+  ].sort((a, b) => new Date(a.document.invoiceAt || a.document.createdAt || 0) - new Date(b.document.invoiceAt || b.document.createdAt || 0));
+}
+
+function applyReceiptToReceivable(bill, applied, sourceModel) {
+  if (sourceModel === 'Sale') {
+    const paymentState = reconcileSalePaymentFields(bill.total, number(bill.paidAmount) + applied, number(bill.balanceAmount) - applied);
+    bill.paidAmount = paymentState.paidAmount;
+    bill.balanceAmount = paymentState.balanceAmount;
+    bill.paymentStatus = paymentState.paymentStatus;
+    return;
+  }
+  const paidAmount = number(bill.paidAmount) + applied;
+  const balanceAmount = Math.max(number(bill.balanceAmount ?? bill.dueAmount) - applied, 0);
+  bill.paidAmount = paidAmount;
+  bill.balanceAmount = balanceAmount;
+  bill.dueAmount = balanceAmount;
+  bill.paymentStatus = balanceAmount <= 0.001 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Unpaid';
+}
+
+function rollbackReceiptOnReceivable(bill, applied, sourceModel) {
+  if (sourceModel === 'Sale') {
+    const paymentState = reconcileSalePaymentFields(bill.total, number(bill.paidAmount) - applied, number(bill.balanceAmount) + applied);
+    bill.paidAmount = paymentState.paidAmount;
+    bill.balanceAmount = paymentState.balanceAmount;
+    bill.paymentStatus = paymentState.paymentStatus;
+    return;
+  }
+  const paidAmount = Math.max(number(bill.paidAmount) - applied, 0);
+  const balanceAmount = number(bill.balanceAmount ?? bill.dueAmount) + applied;
+  bill.paidAmount = paidAmount;
+  bill.balanceAmount = balanceAmount;
+  bill.dueAmount = balanceAmount;
+  bill.paymentStatus = balanceAmount <= 0.001 ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Unpaid';
+}
 
 async function ledgerResponse(Model, partyField, partyId, from, to, reconcile) {
   await reconcile(partyId);
@@ -36,8 +108,22 @@ export const customerOutstanding = asyncHandler(async (req, res) => {
   const customers = await Customer.find({ active: true }).lean();
   const rows = await Promise.all(customers.map(async (customer) => {
     await reconcileCustomerAccounting(customer._id);
-    const [fresh, lastBill, pendingBills] = await Promise.all([Customer.findById(customer._id).lean(), Bill.findOne({ customer: customer._id }).sort({ createdAt: -1 }).lean(), Bill.countDocuments({ customer: customer._id, dueAmount: { $gt: 0 }, status: 'Completed' })]);
-    return { ...fresh, lastPurchase: lastBill?.invoiceAt || lastBill?.createdAt, pendingBills };
+    const [fresh, lastSale, lastBill, pendingSaleBills, pendingLegacyBills] = await Promise.all([
+      Customer.findById(customer._id).lean(),
+      Sale.findOne({
+          customer: customer._id
+      })
+          .sort({ createdAt: -1 })
+          .lean(),
+      Bill.findOne({ customer: customer._id, status: { $ne: 'Cancelled' } }).sort({ createdAt: -1 }).lean(),
+      Sale.countDocuments({
+          customer: customer._id,
+          balanceAmount: { $gt: 0 }
+      }),
+      Bill.countDocuments(unpaidLegacyBillFilter(customer._id))
+  ]);
+    const latestBill = [lastSale, lastBill].filter(Boolean).sort((a, b) => new Date(b.invoiceAt || b.createdAt || 0) - new Date(a.invoiceAt || a.createdAt || 0))[0];
+    return { ...fresh, lastPurchase: latestBill?.invoiceAt || latestBill?.createdAt, pendingBills: pendingSaleBills + pendingLegacyBills };
   }));
   res.json({ customers: rows.filter((row) => number(row.outstandingBalance) > 0) });
 });
@@ -49,7 +135,8 @@ export const supplierOutstanding = asyncHandler(async (req, res) => {
 });
 
 export const pendingCustomerBills = asyncHandler(async (req, res) => {
-  const bills = await Bill.find({ customer: req.params.id, dueAmount: { $gt: 0 }, status: 'Completed' }).sort({ createdAt: 1 }).lean();
+  await reconcileCustomerAccounting(req.params.id);
+  const bills = await pendingCustomerDocuments(req.params.id);
   res.json({ bills });
 });
 export const pendingSupplierPurchases = asyncHandler(async (req, res) => {
@@ -64,25 +151,35 @@ export const createCustomerReceipt = asyncHandler(async (req, res) => {
   if (amount <= 0) throw new ApiError(400, 'Receipt amount must be greater than zero');
   let remaining = amount;
   const requested = new Map((req.body.allocations || []).map((entry) => [String(entry.billId), number(entry.amount)]));
-  const bills = await Bill.find({ customer: customer._id, dueAmount: { $gt: 0 }, status: 'Completed' }).sort({ createdAt: 1 });
+  const bills = await pendingCustomerRecords(customer._id);
   const allocations = [];
   const changed = [];
   try {
-    for (const bill of bills) {
+    for (const entry of bills) {
       if (remaining <= 0) break;
+      const bill = entry.document;
       const wanted = requested.size ? number(requested.get(String(bill._id))) : remaining;
       if (wanted <= 0) continue;
-      const applied = Math.min(wanted, remaining, number(bill.dueAmount));
-      bill.paidAmount += applied; bill.dueAmount -= applied; bill.balanceAmount = bill.dueAmount; bill.paymentStatus = bill.dueAmount <= 0.001 ? 'Paid' : 'Partial';
-      await bill.save(); changed.push({ bill, applied }); remaining -= applied; allocations.push({ bill: bill._id, invoiceNo: bill.invoiceNo, amount: applied });
+      const applied = Math.min(wanted, remaining, number(bill.balanceAmount));
+      if (applied <= 0) continue;
+      applyReceiptToReceivable(bill, applied, entry.sourceModel);
+      await bill.save(); 
+      changed.push({ bill, applied, sourceModel: entry.sourceModel }); 
+      remaining -= applied; 
+      allocations.push({ bill: bill._id, billModel: entry.sourceModel, invoiceNo: invoiceNoOf(bill), amount: applied });
     }
     const receipt = await CustomerReceipt.create({ receiptNo: docNo('RCT'), customer: customer._id, amount, paymentMethod: req.body.paymentMethod || 'Cash', allocationType: remaining > 0 ? (req.body.allocationType === 'Advance' ? 'Advance' : 'On Account') : 'Allocated', allocations, unallocatedAmount: remaining, notes: req.body.notes, createdBy: req.user._id, receiptDate: req.body.date || new Date() });
     await reconcileCustomerAccounting(customer._id).catch((error) => console.error('Customer ledger reconciliation failed', error));
     await rebuildDayBook().catch((error) => console.error('Day book rebuild failed', error));
     res.status(201).json({ receipt });
-  } catch (error) { for (const { bill, applied } of changed.reverse()) { bill.paidAmount -= applied; bill.dueAmount += applied; bill.balanceAmount = bill.dueAmount; await bill.save(); } throw error; }
-});
-
+  } catch (error) {
+      for (const { bill, applied, sourceModel } of changed.reverse()) {
+          rollbackReceiptOnReceivable(bill, applied, sourceModel);
+          await bill.save();
+      }
+      throw error;
+  }
+  });
 export const createSupplierPayment = asyncHandler(async (req, res) => {
   const supplier = await Supplier.findById(req.body.supplierId); if (!supplier) throw new ApiError(404, 'Supplier not found');
   const amount = number(req.body.amount); if (amount <= 0) throw new ApiError(400, 'Payment amount must be greater than zero');
@@ -127,4 +224,4 @@ export const exportAccountingRegister = (kind, format) => asyncHandler(async (re
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.setHeader('Content-Disposition', `attachment; filename=${kind}.xlsx`); await workbook.xlsx.write(res); return res.end();
   }
   const doc = new PDFDocument({ margin: 32, size: 'A4' }); res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `attachment; filename=${kind}.pdf`); doc.pipe(res); doc.fontSize(18).text(kind.replace(/-/g, ' ').toUpperCase()).moveDown(); rows.forEach((row) => doc.fontSize(8).text(Object.values(row).map((value) => value instanceof Date ? value.toLocaleString() : String(value ?? '-')).join(' | '))); doc.end();
-});
+  });

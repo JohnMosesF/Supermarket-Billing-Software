@@ -79,7 +79,7 @@ export const recordCollection = asyncHandler(async (req, res) => {
     tx.dueAmount -= applied;
     tx.paymentStatus = tx.dueAmount <= 0 ? 'Paid' : 'Partial';
     remaining -= applied;
-    appliedTo.push({ billId: tx.billId, invoiceNo: tx.invoiceNo, amount: applied });
+    appliedTo.push({ billId: tx.billId, billModel: tx.billModel || 'Bill', invoiceNo: tx.invoiceNo, amount: applied });
 
     if (tx.billModel === 'Bill') {
       await Bill.findByIdAndUpdate(tx.billId, {
@@ -87,10 +87,15 @@ export const recordCollection = asyncHandler(async (req, res) => {
         $set: { paymentStatus: tx.dueAmount <= 0 ? 'Paid' : 'Partial' }
       });
     } else {
-      await Sale.findByIdAndUpdate(tx.billId, {
-        $inc: { paidAmount: applied, balanceAmount: -applied },
-        $set: { paymentStatus: tx.dueAmount <= 0 ? 'paid' : 'partial' }
-      });
+      const sale = await Sale.findById(tx.billId);
+      if (sale) {
+        const paidAfter = Number(sale.paidAmount || 0) + applied;
+        const balanceAfter = Math.max(Number(sale.total || 0) - paidAfter, 0);
+        sale.paidAmount = paidAfter;
+        sale.balanceAmount = balanceAfter;
+        sale.paymentStatus = balanceAfter <= 0.001 ? 'paid' : paidAfter > 0 ? 'partial' : 'unpaid';
+        await sale.save();
+      }
     }
   }
 
@@ -117,7 +122,7 @@ export const recordCollection = asyncHandler(async (req, res) => {
     amount,
     paymentMethod: req.body.paymentMethod === 'Bank Transfer' ? 'Bank' : req.body.paymentMethod,
     allocationType: 'Allocated',
-    allocations: appliedTo.map((entry) => ({ bill: entry.billId, invoiceNo: entry.invoiceNo, amount: entry.amount })),
+    allocations: appliedTo.map((entry) => ({ bill: entry.billId, billModel: entry.billModel, invoiceNo: entry.invoiceNo, amount: entry.amount })),
     unallocatedAmount: 0,
     notes: req.body.notes,
     createdBy: req.user._id

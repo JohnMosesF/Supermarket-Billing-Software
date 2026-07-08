@@ -380346,11 +380346,53 @@ billSchema.pre("validate", function(next) {
 var Bill = import_mongoose2.default.model("Bill", billSchema);
 var Bill_default = Bill;
 
-// ../server/src/models/Purchase.js
+// ../server/src/models/Sale.js
 var import_mongoose3 = __toESM(require_mongoose2(), 1);
-var purchaseItemSchema = new import_mongoose3.default.Schema(
+var saleItemSchema = new import_mongoose3.default.Schema(
   {
     product: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "Product", required: true },
+    name: { type: String, required: true },
+    localName: { type: String, default: "" },
+    sku: { type: String, required: true },
+    quantity: { type: Number, required: true, min: 1e-3 },
+    unit: { type: String, default: "pcs" },
+    price: { type: Number, required: true, min: 0 },
+    purchasePrice: { type: Number, required: true, min: 0 },
+    taxRate: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    lineTotal: { type: Number, required: true }
+  },
+  { _id: false }
+);
+var saleSchema = new import_mongoose3.default.Schema(
+  {
+    invoiceNumber: { type: String, required: true, unique: true, index: true },
+    customer: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "Customer" },
+    customerName: String,
+    customerMobile: String,
+    items: [saleItemSchema],
+    subtotal: { type: Number, required: true },
+    discount: { type: Number, default: 0 },
+    taxTotal: { type: Number, default: 0 },
+    total: { type: Number, required: true },
+    profit: { type: Number, default: 0 },
+    paymentMethod: { type: String, enum: ["cash", "upi", "card", "bank_transfer", "credit"], required: true },
+    paymentStatus: { type: String, enum: ["paid", "partial", "unpaid", "pending", "refunded"], default: "paid" },
+    paidAmount: { type: Number, default: 0 },
+    balanceAmount: { type: Number, default: 0 },
+    changeReturn: { type: Number, default: 0 },
+    cashier: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "User", required: true },
+    notes: String
+  },
+  { timestamps: true }
+);
+var Sale = import_mongoose3.default.model("Sale", saleSchema);
+
+// ../server/src/models/Purchase.js
+var import_mongoose4 = __toESM(require_mongoose2(), 1);
+var purchaseItemSchema = new import_mongoose4.default.Schema(
+  {
+    product: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "Product", required: true },
     name: String,
     quantity: { type: Number, required: true, min: 1e-3 },
     unit: { type: String, default: "pcs" },
@@ -380362,28 +380404,28 @@ var purchaseItemSchema = new import_mongoose3.default.Schema(
   },
   { _id: false }
 );
-var purchaseSchema = new import_mongoose3.default.Schema(
+var purchaseSchema = new import_mongoose4.default.Schema(
   {
-    supplier: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "Supplier" },
+    supplier: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "Supplier" },
     invoiceNumber: String,
     purchaseDate: { type: Date, default: Date.now },
     items: [purchaseItemSchema],
     total: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     returnCreditAmount: { type: Number, default: 0, min: 0 },
-    user: { type: import_mongoose3.default.Schema.Types.ObjectId, ref: "User" },
+    user: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "User" },
     notes: String,
     active: { type: Boolean, default: true }
   },
   { timestamps: true }
 );
-var Purchase = import_mongoose3.default.model("Purchase", purchaseSchema);
+var Purchase = import_mongoose4.default.model("Purchase", purchaseSchema);
 
 // ../server/src/models/Customer.js
-var import_mongoose4 = __toESM(require_mongoose2(), 1);
-var creditTransactionSchema = new import_mongoose4.default.Schema(
+var import_mongoose5 = __toESM(require_mongoose2(), 1);
+var creditTransactionSchema = new import_mongoose5.default.Schema(
   {
-    billId: { type: import_mongoose4.default.Schema.Types.ObjectId, required: true },
+    billId: { type: import_mongoose5.default.Schema.Types.ObjectId, required: true },
     billModel: { type: String, enum: ["Sale", "Bill"], default: "Sale" },
     invoiceNo: { type: String, required: true, trim: true },
     billAmount: { type: Number, required: true, min: 0 },
@@ -380402,7 +380444,7 @@ var creditTransactionSchema = new import_mongoose4.default.Schema(
     date: { type: Date, default: Date.now }
   }
 );
-var creditPaymentSchema = new import_mongoose4.default.Schema(
+var creditPaymentSchema = new import_mongoose5.default.Schema(
   {
     amount: { type: Number, required: true, min: 0 },
     paymentMethod: {
@@ -380415,14 +380457,14 @@ var creditPaymentSchema = new import_mongoose4.default.Schema(
     date: { type: Date, default: Date.now },
     appliedTo: [
       {
-        billId: { type: import_mongoose4.default.Schema.Types.ObjectId, ref: "Sale" },
+        billId: { type: import_mongoose5.default.Schema.Types.ObjectId, ref: "Sale" },
         invoiceNo: String,
         amount: { type: Number, min: 0 }
       }
     ]
   }
 );
-var customerSchema = new import_mongoose4.default.Schema(
+var customerSchema = new import_mongoose5.default.Schema(
   {
     name: { type: String, required: true, trim: true },
     mobile: { type: String, required: true, unique: true, trim: true },
@@ -380448,11 +380490,11 @@ var customerSchema = new import_mongoose4.default.Schema(
   { timestamps: true }
 );
 customerSchema.index({ name: "text", mobile: "text", email: "text" });
-var Customer = import_mongoose4.default.model("Customer", customerSchema);
+var Customer = import_mongoose5.default.model("Customer", customerSchema);
 
 // ../server/src/models/Supplier.js
-var import_mongoose5 = __toESM(require_mongoose2(), 1);
-var supplierSchema = new import_mongoose5.default.Schema(
+var import_mongoose6 = __toESM(require_mongoose2(), 1);
+var supplierSchema = new import_mongoose6.default.Schema(
   {
     name: { type: String, required: true, trim: true },
     contactPerson: String,
@@ -380471,32 +380513,12 @@ var supplierSchema = new import_mongoose5.default.Schema(
   },
   { timestamps: true }
 );
-var Supplier = import_mongoose5.default.model("Supplier", supplierSchema);
+var Supplier = import_mongoose6.default.model("Supplier", supplierSchema);
 
 // ../server/src/models/CustomerLedger.js
-var import_mongoose6 = __toESM(require_mongoose2(), 1);
-var schema = new import_mongoose6.default.Schema({
-  customer: { type: import_mongoose6.default.Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
-  referenceId: import_mongoose6.default.Schema.Types.ObjectId,
-  sourceModel: { type: String, required: true },
-  sourceKey: { type: String, required: true, unique: true },
-  transactionType: { type: String, required: true },
-  documentNo: String,
-  narration: String,
-  amount: { type: Number, required: true },
-  debit: { type: Number, default: 0 },
-  credit: { type: Number, default: 0 },
-  balance: { type: Number, default: 0 },
-  createdBy: { type: import_mongoose6.default.Schema.Types.ObjectId, ref: "User" },
-  transactionDate: { type: Date, required: true, index: true }
-}, { timestamps: true });
-schema.index({ customer: 1, transactionDate: 1 });
-var CustomerLedger = import_mongoose6.default.model("CustomerLedger", schema);
-
-// ../server/src/models/SupplierLedger.js
 var import_mongoose7 = __toESM(require_mongoose2(), 1);
-var schema2 = new import_mongoose7.default.Schema({
-  supplier: { type: import_mongoose7.default.Schema.Types.ObjectId, ref: "Supplier", required: true, index: true },
+var schema = new import_mongoose7.default.Schema({
+  customer: { type: import_mongoose7.default.Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
   referenceId: import_mongoose7.default.Schema.Types.ObjectId,
   sourceModel: { type: String, required: true },
   sourceKey: { type: String, required: true, unique: true },
@@ -380510,53 +380532,78 @@ var schema2 = new import_mongoose7.default.Schema({
   createdBy: { type: import_mongoose7.default.Schema.Types.ObjectId, ref: "User" },
   transactionDate: { type: Date, required: true, index: true }
 }, { timestamps: true });
+schema.index({ customer: 1, transactionDate: 1 });
+var CustomerLedger = import_mongoose7.default.model("CustomerLedger", schema);
+
+// ../server/src/models/SupplierLedger.js
+var import_mongoose8 = __toESM(require_mongoose2(), 1);
+var schema2 = new import_mongoose8.default.Schema({
+  supplier: { type: import_mongoose8.default.Schema.Types.ObjectId, ref: "Supplier", required: true, index: true },
+  referenceId: import_mongoose8.default.Schema.Types.ObjectId,
+  sourceModel: { type: String, required: true },
+  sourceKey: { type: String, required: true, unique: true },
+  transactionType: { type: String, required: true },
+  documentNo: String,
+  narration: String,
+  amount: { type: Number, required: true },
+  debit: { type: Number, default: 0 },
+  credit: { type: Number, default: 0 },
+  balance: { type: Number, default: 0 },
+  createdBy: { type: import_mongoose8.default.Schema.Types.ObjectId, ref: "User" },
+  transactionDate: { type: Date, required: true, index: true }
+}, { timestamps: true });
 schema2.index({ supplier: 1, transactionDate: 1 });
-var SupplierLedger = import_mongoose7.default.model("SupplierLedger", schema2);
+var SupplierLedger = import_mongoose8.default.model("SupplierLedger", schema2);
 
 // ../server/src/models/CustomerReceipt.js
-var import_mongoose8 = __toESM(require_mongoose2(), 1);
-var allocationSchema = new import_mongoose8.default.Schema({ bill: { type: import_mongoose8.default.Schema.Types.ObjectId, ref: "Bill" }, invoiceNo: String, amount: { type: Number, min: 0.01 } }, { _id: false });
-var schema3 = new import_mongoose8.default.Schema({
+var import_mongoose9 = __toESM(require_mongoose2(), 1);
+var allocationSchema = new import_mongoose9.default.Schema({
+  bill: { type: import_mongoose9.default.Schema.Types.ObjectId, refPath: "billModel" },
+  billModel: { type: String, enum: ["Sale", "Bill"], default: "Bill" },
+  invoiceNo: String,
+  amount: { type: Number, min: 0.01 }
+}, { _id: false });
+var schema3 = new import_mongoose9.default.Schema({
   receiptNo: { type: String, required: true, unique: true, index: true },
-  customer: { type: import_mongoose8.default.Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
+  customer: { type: import_mongoose9.default.Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
   amount: { type: Number, required: true, min: 0.01 },
   paymentMethod: { type: String, enum: ["Cash", "Bank", "UPI", "Card", "Cheque"], required: true },
   allocationType: { type: String, enum: ["Allocated", "On Account", "Advance"], default: "Allocated" },
   allocations: { type: [allocationSchema], default: [] },
   unallocatedAmount: { type: Number, default: 0, min: 0 },
   notes: String,
-  createdBy: { type: import_mongoose8.default.Schema.Types.ObjectId, ref: "User", required: true },
+  createdBy: { type: import_mongoose9.default.Schema.Types.ObjectId, ref: "User", required: true },
   receiptDate: { type: Date, default: Date.now, index: true },
   status: { type: String, enum: ["Posted", "Cancelled"], default: "Posted" }
 }, { timestamps: true });
-var CustomerReceipt = import_mongoose8.default.model("CustomerReceipt", schema3);
+var CustomerReceipt = import_mongoose9.default.model("CustomerReceipt", schema3);
 
 // ../server/src/models/SupplierPayment.js
-var import_mongoose9 = __toESM(require_mongoose2(), 1);
-var allocationSchema2 = new import_mongoose9.default.Schema({ purchase: { type: import_mongoose9.default.Schema.Types.ObjectId, ref: "Purchase" }, invoiceNumber: String, amount: { type: Number, min: 0.01 } }, { _id: false });
-var schema4 = new import_mongoose9.default.Schema({
+var import_mongoose10 = __toESM(require_mongoose2(), 1);
+var allocationSchema2 = new import_mongoose10.default.Schema({ purchase: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "Purchase" }, invoiceNumber: String, amount: { type: Number, min: 0.01 } }, { _id: false });
+var schema4 = new import_mongoose10.default.Schema({
   voucherNo: { type: String, required: true, unique: true, index: true },
-  supplier: { type: import_mongoose9.default.Schema.Types.ObjectId, ref: "Supplier", required: true, index: true },
+  supplier: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "Supplier", required: true, index: true },
   amount: { type: Number, required: true, min: 0.01 },
   paymentMethod: { type: String, enum: ["Cash", "Bank", "UPI", "Card", "Cheque"], required: true },
   allocations: { type: [allocationSchema2], default: [] },
   unallocatedAmount: { type: Number, default: 0, min: 0 },
   notes: String,
-  createdBy: { type: import_mongoose9.default.Schema.Types.ObjectId, ref: "User", required: true },
+  createdBy: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "User", required: true },
   paymentDate: { type: Date, default: Date.now, index: true },
   status: { type: String, enum: ["Posted", "Cancelled"], default: "Posted" }
 }, { timestamps: true });
-var SupplierPayment = import_mongoose9.default.model("SupplierPayment", schema4);
+var SupplierPayment = import_mongoose10.default.model("SupplierPayment", schema4);
 
 // ../server/src/models/DayBookEntry.js
-var import_mongoose10 = __toESM(require_mongoose2(), 1);
-var schema5 = new import_mongoose10.default.Schema({ referenceId: import_mongoose10.default.Schema.Types.ObjectId, sourceModel: String, sourceKey: { type: String, unique: true, sparse: true }, transactionType: { type: String, required: true }, documentNo: String, narration: String, cashIn: { type: Number, default: 0 }, cashOut: { type: Number, default: 0 }, amount: { type: Number, required: true }, createdBy: { type: import_mongoose10.default.Schema.Types.ObjectId, ref: "User" }, transactionDate: { type: Date, required: true, index: true }, branch: String }, { timestamps: true });
-var DayBookEntry = import_mongoose10.default.model("DayBookEntry", schema5);
+var import_mongoose11 = __toESM(require_mongoose2(), 1);
+var schema5 = new import_mongoose11.default.Schema({ referenceId: import_mongoose11.default.Schema.Types.ObjectId, sourceModel: String, sourceKey: { type: String, unique: true, sparse: true }, transactionType: { type: String, required: true }, documentNo: String, narration: String, cashIn: { type: Number, default: 0 }, cashOut: { type: Number, default: 0 }, amount: { type: Number, required: true }, createdBy: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "User" }, transactionDate: { type: Date, required: true, index: true }, branch: String }, { timestamps: true });
+var DayBookEntry = import_mongoose11.default.model("DayBookEntry", schema5);
 
 // ../server/src/models/SalesReturn.js
-var import_mongoose11 = __toESM(require_mongoose2(), 1);
-var returnItemSchema = new import_mongoose11.default.Schema({
-  product: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "Product", required: true },
+var import_mongoose12 = __toESM(require_mongoose2(), 1);
+var returnItemSchema = new import_mongoose12.default.Schema({
+  product: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "Product", required: true },
   productIdNumber: Number,
   sku: String,
   barcode: String,
@@ -380574,11 +380621,11 @@ var returnItemSchema = new import_mongoose11.default.Schema({
   gstAmount: { type: Number, required: true, min: 0 },
   refundAmount: { type: Number, required: true, min: 0 }
 }, { _id: false });
-var salesReturnSchema = new import_mongoose11.default.Schema({
+var salesReturnSchema = new import_mongoose12.default.Schema({
   returnNo: { type: String, required: true, unique: true, index: true },
-  originalBill: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "Bill", required: true, index: true },
+  originalBill: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "Bill", required: true, index: true },
   originalInvoiceNo: { type: String, required: true, index: true },
-  customer: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "Customer" },
+  customer: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "Customer" },
   customerName: String,
   customerMobile: String,
   originalPaymentMethod: String,
@@ -380590,15 +380637,15 @@ var salesReturnSchema = new import_mongoose11.default.Schema({
   refundMethod: { type: String, enum: ["Cash", "Credit Adjustment", "UPI", "Card"], required: true },
   reason: { type: String, required: true, trim: true },
   status: { type: String, enum: ["Completed", "Cancelled"], default: "Completed" },
-  processedBy: { type: import_mongoose11.default.Schema.Types.ObjectId, ref: "User", required: true },
+  processedBy: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "User", required: true },
   returnDate: { type: Date, default: Date.now }
 }, { timestamps: true });
-var SalesReturn = import_mongoose11.default.model("SalesReturn", salesReturnSchema);
+var SalesReturn = import_mongoose12.default.model("SalesReturn", salesReturnSchema);
 
 // ../server/src/models/PurchaseReturn.js
-var import_mongoose12 = __toESM(require_mongoose2(), 1);
-var purchaseReturnItemSchema = new import_mongoose12.default.Schema({
-  product: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "Product", required: true },
+var import_mongoose13 = __toESM(require_mongoose2(), 1);
+var purchaseReturnItemSchema = new import_mongoose13.default.Schema({
+  product: { type: import_mongoose13.default.Schema.Types.ObjectId, ref: "Product", required: true },
   productIdNumber: Number,
   sku: String,
   productName: { type: String, required: true },
@@ -380610,11 +380657,11 @@ var purchaseReturnItemSchema = new import_mongoose12.default.Schema({
   gstAmount: { type: Number, required: true },
   returnAmount: { type: Number, required: true }
 }, { _id: false });
-var purchaseReturnSchema = new import_mongoose12.default.Schema({
+var purchaseReturnSchema = new import_mongoose13.default.Schema({
   returnNo: { type: String, required: true, unique: true, index: true },
-  originalPurchase: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "Purchase", required: true, index: true },
+  originalPurchase: { type: import_mongoose13.default.Schema.Types.ObjectId, ref: "Purchase", required: true, index: true },
   originalInvoiceNo: String,
-  supplier: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "Supplier" },
+  supplier: { type: import_mongoose13.default.Schema.Types.ObjectId, ref: "Supplier" },
   supplierName: String,
   items: { type: [purchaseReturnItemSchema], required: true },
   taxableAmount: { type: Number, required: true },
@@ -380622,37 +380669,57 @@ var purchaseReturnSchema = new import_mongoose12.default.Schema({
   returnAmount: { type: Number, required: true },
   reason: { type: String, required: true, trim: true },
   status: { type: String, enum: ["Completed", "Cancelled"], default: "Completed" },
-  processedBy: { type: import_mongoose12.default.Schema.Types.ObjectId, ref: "User", required: true },
+  processedBy: { type: import_mongoose13.default.Schema.Types.ObjectId, ref: "User", required: true },
   returnDate: { type: Date, default: Date.now }
 }, { timestamps: true });
-var PurchaseReturn = import_mongoose12.default.model("PurchaseReturn", purchaseReturnSchema);
+var PurchaseReturn = import_mongoose13.default.model("PurchaseReturn", purchaseReturnSchema);
 
 // ../server/src/models/OutstandingSnapshot.js
-var import_mongoose13 = __toESM(require_mongoose2(), 1);
-var schema6 = new import_mongoose13.default.Schema({ partyType: { type: String, enum: ["Customer", "Supplier"], required: true }, party: { type: import_mongoose13.default.Schema.Types.ObjectId, required: true }, balance: { type: Number, required: true }, asOf: { type: Date, required: true }, metadata: import_mongoose13.default.Schema.Types.Mixed }, { timestamps: true });
+var import_mongoose14 = __toESM(require_mongoose2(), 1);
+var schema6 = new import_mongoose14.default.Schema({ partyType: { type: String, enum: ["Customer", "Supplier"], required: true }, party: { type: import_mongoose14.default.Schema.Types.ObjectId, required: true }, balance: { type: Number, required: true }, asOf: { type: Date, required: true }, metadata: import_mongoose14.default.Schema.Types.Mixed }, { timestamps: true });
 schema6.index({ partyType: 1, party: 1, asOf: -1 });
-var OutstandingSnapshot = import_mongoose13.default.model("OutstandingSnapshot", schema6);
+var OutstandingSnapshot = import_mongoose14.default.model("OutstandingSnapshot", schema6);
 
 // ../server/src/services/accountingService.js
 var dateOf = (value, fallback2) => new Date(value || fallback2 || Date.now());
 var byDate = (a6, b6) => a6.transactionDate - b6.transactionDate || a6.sourceKey.localeCompare(b6.sourceKey);
+var paymentStatusForBalance = (balanceAmount, paidAmount) => balanceAmount <= 1e-3 ? "Paid" : paidAmount > 0 ? "Partial" : "Unpaid";
+var salePaymentStatus = (balanceAmount, paidAmount) => balanceAmount <= 1e-3 ? "paid" : paidAmount > 0 ? "partial" : "unpaid";
+var invoiceNoOf = (bill) => bill.invoiceNo || bill.invoiceNumber || String(bill._id);
+var persistedBalanceOf = (bill) => Math.max(Number(bill.balanceAmount ?? 0), 0);
+function reconcileSalePaymentFields(total, paidAmount, balanceAmount) {
+  const resolvedPaid = Math.max(Number(paidAmount || 0), 0);
+  const resolvedBalance = Math.max(Number(balanceAmount ?? Number(total || 0) - resolvedPaid), 0);
+  return {
+    paidAmount: resolvedPaid,
+    balanceAmount: resolvedBalance,
+    paymentStatus: salePaymentStatus(resolvedBalance, resolvedPaid)
+  };
+}
 async function reconcileCustomerAccounting(customerId) {
   if (!customerId) return null;
-  const [customer, bills, returns, receipts] = await Promise.all([
+  const [customer, saleBills, legacyBills, returns, receipts] = await Promise.all([
     Customer.findById(customerId),
+    Sale.find({ customer: customerId }).lean(),
     Bill_default.find({ customer: customerId, status: { $ne: "Cancelled" } }).lean(),
     SalesReturn.find({ customer: customerId, status: "Completed" }).lean(),
     CustomerReceipt.find({ customer: customerId, status: "Posted" }).lean()
   ]);
   if (!customer) return null;
+  const sourceBills = [
+    ...saleBills.map((bill) => ({ ...bill, sourceModel: "Sale" })),
+    ...legacyBills.map((bill) => ({ ...bill, sourceModel: "Bill" }))
+  ].sort((a6, b6) => dateOf(a6.invoiceAt, a6.createdAt) - dateOf(b6.invoiceAt, b6.createdAt));
   const allocatedByBill = /* @__PURE__ */ new Map();
   receipts.forEach((receipt) => receipt.allocations.forEach((allocation) => allocatedByBill.set(String(allocation.bill), (allocatedByBill.get(String(allocation.bill)) || 0) + Number(allocation.amount || 0))));
   const entries = [];
-  bills.forEach((bill) => {
+  sourceBills.forEach((bill) => {
+    const sourceModel = bill.sourceModel;
+    const invoiceNo = invoiceNoOf(bill);
     const initialPaid = Math.max(Number(bill.paidAmount || 0) - (allocatedByBill.get(String(bill._id)) || 0), 0);
-    entries.push({ customer: customerId, referenceId: bill._id, sourceModel: "Bill", sourceKey: `Bill:${bill._id}:invoice`, transactionType: "Sales Invoice", documentNo: bill.invoiceNo, narration: `Invoice ${bill.invoiceNo}`, amount: bill.total, debit: bill.total, credit: 0, createdBy: bill.staff, transactionDate: dateOf(bill.invoiceAt, bill.createdAt) });
-    if (initialPaid > 0) entries.push({ customer: customerId, referenceId: bill._id, sourceModel: "Bill", sourceKey: `Bill:${bill._id}:initial-payment`, transactionType: "Invoice Payment", documentNo: bill.invoiceNo, narration: `${bill.paymentMethod} received with invoice`, amount: initialPaid, debit: 0, credit: initialPaid, createdBy: bill.staff, transactionDate: dateOf(bill.invoiceAt, bill.createdAt) });
-    if (Number(bill.discount || 0) > 0) entries.push({ customer: customerId, referenceId: bill._id, sourceModel: "Bill", sourceKey: `Bill:${bill._id}:discount`, transactionType: "Discount", documentNo: bill.invoiceNo, narration: "Invoice discount (included in invoice total)", amount: bill.discount, debit: 0, credit: 0, createdBy: bill.staff, transactionDate: dateOf(bill.invoiceAt, bill.createdAt) });
+    entries.push({ customer: customerId, referenceId: bill._id, sourceModel, sourceKey: `${sourceModel}:${bill._id}:invoice`, transactionType: "Sales Invoice", documentNo: invoiceNo, narration: `Invoice ${invoiceNo}`, amount: bill.total, debit: bill.total, credit: 0, createdBy: bill.staff || bill.cashier, transactionDate: dateOf(bill.invoiceAt, bill.createdAt) });
+    if (initialPaid > 0) entries.push({ customer: customerId, referenceId: bill._id, sourceModel, sourceKey: `${sourceModel}:${bill._id}:initial-payment`, transactionType: "Invoice Payment", documentNo: invoiceNo, narration: `${bill.paymentMethod} received with invoice`, amount: initialPaid, debit: 0, credit: initialPaid, createdBy: bill.staff || bill.cashier, transactionDate: dateOf(bill.invoiceAt, bill.createdAt) });
+    if (Number(bill.discount || 0) > 0) entries.push({ customer: customerId, referenceId: bill._id, sourceModel, sourceKey: `${sourceModel}:${bill._id}:discount`, transactionType: "Discount", documentNo: invoiceNo, narration: "Invoice discount (included in invoice total)", amount: bill.discount, debit: 0, credit: 0, createdBy: bill.staff || bill.cashier, transactionDate: dateOf(bill.invoiceAt, bill.createdAt) });
   });
   returns.forEach((entry) => entries.push({ customer: customerId, referenceId: entry._id, sourceModel: "SalesReturn", sourceKey: `SalesReturn:${entry._id}`, transactionType: "Sales Return", documentNo: entry.returnNo, narration: `Return against ${entry.originalInvoiceNo}`, amount: entry.refundAmount, debit: 0, credit: entry.originalPaymentMethod === "Credit" ? entry.refundAmount : 0, createdBy: entry.processedBy, transactionDate: dateOf(entry.returnDate, entry.createdAt) }));
   receipts.forEach((receipt) => entries.push({ customer: customerId, referenceId: receipt._id, sourceModel: "CustomerReceipt", sourceKey: `CustomerReceipt:${receipt._id}`, transactionType: receipt.allocationType === "Advance" ? "Advance Receipt" : "Receipt", documentNo: receipt.receiptNo, narration: receipt.notes || receipt.paymentMethod, amount: receipt.amount, debit: 0, credit: receipt.amount, createdBy: receipt.createdBy, transactionDate: dateOf(receipt.receiptDate, receipt.createdAt) }));
@@ -380666,17 +380733,22 @@ async function reconcileCustomerAccounting(customerId) {
     await CustomerLedger.bulkWrite(entries.map((entry) => ({ updateOne: { filter: { sourceKey: entry.sourceKey }, update: { $set: entry }, upsert: true } })));
     await CustomerLedger.deleteMany({ customer: customerId, sourceKey: { $nin: entries.map((entry) => entry.sourceKey) } });
   } else await CustomerLedger.deleteMany({ customer: customerId });
-  const totalSales = bills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
+  const totalSales = sourceBills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
+  const totalOutstanding = sourceBills.reduce((sum, bill) => sum + persistedBalanceOf(bill), 0);
+  const totalPaidFromBills = sourceBills.reduce(
+    (sum, bill) => sum + Number(bill.paidAmount || 0),
+    0
+  );
   const totalReturns = returns.filter((entry) => entry.originalPaymentMethod === "Credit").reduce((sum, entry) => sum + Number(entry.refundAmount || 0), 0);
   const totalPaid = entries.filter((entry) => ["Invoice Payment", "Receipt", "Advance Receipt"].includes(entry.transactionType)).reduce((sum, entry) => sum + Number(entry.credit || 0), 0);
   customer.totalSpent = Math.max(totalSales - returns.reduce((sum, entry) => sum + Number(entry.refundAmount || 0), 0), 0);
-  customer.totalPaid = totalPaid;
-  customer.totalPaidAmount = totalPaid;
-  customer.totalCredit = Math.max(bills.filter((bill) => bill.paymentMethod === "Credit").reduce((sum, bill) => sum + Number(bill.total || 0), 0) - totalReturns, 0);
-  customer.totalCreditSales = customer.totalCredit;
-  customer.loyaltyPoints = Math.floor(customer.totalSpent / 100);
-  customer.outstandingBalance = Math.max(balance, 0);
-  customer.creditBalance = Math.max(balance, 0);
+  customer.totalPaid = totalPaidFromBills;
+  customer.totalPaidAmount = totalPaidFromBills;
+  customer.totalCredit = totalOutstanding;
+  customer.totalCreditSales = totalOutstanding;
+  customer.outstandingBalance = totalOutstanding;
+  customer.creditBalance = totalOutstanding;
+  customer.paymentStatus = paymentStatusForBalance(totalOutstanding, totalPaidFromBills);
   customer.lastPaymentDate = receipts.length ? new Date(Math.max(...receipts.map((entry) => dateOf(entry.receiptDate, entry.createdAt).getTime()))) : customer.lastPaymentDate;
   await customer.save();
   await OutstandingSnapshot.create({ partyType: "Customer", party: customerId, balance: Math.max(balance, 0), asOf: /* @__PURE__ */ new Date(), metadata: { totalSales, totalReturns } });
@@ -380722,8 +380794,9 @@ async function reconcileSupplierAccounting(supplierId) {
   return { balance, entries };
 }
 async function rebuildDayBook() {
-  const [bills, salesReturns, purchases, purchaseReturns, receipts, payments] = await Promise.all([Bill_default.find({ status: { $ne: "Cancelled" } }).lean(), SalesReturn.find({ status: "Completed" }).lean(), Purchase.find({ active: true }).lean(), PurchaseReturn.find({ status: "Completed" }).lean(), CustomerReceipt.find({ status: "Posted" }).lean(), SupplierPayment.find({ status: "Posted" }).lean()]);
+  const [sales, bills, salesReturns, purchases, purchaseReturns, receipts, payments] = await Promise.all([Sale.find({}).lean(), Bill_default.find({ status: { $ne: "Cancelled" } }).lean(), SalesReturn.find({ status: "Completed" }).lean(), Purchase.find({ active: true }).lean(), PurchaseReturn.find({ status: "Completed" }).lean(), CustomerReceipt.find({ status: "Posted" }).lean(), SupplierPayment.find({ status: "Posted" }).lean()]);
   const entries = [];
+  sales.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: "Sale", sourceKey: `Sale:${entry._id}`, transactionType: "Sales", documentNo: invoiceNoOf(entry), narration: entry.customerName, cashIn: entry.paymentMethod === "cash" ? entry.paidAmount : 0, cashOut: 0, amount: entry.total, createdBy: entry.cashier, transactionDate: dateOf(entry.invoiceAt, entry.createdAt) }));
   bills.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: "Bill", sourceKey: `Bill:${entry._id}`, transactionType: "Sales", documentNo: entry.invoiceNo, narration: entry.customerName, cashIn: entry.paymentMethod === "Cash" ? entry.paidAmount : 0, cashOut: 0, amount: entry.total, createdBy: entry.staff, transactionDate: dateOf(entry.invoiceAt, entry.createdAt) }));
   salesReturns.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: "SalesReturn", sourceKey: `SalesReturn:${entry._id}`, transactionType: "Sales Return", documentNo: entry.returnNo, narration: entry.customerName, cashIn: 0, cashOut: entry.refundMethod === "Cash" ? entry.refundAmount : 0, amount: entry.refundAmount, createdBy: entry.processedBy, transactionDate: dateOf(entry.returnDate, entry.createdAt) }));
   purchases.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: "Purchase", sourceKey: `Purchase:${entry._id}`, transactionType: "Purchase", documentNo: entry.invoiceNumber, cashIn: 0, cashOut: entry.paidAmount, amount: entry.total, createdBy: entry.user, transactionDate: dateOf(entry.purchaseDate, entry.createdAt) }));
@@ -380750,6 +380823,72 @@ var dateQuery = (from, to) => {
   }
   return Object.keys(query2).length ? query2 : null;
 };
+var invoiceNoOf2 = (bill) => bill.invoiceNo || bill.invoiceNumber || String(bill._id);
+var unpaidLegacyBillFilter = (customerId) => ({
+  customer: customerId,
+  status: { $ne: "Cancelled" },
+  balanceAmount: { $gt: 0 }
+});
+function normalizeReceivableDocument(bill, sourceModel) {
+  const invoiceNo = invoiceNoOf2(bill);
+  return {
+    ...bill,
+    sourceModel,
+    invoiceNo,
+    invoiceNumber: bill.invoiceNumber || invoiceNo,
+    dueAmount: Number(bill.balanceAmount ?? 0)
+  };
+}
+async function pendingCustomerDocuments(customerId) {
+  const [sales, bills] = await Promise.all([
+    Sale.find({ customer: customerId, balanceAmount: { $gt: 0 } }).sort({ createdAt: 1 }).lean(),
+    Bill_default.find(unpaidLegacyBillFilter(customerId)).sort({ createdAt: 1 }).lean()
+  ]);
+  return [
+    ...sales.map((bill) => normalizeReceivableDocument(bill, "Sale")),
+    ...bills.map((bill) => normalizeReceivableDocument(bill, "Bill"))
+  ].sort((a6, b6) => new Date(a6.invoiceAt || a6.createdAt || 0) - new Date(b6.invoiceAt || b6.createdAt || 0));
+}
+async function pendingCustomerRecords(customerId) {
+  const [sales, bills] = await Promise.all([
+    Sale.find({ customer: customerId, balanceAmount: { $gt: 0 } }).sort({ createdAt: 1 }),
+    Bill_default.find(unpaidLegacyBillFilter(customerId)).sort({ createdAt: 1 })
+  ]);
+  return [
+    ...sales.map((document2) => ({ document: document2, sourceModel: "Sale" })),
+    ...bills.map((document2) => ({ document: document2, sourceModel: "Bill" }))
+  ].sort((a6, b6) => new Date(a6.document.invoiceAt || a6.document.createdAt || 0) - new Date(b6.document.invoiceAt || b6.document.createdAt || 0));
+}
+function applyReceiptToReceivable(bill, applied, sourceModel) {
+  if (sourceModel === "Sale") {
+    const paymentState = reconcileSalePaymentFields(bill.total, number(bill.paidAmount) + applied, number(bill.balanceAmount) - applied);
+    bill.paidAmount = paymentState.paidAmount;
+    bill.balanceAmount = paymentState.balanceAmount;
+    bill.paymentStatus = paymentState.paymentStatus;
+    return;
+  }
+  const paidAmount = number(bill.paidAmount) + applied;
+  const balanceAmount = Math.max(number(bill.balanceAmount ?? bill.dueAmount) - applied, 0);
+  bill.paidAmount = paidAmount;
+  bill.balanceAmount = balanceAmount;
+  bill.dueAmount = balanceAmount;
+  bill.paymentStatus = balanceAmount <= 1e-3 ? "Paid" : paidAmount > 0 ? "Partial" : "Unpaid";
+}
+function rollbackReceiptOnReceivable(bill, applied, sourceModel) {
+  if (sourceModel === "Sale") {
+    const paymentState = reconcileSalePaymentFields(bill.total, number(bill.paidAmount) - applied, number(bill.balanceAmount) + applied);
+    bill.paidAmount = paymentState.paidAmount;
+    bill.balanceAmount = paymentState.balanceAmount;
+    bill.paymentStatus = paymentState.paymentStatus;
+    return;
+  }
+  const paidAmount = Math.max(number(bill.paidAmount) - applied, 0);
+  const balanceAmount = number(bill.balanceAmount ?? bill.dueAmount) + applied;
+  bill.paidAmount = paidAmount;
+  bill.balanceAmount = balanceAmount;
+  bill.dueAmount = balanceAmount;
+  bill.paymentStatus = balanceAmount <= 1e-3 ? "Paid" : paidAmount > 0 ? "Partial" : "Unpaid";
+}
 async function ledgerResponse(Model, partyField, partyId, from, to, reconcile) {
   await reconcile(partyId);
   const range2 = dateQuery(from, to);
@@ -380770,8 +380909,20 @@ var customerOutstanding = asyncHandler(async (req, res) => {
   const customers = await Customer.find({ active: true }).lean();
   const rows = await Promise.all(customers.map(async (customer) => {
     await reconcileCustomerAccounting(customer._id);
-    const [fresh, lastBill, pendingBills] = await Promise.all([Customer.findById(customer._id).lean(), Bill_default.findOne({ customer: customer._id }).sort({ createdAt: -1 }).lean(), Bill_default.countDocuments({ customer: customer._id, dueAmount: { $gt: 0 }, status: "Completed" })]);
-    return { ...fresh, lastPurchase: lastBill?.invoiceAt || lastBill?.createdAt, pendingBills };
+    const [fresh, lastSale, lastBill, pendingSaleBills, pendingLegacyBills] = await Promise.all([
+      Customer.findById(customer._id).lean(),
+      Sale.findOne({
+        customer: customer._id
+      }).sort({ createdAt: -1 }).lean(),
+      Bill_default.findOne({ customer: customer._id, status: { $ne: "Cancelled" } }).sort({ createdAt: -1 }).lean(),
+      Sale.countDocuments({
+        customer: customer._id,
+        balanceAmount: { $gt: 0 }
+      }),
+      Bill_default.countDocuments(unpaidLegacyBillFilter(customer._id))
+    ]);
+    const latestBill = [lastSale, lastBill].filter(Boolean).sort((a6, b6) => new Date(b6.invoiceAt || b6.createdAt || 0) - new Date(a6.invoiceAt || a6.createdAt || 0))[0];
+    return { ...fresh, lastPurchase: latestBill?.invoiceAt || latestBill?.createdAt, pendingBills: pendingSaleBills + pendingLegacyBills };
   }));
   res.json({ customers: rows.filter((row) => number(row.outstandingBalance) > 0) });
 });
@@ -380784,7 +380935,8 @@ var supplierOutstanding = asyncHandler(async (req, res) => {
   res.json({ suppliers: rows.filter((row) => number(row.outstandingBalance) > 0) });
 });
 var pendingCustomerBills = asyncHandler(async (req, res) => {
-  const bills = await Bill_default.find({ customer: req.params.id, dueAmount: { $gt: 0 }, status: "Completed" }).sort({ createdAt: 1 }).lean();
+  await reconcileCustomerAccounting(req.params.id);
+  const bills = await pendingCustomerDocuments(req.params.id);
   res.json({ bills });
 });
 var pendingSupplierPurchases = asyncHandler(async (req, res) => {
@@ -380798,33 +380950,30 @@ var createCustomerReceipt = asyncHandler(async (req, res) => {
   if (amount <= 0) throw new ApiError(400, "Receipt amount must be greater than zero");
   let remaining = amount;
   const requested = new Map((req.body.allocations || []).map((entry) => [String(entry.billId), number(entry.amount)]));
-  const bills = await Bill_default.find({ customer: customer._id, dueAmount: { $gt: 0 }, status: "Completed" }).sort({ createdAt: 1 });
+  const bills = await pendingCustomerRecords(customer._id);
   const allocations = [];
   const changed = [];
   try {
-    for (const bill of bills) {
+    for (const entry of bills) {
       if (remaining <= 0) break;
+      const bill = entry.document;
       const wanted = requested.size ? number(requested.get(String(bill._id))) : remaining;
       if (wanted <= 0) continue;
-      const applied = Math.min(wanted, remaining, number(bill.dueAmount));
-      bill.paidAmount += applied;
-      bill.dueAmount -= applied;
-      bill.balanceAmount = bill.dueAmount;
-      bill.paymentStatus = bill.dueAmount <= 1e-3 ? "Paid" : "Partial";
+      const applied = Math.min(wanted, remaining, number(bill.balanceAmount));
+      if (applied <= 0) continue;
+      applyReceiptToReceivable(bill, applied, entry.sourceModel);
       await bill.save();
-      changed.push({ bill, applied });
+      changed.push({ bill, applied, sourceModel: entry.sourceModel });
       remaining -= applied;
-      allocations.push({ bill: bill._id, invoiceNo: bill.invoiceNo, amount: applied });
+      allocations.push({ bill: bill._id, billModel: entry.sourceModel, invoiceNo: invoiceNoOf2(bill), amount: applied });
     }
     const receipt = await CustomerReceipt.create({ receiptNo: docNo("RCT"), customer: customer._id, amount, paymentMethod: req.body.paymentMethod || "Cash", allocationType: remaining > 0 ? req.body.allocationType === "Advance" ? "Advance" : "On Account" : "Allocated", allocations, unallocatedAmount: remaining, notes: req.body.notes, createdBy: req.user._id, receiptDate: req.body.date || /* @__PURE__ */ new Date() });
     await reconcileCustomerAccounting(customer._id).catch((error) => console.error("Customer ledger reconciliation failed", error));
     await rebuildDayBook().catch((error) => console.error("Day book rebuild failed", error));
     res.status(201).json({ receipt });
   } catch (error) {
-    for (const { bill, applied } of changed.reverse()) {
-      bill.paidAmount -= applied;
-      bill.dueAmount += applied;
-      bill.balanceAmount = bill.dueAmount;
+    for (const { bill, applied, sourceModel } of changed.reverse()) {
+      rollbackReceiptOnReceivable(bill, applied, sourceModel);
       await bill.save();
     }
     throw error;
@@ -380971,8 +381120,8 @@ for (const kind of ["receipts", "payments", "customer-outstanding", "supplier-ou
 var import_express3 = __toESM(require_express2(), 1);
 
 // ../server/src/models/Category.js
-var import_mongoose14 = __toESM(require_mongoose2(), 1);
-var categorySchema = new import_mongoose14.default.Schema(
+var import_mongoose15 = __toESM(require_mongoose2(), 1);
+var categorySchema = new import_mongoose15.default.Schema(
   {
     name: { type: String, required: true, unique: true, trim: true },
     description: { type: String, trim: true },
@@ -380981,39 +381130,39 @@ var categorySchema = new import_mongoose14.default.Schema(
   },
   { timestamps: true }
 );
-var Category = import_mongoose14.default.model("Category", categorySchema);
+var Category = import_mongoose15.default.model("Category", categorySchema);
 
 // ../server/src/models/InventoryLog.js
-var import_mongoose15 = __toESM(require_mongoose2(), 1);
-var inventoryLogSchema = new import_mongoose15.default.Schema(
+var import_mongoose16 = __toESM(require_mongoose2(), 1);
+var inventoryLogSchema = new import_mongoose16.default.Schema(
   {
-    product: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Product", required: true },
+    product: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "Product", required: true },
     type: { type: String, enum: ["stock_in", "stock_out", "adjustment"], required: true },
     quantity: { type: Number, required: true },
     stockBefore: { type: Number, required: true },
     stockAfter: { type: Number, required: true },
     reason: { type: String, required: true },
     source: { type: String, enum: ["sale", "purchase", "manual", "restore", "sales_return", "purchase_return", "adjustment"], default: "manual" },
-    referenceId: import_mongoose15.default.Schema.Types.ObjectId,
-    invoiceId: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Bill" },
-    supplier: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "Supplier" },
+    referenceId: import_mongoose16.default.Schema.Types.ObjectId,
+    invoiceId: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "Bill" },
+    supplier: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "Supplier" },
     purchaseInvoiceNo: String,
-    user: { type: import_mongoose15.default.Schema.Types.ObjectId, ref: "User" }
+    user: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "User" }
   },
   { timestamps: true }
 );
-var InventoryLog = import_mongoose15.default.model("InventoryLog", inventoryLogSchema);
+var InventoryLog = import_mongoose16.default.model("InventoryLog", inventoryLogSchema);
 
 // ../server/src/models/Product.js
-var import_mongoose16 = __toESM(require_mongoose2(), 1);
-var productSchema = new import_mongoose16.default.Schema(
+var import_mongoose17 = __toESM(require_mongoose2(), 1);
+var productSchema = new import_mongoose17.default.Schema(
   {
     // Numeric product ID (auto-generated, primary identifier for POS)
     productId: { type: Number, required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true, index: true },
     sku: { type: String, required: true, unique: true, uppercase: true, trim: true },
     barcode: { type: String, trim: true, sparse: true, index: true },
-    category: { type: import_mongoose16.default.Schema.Types.ObjectId, ref: "Category" },
+    category: { type: import_mongoose17.default.Schema.Types.ObjectId, ref: "Category" },
     purchasePrice: { type: Number, required: true, min: 0 },
     sellingPrice: { type: Number, required: true, min: 0 },
     taxRate: { type: Number, default: 0, min: 0 },
@@ -381036,48 +381185,7 @@ var productSchema = new import_mongoose16.default.Schema(
 productSchema.index({ name: "text", sku: "text", barcode: "text" });
 productSchema.index({ productId: 1 });
 productSchema.index({ active: 1 });
-var Product = import_mongoose16.default.model("Product", productSchema);
-
-// ../server/src/models/Sale.js
-var import_mongoose17 = __toESM(require_mongoose2(), 1);
-var saleItemSchema = new import_mongoose17.default.Schema(
-  {
-    product: { type: import_mongoose17.default.Schema.Types.ObjectId, ref: "Product", required: true },
-    name: { type: String, required: true },
-    sku: { type: String, required: true },
-    quantity: { type: Number, required: true, min: 1e-3 },
-    unit: { type: String, default: "pcs" },
-    price: { type: Number, required: true, min: 0 },
-    purchasePrice: { type: Number, required: true, min: 0 },
-    taxRate: { type: Number, default: 0 },
-    discount: { type: Number, default: 0 },
-    lineTotal: { type: Number, required: true }
-  },
-  { _id: false }
-);
-var saleSchema = new import_mongoose17.default.Schema(
-  {
-    invoiceNumber: { type: String, required: true, unique: true, index: true },
-    customer: { type: import_mongoose17.default.Schema.Types.ObjectId, ref: "Customer" },
-    customerName: String,
-    customerMobile: String,
-    items: [saleItemSchema],
-    subtotal: { type: Number, required: true },
-    discount: { type: Number, default: 0 },
-    taxTotal: { type: Number, default: 0 },
-    total: { type: Number, required: true },
-    profit: { type: Number, default: 0 },
-    paymentMethod: { type: String, enum: ["cash", "upi", "card", "bank_transfer", "credit"], required: true },
-    paymentStatus: { type: String, enum: ["paid", "partial", "unpaid", "pending", "refunded"], default: "paid" },
-    paidAmount: { type: Number, default: 0 },
-    balanceAmount: { type: Number, default: 0 },
-    changeReturn: { type: Number, default: 0 },
-    cashier: { type: import_mongoose17.default.Schema.Types.ObjectId, ref: "User", required: true },
-    notes: String
-  },
-  { timestamps: true }
-);
-var Sale = import_mongoose17.default.model("Sale", saleSchema);
+var Product = import_mongoose17.default.model("Product", productSchema);
 
 // ../server/src/models/Setting.js
 var import_mongoose18 = __toESM(require_mongoose2(), 1);
@@ -381103,6 +381211,7 @@ var settingSchema = new import_mongoose18.default.Schema(
     taxInclusive: { type: Boolean, default: false },
     gstExclusive: { type: Boolean, default: false },
     gstMode: { type: String, enum: ["cgst_sgst", "igst"], default: "cgst_sgst" },
+    invoiceLanguage: { type: String, enum: ["English", "Local Language"], default: "English" },
     defaultTaxRate: { type: Number, default: 0 },
     invoicePrefix: { type: String, default: "INV" },
     invoiceFooter: { type: String, default: "Thank you for shopping with us." },
@@ -381474,6 +381583,9 @@ function paymentStatusFromAmounts(total, paid) {
   if (paid > 0) return "Partial";
   return "Unpaid";
 }
+function requestPaidAmount(body11, fallback2 = 0) {
+  return Number(body11.paidAmount ?? body11.amountPaid ?? body11.paid ?? fallback2);
+}
 function isWholeNumber(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
 }
@@ -381573,7 +381685,7 @@ async function recalculateCustomerBillingTotals(customerId) {
   const creditBills = bills.filter((bill) => bill.paymentMethod === "Credit");
   const paidAmount = bills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
   const creditPaid = creditBills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
-  const dueAmount = creditBills.reduce((sum, bill) => sum + Number(bill.dueAmount || 0), 0);
+  const dueAmount = creditBills.reduce((sum, bill) => sum + Number(bill.balanceAmount ?? 0), 0);
   customer.totalSpent = bills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
   customer.loyaltyPoints = Math.floor(customer.totalSpent / 100);
   customer.totalCredit = creditBills.reduce((sum, bill) => sum + Number(bill.total || 0), 0);
@@ -381665,7 +381777,7 @@ var createBill = asyncHandler(async (req, res) => {
     finalInvoiceNo = `INV${String(lastNumber + 1).padStart(6, "0")}`;
   }
   const billTotal = Number(total || 0);
-  const paidAmount = paymentMethod === "Credit" ? Number(req.body.paidAmount || 0) : Number(req.body.paidAmount ?? billTotal);
+  const paidAmount = paymentMethod === "Credit" ? requestPaidAmount(req.body, 0) : requestPaidAmount(req.body, billTotal);
   if (paidAmount < 0) {
     throw new ApiError(400, "Amount paid cannot be negative");
   }
@@ -381843,9 +381955,10 @@ var updateBill = asyncHandler(async (req, res) => {
   bill.customerMobile = customerMobile || void 0;
   bill.customerAddress = customerAddress || customer?.address || "";
   bill.paymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
-  bill.paidAmount = bill.paymentMethod === "Credit" ? Number(amountPaid ?? bill.paidAmount ?? 0) : bill.total;
-  bill.dueAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
-  bill.balanceAmount = bill.paymentMethod === "Credit" ? Math.max(0, bill.paidAmount - bill.total) : 0;
+  bill.paidAmount = requestPaidAmount(req.body, bill.paymentMethod === "Credit" ? bill.paidAmount ?? 0 : bill.total);
+  const balanceAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
+  bill.dueAmount = balanceAmount;
+  bill.balanceAmount = balanceAmount;
   bill.paymentStatus = paymentStatusFromAmounts(bill.total, bill.paidAmount);
   bill.notes = notes != null ? notes : bill.notes;
   await bill.save();
@@ -381899,7 +382012,7 @@ var restoreDeletedBill = asyncHandler(async (req, res) => {
     invoiceNumber: deletedBill.originalData.invoiceNumber || deletedBill.originalData.invoiceNo,
     items: originalItems,
     status: "Completed",
-    paidAmount: Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0),
+    paidAmount: Number(deletedBill.originalData.paidAmount ?? deletedBill.originalData.total ?? 0),
     dueAmount: Math.max(Number(deletedBill.originalData.dueAmount || 0), 0),
     balanceAmount: Number(deletedBill.originalData.balanceAmount || 0),
     paymentStatus: deletedBill.originalData.paymentStatus || paymentStatusFromAmounts(Number(deletedBill.originalData.total || 0), Number(deletedBill.originalData.paidAmount || deletedBill.originalData.total || 0)),
@@ -382221,17 +382334,22 @@ var recordCollection = asyncHandler(async (req, res) => {
     tx.dueAmount -= applied;
     tx.paymentStatus = tx.dueAmount <= 0 ? "Paid" : "Partial";
     remaining -= applied;
-    appliedTo.push({ billId: tx.billId, invoiceNo: tx.invoiceNo, amount: applied });
+    appliedTo.push({ billId: tx.billId, billModel: tx.billModel || "Bill", invoiceNo: tx.invoiceNo, amount: applied });
     if (tx.billModel === "Bill") {
       await Bill_default.findByIdAndUpdate(tx.billId, {
         $inc: { paidAmount: applied, balanceAmount: -applied, dueAmount: -applied },
         $set: { paymentStatus: tx.dueAmount <= 0 ? "Paid" : "Partial" }
       });
     } else {
-      await Sale.findByIdAndUpdate(tx.billId, {
-        $inc: { paidAmount: applied, balanceAmount: -applied },
-        $set: { paymentStatus: tx.dueAmount <= 0 ? "paid" : "partial" }
-      });
+      const sale = await Sale.findById(tx.billId);
+      if (sale) {
+        const paidAfter = Number(sale.paidAmount || 0) + applied;
+        const balanceAfter = Math.max(Number(sale.total || 0) - paidAfter, 0);
+        sale.paidAmount = paidAfter;
+        sale.balanceAmount = balanceAfter;
+        sale.paymentStatus = balanceAfter <= 1e-3 ? "paid" : paidAfter > 0 ? "partial" : "unpaid";
+        await sale.save();
+      }
     }
   }
   customer.creditTransactions = transactions;
@@ -382256,7 +382374,7 @@ var recordCollection = asyncHandler(async (req, res) => {
     amount,
     paymentMethod: req.body.paymentMethod === "Bank Transfer" ? "Bank" : req.body.paymentMethod,
     allocationType: "Allocated",
-    allocations: appliedTo.map((entry) => ({ bill: entry.billId, invoiceNo: entry.invoiceNo, amount: entry.amount })),
+    allocations: appliedTo.map((entry) => ({ bill: entry.billId, billModel: entry.billModel, invoiceNo: entry.invoiceNo, amount: entry.amount })),
     unallocatedAmount: 0,
     notes: req.body.notes,
     createdBy: req.user._id
@@ -382560,6 +382678,7 @@ var searchProducts = asyncHandler(async (req, res) => {
     const prod = await Product.findOne({ productId: Number(query2), active: true }, {
       productId: 1,
       name: 1,
+      localName: 1,
       sku: 1,
       barcode: 1,
       sellingPrice: 1,
@@ -382575,6 +382694,7 @@ var searchProducts = asyncHandler(async (req, res) => {
         productId: prod.productId,
         productName: prod.name,
         name: prod.name,
+        localName: prod.localName || "",
         sku: prod.sku,
         barcode: prod.barcode,
         sellingPrice: prod.sellingPrice,
@@ -382593,6 +382713,7 @@ var searchProducts = asyncHandler(async (req, res) => {
   const prefixResults = await Product.find({ active: true, $or: [{ name: prefixRegex }, { sku: prefixRegex }] }, {
     productId: 1,
     name: 1,
+    localName: 1,
     sku: 1,
     barcode: 1,
     sellingPrice: 1,
@@ -382608,6 +382729,7 @@ var searchProducts = asyncHandler(async (req, res) => {
       productId: product.productId,
       productName: product.name,
       name: product.name,
+      localName: product.localName || "",
       sku: product.sku,
       barcode: product.barcode,
       sellingPrice: product.sellingPrice,
@@ -382626,6 +382748,7 @@ var searchProducts = asyncHandler(async (req, res) => {
   const candidates = await Product.find({ active: true, $or: [{ name: containsRegex }, { sku: containsRegex }, { barcode: containsRegex }] }, {
     productId: 1,
     name: 1,
+    localName: 1,
     sku: 1,
     barcode: 1,
     sellingPrice: 1,
@@ -382642,6 +382765,7 @@ var searchProducts = asyncHandler(async (req, res) => {
     productId: product.productId,
     productName: product.name,
     name: product.name,
+    localName: product.localName || "",
     sku: product.sku,
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,
@@ -382663,6 +382787,7 @@ var searchByProductId = asyncHandler(async (req, res) => {
   const product = await Product.findOne({ productId, active: true }, {
     productId: 1,
     name: 1,
+    localName: 1,
     sku: 1,
     barcode: 1,
     sellingPrice: 1,
@@ -382680,6 +382805,7 @@ var searchByProductId = asyncHandler(async (req, res) => {
     productId: product.productId,
     productName: product.name,
     name: product.name,
+    localName: product.localName || "",
     sku: product.sku,
     barcode: product.barcode,
     sellingPrice: product.sellingPrice,
@@ -383472,6 +383598,9 @@ var saleRules = [
 function isWholeNumber4(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
 }
+function requestPaidAmount2(body11, fallback2 = 0) {
+  return Number(body11.paidAmount ?? body11.amountPaid ?? body11.paid ?? fallback2);
+}
 async function getUnitRule2(unitName) {
   await ensureDefaultUnits();
   const unit = await Unit.findOne({ name: String(unitName || "pcs").trim().toLowerCase(), active: true }).lean();
@@ -383527,6 +383656,7 @@ var createSale = asyncHandler(async (req, res) => {
     saleItems.push({
       product: product._id,
       name: product.name,
+      localName: product.localName || "",
       sku: product.sku,
       quantity: item.quantity,
       unit: unit.name,
@@ -383540,15 +383670,14 @@ var createSale = asyncHandler(async (req, res) => {
   const discount = Number(req.body.discount || 0);
   const count = await Sale.countDocuments();
   const total = Math.max(subtotal + taxTotal - discount, 0);
-  const paidAmount = Number(req.body.paidAmount ?? (req.body.paymentMethod === "credit" ? 0 : total));
+  const paidAmount = requestPaidAmount2(req.body, req.body.paymentMethod === "credit" ? 0 : total);
   if (paidAmount < 0) {
     throw new ApiError(400, "Paid amount cannot be negative");
   }
   if (req.body.paymentMethod === "credit" && paidAmount > total) {
     throw new ApiError(400, "Amount paid cannot exceed bill total for credit sales");
   }
-  const balanceAmount = Math.max(total - paidAmount, 0);
-  const paymentStatus = req.body.paymentStatus || (balanceAmount <= 0 ? "paid" : paidAmount > 0 ? "partial" : "unpaid");
+  const paymentState = reconcileSalePaymentFields(total, paidAmount);
   if (req.body.paymentMethod === "credit" && !req.body.customer) {
     throw new ApiError(400, "Customer account is required for credit sales");
   }
@@ -383564,9 +383693,9 @@ var createSale = asyncHandler(async (req, res) => {
     total,
     profit: Math.max(profit - discount, 0),
     paymentMethod: req.body.paymentMethod,
-    paymentStatus,
-    paidAmount,
-    balanceAmount,
+    paymentStatus: paymentState.paymentStatus,
+    paidAmount: paymentState.paidAmount,
+    balanceAmount: paymentState.balanceAmount,
     changeReturn: Math.max(paidAmount - total, 0),
     cashier: req.user._id,
     notes: req.body.notes
@@ -383595,9 +383724,9 @@ var createSale = asyncHandler(async (req, res) => {
       $inc: { totalSpent: sale.total, loyaltyPoints }
     };
     if (req.body.paymentMethod === "credit") {
-      const creditStatus = sale.balanceAmount <= 0 ? "Paid" : sale.paidAmount > 0 ? "Partial" : "Unpaid";
-      customerUpdates.$inc.totalCredit = sale.total;
+      customerUpdates.$inc.totalCredit = sale.balanceAmount;
       customerUpdates.$inc.outstandingBalance = sale.balanceAmount;
+      customerUpdates.$inc.creditBalance = sale.balanceAmount;
       customerUpdates.$inc.totalPaid = sale.paidAmount;
       customerUpdates.$push = {
         creditTransactions: {
@@ -383608,7 +383737,7 @@ var createSale = asyncHandler(async (req, res) => {
           paidAmount: sale.paidAmount,
           dueAmount: sale.balanceAmount,
           paymentMethod: "Credit",
-          paymentStatus: creditStatus
+          paymentStatus: sale.paymentStatus === "paid" ? "Paid" : sale.paymentStatus === "partial" ? "Partial" : "Unpaid"
         }
       };
       if (sale.paidAmount > 0) {
@@ -383622,6 +383751,8 @@ var createSale = asyncHandler(async (req, res) => {
       new: true,
       runValidators: true
     });
+    await reconcileCustomerAccounting(req.body.customer);
+    await rebuildDayBook();
   }
   res.status(201).json({ sale });
 });
@@ -383636,10 +383767,18 @@ saleRoutes.get("/:id", getSale);
 var import_express14 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/settingsController.js
+function normalizeSettings(settings) {
+  if (!settings) return settings;
+  const symbol = String(settings.currencySymbol || "").trim();
+  if (!symbol || symbol === "\xE2\u201A\xB9" || symbol === "&#8377;") {
+    settings.currencySymbol = "\u20B9";
+  }
+  return settings;
+}
 async function getSingleton() {
   let settings = await Setting.findOne();
   if (!settings) settings = await Setting.create({});
-  return settings;
+  return normalizeSettings(settings);
 }
 var getSettings = asyncHandler(async (req, res) => {
   const settings = await getSingleton();
@@ -383648,6 +383787,7 @@ var getSettings = asyncHandler(async (req, res) => {
 var updateSettings = asyncHandler(async (req, res) => {
   const settings = await getSingleton();
   Object.assign(settings, req.body);
+  normalizeSettings(settings);
   await settings.save();
   res.json({ settings });
 });
