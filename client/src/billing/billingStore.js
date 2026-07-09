@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
 
+const parseCartQuantity = (quantity, allowDecimalQty) => {
+  const parsed = Number(String(quantity ?? '').trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return allowDecimalQty ? parsed : Math.trunc(parsed);
+};
+
 export function createBillingStore(windowId) {
   return create((set, get) => ({
     windowId,
@@ -24,7 +30,11 @@ export function createBillingStore(windowId) {
           return state;
         }
 
-        const qtyToAdd = Math.max(0.001, parseFloat(quantity) || 0.001);
+        const qtyToAdd = parseCartQuantity(quantity, product.allowDecimalQty);
+        if (qtyToAdd <= 0) {
+          toast.error('Enter a valid quantity');
+          return state;
+        }
 
         const normalizedProduct = {
           _id: product._id,
@@ -35,6 +45,8 @@ export function createBillingStore(windowId) {
           sellingPrice: product.sellingPrice,
           taxRate: product.taxRate || 0,
           stock: product.stock || 0,
+          unit: product.unit || 'pcs',
+          allowDecimalQty: Boolean(product.allowDecimalQty),
         };
 
         // Merge only when same product AND same selling price
@@ -65,7 +77,10 @@ export function createBillingStore(windowId) {
           item._id === productId
             ? {
                 ...item,
-                quantity: Math.max(0.001, Math.min(item.stock, item.quantity + delta)),
+                quantity: Math.max(
+                  item.allowDecimalQty ? 0.001 : 1,
+                  Math.min(item.stock, item.quantity + delta)
+                ),
               }
             : item
         ),

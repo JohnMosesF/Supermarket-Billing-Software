@@ -332,9 +332,21 @@ export default function ModernPOSBilling() {
       if (existing >= 0) {
         // Item exists with same price, update quantity
         const copy = [...prev];
+        const current = copy[existing];
+        const nextQty = Number(current.qty ?? current.quantity ?? 0) + Number(item.qty ?? item.quantity ?? 0);
+        const rate = Number(current.rate || current.price || current.sellingPrice || item.rate || item.price || item.sellingPrice || 0);
+        const gstRate = Number(current.gst || current.gstRate || current.taxRate || item.gst || item.gstRate || item.taxRate || 0);
+        const grossAmount = rate * nextQty;
+        const gstAmount = grossAmount - grossAmount / (1 + gstRate / 100);
+        const taxableAmount = grossAmount - gstAmount;
         copy[existing] = {
-          ...copy[existing],
-          qty: parseFloat(copy[existing].qty || 0) + parseFloat(item.qty || 0)
+          ...current,
+          qty: nextQty,
+          quantity: nextQty,
+          taxableAmount,
+          amount: taxableAmount,
+          gstAmount,
+          netAmount: grossAmount
         };
         return copy;
       }

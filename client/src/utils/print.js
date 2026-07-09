@@ -36,6 +36,11 @@ function formatQuantity(value) {
   return parsed.toFixed(3).replace(/\.?0+$/, '');
 }
 
+function formatQuantityWithUnit(quantityText, unit) {
+  const normalizedUnit = String(unit || 'pcs').trim();
+  return normalizedUnit ? `${quantityText} ${normalizedUnit}` : quantityText;
+}
+
 function money(value, symbol = '₹') {
   const amount = number(value, 0);
   const sign = amount < 0 ? '-' : '';
@@ -232,12 +237,12 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
     return `<div class="item-row">
       <span class="item-rate">${escapeHtml(money(item.price, settings.currencySymbol))}</span>
       <span class="item-name">${escapeHtml(item.displayName || item.name || 'Item')}</span>
-      <span class="item-qty">${escapeHtml(item.quantityText)}</span>
+      <span class="item-qty">${escapeHtml(formatQuantityWithUnit(item.quantityText, item.unit))}</span>
       <span class="item-amount">${escapeHtml(money(item.lineTotal, settings.currencySymbol))}</span>
     </div>`;
   }).join('');
   const totalQty = invoice.items.reduce((sum, item) => sum + number(item.quantity, 0), 0);
-  const itemSummary = `<div class="summary-divider"></div><div class="item-summary">Total Items : ${escapeHtml(formatQuantity(totalQty))}</div><div class="summary-divider"></div>`;
+  const itemSummary = `<div class="summary-divider"></div><div class="item-summary"><span>Items : ${escapeHtml(formatQuantity(invoice.items.length))}</span><span>Qty : ${escapeHtml(formatQuantity(totalQty))}</span></div>`;
   const itemHeader = `<div class="item-row item-header">
       <span class="item-rate">Rate</span>
       <span class="item-name">Product</span>
@@ -299,7 +304,7 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
       ${showField(rawSettings, 'GrandTotal', true) ? totalRow('GRAND TOTAL', invoice.total, settings, 'grand-total') : ''}
       ${dividerMarkup(settings, 'strong-line')}
       ${showField(rawSettings, 'Paid', true) ? totalRow('Paid', invoice.paidAmount, settings) : ''}
-      ${showField(rawSettings, 'Balance', true) ? totalRow('Balance', invoice.balanceAmount, settings) : ''}
+      ${showField(rawSettings, 'Balance', true) ? totalRow('BALANCE', invoice.balanceAmount, settings, 'grand-total') : ''}
     </section>
 
     ${taxSummary}
@@ -345,18 +350,20 @@ export function makeReceiptCss(rawSettings = {}, options = {}) {
     .info-row span::after { content: " :"; }
     .info-row b, .total-row b { text-align: right; overflow-wrap: anywhere; }
     .items { break-inside: auto; }
-    .item-row { display: grid; grid-template-columns: 18mm minmax(0, 1fr) 11mm 18mm; gap: 1.5mm; align-items: center; padding: ${0.45 * density}mm 0; break-inside: avoid; }
-    .receipt-58 .item-row { grid-template-columns: 16mm minmax(0, 1fr) 9mm 16mm; gap: 1mm; }
+    .item-row { display: grid; grid-template-columns: 16% 48% 16% 20%; column-gap: 0; width: 100%; align-items: center; min-height: ${settings.fontSize * settings.lineHeight}px; padding: ${0.45 * density}mm 0; break-inside: avoid; page-break-inside: avoid; }
     .item-header { padding-top: 0; padding-bottom: 0.9mm; font-size: ${Math.max(settings.fontSize - 1, 8)}px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #000; margin-bottom: 0.8mm; }
-    .item-rate { text-align: left; white-space: nowrap; }
-    .item-qty, .item-amount { text-align: right; white-space: nowrap; }
-    .item-name { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
-    .item-summary { text-align: left; padding: 0.5mm 0; font-weight: 700; }
+    .item-row > span { display: block; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: ${settings.lineHeight}; }
+    .item-rate { padding-right: 0.8mm; text-align: left; }
+    .item-name { padding-right: 0.8mm; font-weight: 600; }
+    .item-qty { padding-right: 0.8mm; text-align: right; }
+    .item-amount { text-align: right; }
+    .item-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; text-align: left; padding: 0.5mm 0; font-weight: 700; }
+    .item-summary span:last-child { text-align: right; }
     .summary-divider { width: 100%; height: 0; margin: 1mm 0; border-top: 1px dashed #000; }
     .empty { padding: 5mm 0; text-align: center; }
     .totals { break-inside: avoid; }
     .total-row { grid-template-columns: 1fr auto; margin: 0.75mm 0; }
-    .grand-total { font-size: ${Math.round(settings.fontSize * 1.28)}px; line-height: 1.35; text-transform: uppercase; }
+    .grand-total { font-size: ${Math.round(settings.fontSize * 1.28)}px; font-weight: 700; line-height: 1.35; text-transform: uppercase; }
     .section-title { text-align: center; font-weight: 700; margin-bottom: 1mm; }
     .tax-summary { width: 100%; border-collapse: collapse; font-size: ${Math.max(settings.fontSize - 1.5, 8)}px; }
     .tax-summary th, .tax-summary td { padding: 0.75mm 0; text-align: left; }

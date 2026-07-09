@@ -4,6 +4,12 @@ import { productAPI } from './billingService.js';
 import toast from 'react-hot-toast';
 import { currency } from '../utils/format.js';
 
+const parseQuantityInput = (value, allowDecimalQty) => {
+  const parsed = Number(String(value ?? '').trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return allowDecimalQty ? parsed : Math.trunc(parsed);
+};
+
 /**
  * BillingEntryRow - Advanced POS-style product entry with fuzzy search
  * 
@@ -49,6 +55,15 @@ import { currency } from '../utils/format.js';
   const rateRef = useRef(null);
   const gstRef = useRef(null);
   const suggestionRefs = useRef([]);
+
+  const focusQty = (selectValue = false) => {
+    setTimeout(() => {
+      const input = qtyRef.current;
+      if (!input) return;
+      input.focus();
+      if (selectValue) input.select();
+    }, 0);
+  };
   
   useEffect(() => {
     if (
@@ -89,7 +104,7 @@ import { currency } from '../utils/format.js';
       setTimeout(() => nameRef.current?.focus(), 0);
     },
     focusQty: () => {
-      setTimeout(() => qtyRef.current?.focus(), 0);
+      focusQty(true);
     }
   }));
 
@@ -146,8 +161,8 @@ import { currency } from '../utils/format.js';
         setSuggestions([]);
         setShowSuggestions(false);
         
-        // Move to quantity field
-        setTimeout(() => qtyRef.current?.focus(), 0);
+        // Move to quantity field with default qty selected for immediate replacement.
+        focusQty(true);
       } else {
         toast.error('Product not found');
         setProductId('');
@@ -222,8 +237,8 @@ import { currency } from '../utils/format.js';
     setSearchQuery('');
     setSku(product.sku || '');
 
-    // Move to quantity field
-    setTimeout(() => qtyRef.current?.focus(), 0);
+    // Move to quantity field with default qty selected for immediate replacement.
+    focusQty(true);
   };
 
   /**
@@ -239,7 +254,7 @@ import { currency } from '../utils/format.js';
           productIdRef.current?.focus();
         } else {
           e.preventDefault();
-          qtyRef.current?.focus();
+          focusQty(true);
         }
       }
       return;
@@ -298,7 +313,7 @@ import { currency } from '../utils/format.js';
       selectSuggestion(suggestions[0]);
     } else {
       // Just move to quantity
-      setTimeout(() => qtyRef.current?.focus(), 0);
+      focusQty(true);
     }
   };
 
@@ -317,7 +332,11 @@ import { currency } from '../utils/format.js';
       return;
     }
 
-    const quantity = Number(qty) || 0;
+    const quantity = parseQuantityInput(qty, allowDecimalQty);
+    if (quantity <= 0) {
+      toast.error('Enter a valid quantity');
+      return;
+    }
     if (!allowDecimalQty && !Number.isInteger(quantity)) {
       toast.error(`${unit || 'pcs'} accepts whole number quantities only`);
       return;
@@ -328,7 +347,7 @@ import { currency } from '../utils/format.js';
     const amount = grossAmount - gstAmount;
 
     // Validate stock before adding
-    if (stock != null && parseFloat(qty || 0) > parseFloat(stock)) {
+    if (stock != null && quantity > parseFloat(stock)) {
       toast.error('Quantity exceeds available stock');
       return;
     }
@@ -343,7 +362,8 @@ import { currency } from '../utils/format.js';
       name,
       localName,
 
-      qty: parseFloat(qty || 0.001),
+      qty: quantity,
+      quantity,
       unit,
       allowDecimalQty,
 
@@ -352,8 +372,10 @@ import { currency } from '../utils/format.js';
 
       stock,
 
+      taxableAmount: amount,
       amount,
-      gstAmount
+      gstAmount,
+      netAmount
     };
 
     console.log('Adding item to cart with MongoDB ObjectId:', cartItem);
@@ -457,8 +479,8 @@ import { currency } from '../utils/format.js';
   };
 
   // Calculate amounts for display
-  const quantity = Number(qty) || 0;
-  const grossAmount = Number(rate || 0) * Number(qty || 1);
+  const quantity = parseQuantityInput(qty, allowDecimalQty);
+  const grossAmount = Number(rate || 0) * quantity;
   const gstAmount = grossAmount - grossAmount / (1 + Number(gst || 0) / 100);
   const amount = grossAmount - gstAmount;
   const netAmount = grossAmount;
@@ -542,13 +564,17 @@ import { currency } from '../utils/format.js';
             let value = e.target.value;
 
             if (!allowDecimalQty) {
-              value = value.replace(/\./g, '');
+              value = value.replace(/[^\d.]/g, '').split('.')[0];
+            } else {
+              value = value.replace(/[^\d.]/g, '');
+              const [whole, ...fraction] = value.split('.');
+              value = fraction.length ? `${whole}.${fraction.join('')}` : whole;
             }
 
             setQty(value);
           }}
           onKeyDown={(e) => {
-            if (!allowDecimalQty && e.key === '.') {
+            if (['e', 'E'].includes(e.key) || (!allowDecimalQty && e.key === '.')) {
               e.preventDefault();
               return;
             }

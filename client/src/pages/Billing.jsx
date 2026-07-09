@@ -40,6 +40,12 @@ function productDisplayName(item, settings) {
   return useLocal ? (item.localName || item.name) : item.name;
 }
 
+function parseEntryQuantity(value, allowDecimalQty) {
+  const parsed = Number(String(value ?? '').trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return allowDecimalQty ? parsed : Math.trunc(parsed);
+}
+
 function makeDraftSale(cart, totals, paymentMethod, customer, settings, paidAmount = totals.grandTotal) {
   return {
     invoiceNumber: 'PREVIEW',
@@ -182,7 +188,11 @@ export function Billing() {
       toast.error('Product is out of stock');
       return;
     }
-    const quantity = parseFloat(entryQty || 0);
+    const quantity = parseEntryQuantity(entryQty, product.allowDecimalQty);
+    if (quantity <= 0) {
+      toast.error('Enter a valid quantity');
+      return;
+    }
     if (!product.allowDecimalQty && !Number.isInteger(quantity)) {
       toast.error(`${product.unit || 'pcs'} accepts whole number quantities only`);
       return;
@@ -192,7 +202,7 @@ export function Billing() {
       const existing = items.find((item) => item._id === product._id);
       if (existing) {
         return items.map((item) => item._id === product._id
-          ? { ...item, quantity: Math.min(parseFloat(item.quantity || 0) + parseFloat(entryQty || 0.001), Number(product.stock) )}
+          ? { ...item, quantity: Math.min(Number(item.quantity || 0) + quantity, Number(product.stock) )}
           : item);
       }
       return [
@@ -205,7 +215,7 @@ export function Billing() {
           allowDecimalQty: product.allowDecimalQty || false,
 
           price: product.sellingPrice,
-          quantity: Math.min(parseFloat(entryQty || 0.001), product.stock),
+          quantity: Math.min(quantity, product.stock),
 
           discount: 0
         }
@@ -428,12 +438,23 @@ export function Billing() {
                 <input
                   className="input mt-1 h-11"
                   type="number"
-                  min="0.001"
-                  step="0.001"
+                  min={activeProduct?.allowDecimalQty ? '0.001' : '1'}
+                  step={activeProduct?.allowDecimalQty ? '0.001' : '1'}
                   value={entryQty}
+                  onKeyDown={(event) => {
+                    if (['e', 'E'].includes(event.key) || (!activeProduct?.allowDecimalQty && event.key === '.')) {
+                      event.preventDefault();
+                    }
+                  }}
                   onChange={(event) => {
-                    const value = parseFloat(event.target.value) || 0.001;
-                    setEntryQty(activeProduct?.allowDecimalQty === false ? Math.max(1, Math.trunc(value)) : value);
+                    const raw = event.target.value;
+                    if (raw === '') {
+                      setEntryQty('');
+                      return;
+                    }
+                    const value = Number(raw);
+                    if (!Number.isFinite(value)) return;
+                    setEntryQty(activeProduct?.allowDecimalQty ? Math.max(0.001, value) : Math.max(1, Math.trunc(value)));
                   }}
                 />
               </label>

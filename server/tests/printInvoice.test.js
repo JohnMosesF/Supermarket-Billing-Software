@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeReceiptBodyHtml } from '../../client/src/utils/print.js';
+import { makeReceiptBodyHtml, makeReceiptCss } from '../../client/src/utils/print.js';
 
 test('invoice renderer uses the configured language and shows item totals', () => {
   const html = makeReceiptBodyHtml({
@@ -59,6 +59,18 @@ test('invoice renderer uses the configured language and shows item totals', () =
 
   assert.match(html, /Items : 2/);
   assert.match(html, /Qty : 3/);
+  assert.match(html, /1 pcs/);
+  assert.match(html, /2 kg/);
   assert.match(html, /பிபி பைகள்/);
   assert.doesNotMatch(html, /\b1\.\s/);
+});
+
+test('invoice renderer fixes item columns for thermal receipts', () => {
+  const css = makeReceiptCss({ receiptWidth: '80mm' });
+
+  assert.match(css, /\.item-row \{[^}]*grid-template-columns: 16% 48% 16% 20%/);
+  assert.match(css, /\.item-row > span \{[^}]*white-space: nowrap/);
+  assert.match(css, /\.item-row > span \{[^}]*overflow: hidden/);
+  assert.match(css, /\.item-row > span \{[^}]*text-overflow: ellipsis/);
+  assert.doesNotMatch(css, /\.item-name \{[^}]*overflow-wrap: anywhere/);
 });

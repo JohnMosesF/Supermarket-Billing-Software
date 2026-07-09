@@ -47,7 +47,7 @@ function BillingTable({ cart = [], invoiceLanguage = 'English', onSelectIndex = 
         <div className="col-span-2">Product</div>
         <div className="text-right">Rate</div>
         <div className="text-right">Qty</div>
-        <div>Unit</div>
+        <div className="text-center">Unit</div>
         <div className="text-right">GST%</div>
         <div className="text-right">GST</div>
         <div className="text-right">Amount</div>

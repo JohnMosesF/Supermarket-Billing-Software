@@ -2,6 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import ProductCodeSearch from './ProductCodeSearch.jsx';
 import ProductNameSearch from './ProductNameSearch.jsx';
 
+const parseQuantity = (value, allowDecimalQty) => {
+  const parsed = Number(String(value ?? '').trim());
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return allowDecimalQty ? parsed : Math.trunc(parsed);
+};
+
 export default function FastBillingEntry({ onAddProduct, autoFocusCode = false }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -36,12 +42,17 @@ export default function FastBillingEntry({ onAddProduct, autoFocusCode = false }
     setPrice(p.sellingPrice ?? '');
     setQuantity(1);
     // focus quantity for quick edits
-    setTimeout(() => qtyRef.current?.focus(), 50);
+    setTimeout(() => {
+      qtyRef.current?.focus();
+      qtyRef.current?.select();
+    }, 50);
   };
 
   const handleAdd = () => {
     if (!product) return;
-    onAddProduct(product, quantity);
+    const parsedQuantity = parseQuantity(quantity, product.allowDecimalQty);
+    if (parsedQuantity <= 0) return;
+    onAddProduct(product, parsedQuantity);
     clearEntry();
   };
 
@@ -86,12 +97,26 @@ export default function FastBillingEntry({ onAddProduct, autoFocusCode = false }
           <input
             ref={qtyRef}
             type="number"
-            inputMode="numeric"
-            min="1"
+            inputMode={product?.allowDecimalQty ? 'decimal' : 'numeric'}
+            min={product?.allowDecimalQty ? '0.001' : '1'}
+            step={product?.allowDecimalQty ? '0.001' : '1'}
             value={quantity}
-            onChange={(e) => setQuantity(Math.max(0.001, parseFloat(e.target.value) || 0.001))}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === '') {
+                setQuantity('');
+                return;
+              }
+              const parsed = Number(raw);
+              if (!Number.isFinite(parsed)) return;
+              setQuantity(product?.allowDecimalQty ? Math.max(0.001, parsed) : Math.max(1, Math.trunc(parsed)));
+            }}
             className="w-full input text-lg text-center"
             onKeyDown={(e) => {
+              if (['e', 'E'].includes(e.key) || (!product?.allowDecimalQty && e.key === '.')) {
+                e.preventDefault();
+                return;
+              }
               if (e.key === 'Enter') handleAdd();
               if (e.key === '+') setQuantity((q) => q + 1);
               if (e.key === '-') setQuantity((q) => Math.max(1, q - 1));
