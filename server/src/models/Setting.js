@@ -86,7 +86,10 @@ const settingSchema = new mongoose.Schema(
     upiQr: { type: Boolean, default: false },
     upiId: { type: String, default: '' },
     upiName: { type: String, default: '' },
-    lowStockGlobalThreshold: { type: Number, default: 5 }
+    lowStockGlobalThreshold: { type: Number, default: 5 },
+    backupLocation: { type: String, default: '' },
+    automaticBackup: { type: Boolean, default: false },
+    backupBeforeRestore: { type: Boolean, default: true }
   },
   { timestamps: true }
 );

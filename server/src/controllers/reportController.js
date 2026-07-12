@@ -2,8 +2,10 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { Customer } from '../models/Customer.js';
 import { Product } from '../models/Product.js';
+import { Purchase } from '../models/Purchase.js';
 import { Sale } from '../models/Sale.js';
 import { SalesReturn } from '../models/SalesReturn.js';
+import { Supplier } from '../models/Supplier.js';
 import { PurchaseReturn } from '../models/PurchaseReturn.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -15,6 +17,25 @@ function dateFilter(req) {
     if (req.query.to) filter.createdAt.$lte = new Date(req.query.to);
   }
   return filter;
+}
+
+function rangeFor(query, field = 'createdAt') {
+  const filter = {};
+  if (query.from || query.to) {
+    filter[field] = {};
+    if (query.from) filter[field].$gte = new Date(query.from);
+    if (query.to) {
+      const to = new Date(query.to);
+      if (String(query.to).length <= 10) to.setHours(23, 59, 59, 999);
+      filter[field].$lte = to;
+    }
+  }
+  return filter;
+}
+
+function matchesText(value, expected) {
+  if (!expected) return true;
+  return String(value || '').toLowerCase().includes(String(expected).toLowerCase());
 }
 
 export const salesReport = asyncHandler(async (req, res) => {
@@ -230,5 +251,210 @@ export const exportReturnsPdf = (type) => asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `attachment; filename=${type}-returns.pdf`); doc.pipe(res);
   doc.fontSize(18).text(type === 'sales' ? 'Sales Return Report' : 'Purchase Return Report').moveDown();
   entries.forEach((entry) => doc.fontSize(9).text(`${entry.returnNo} | ${entry.originalInvoiceNo || '-'} | ${new Date(entry.returnDate).toLocaleString()} | ${type === 'sales' ? entry.customerName || 'Walk-in' : entry.supplierName || '-'} | ${Number(entry[amountKey] || 0).toFixed(2)}`));
+  doc.end();
+});
+
+async function salesRows(query) {
+  const sales = await Sale.find(rangeFor(query)).populate('customer', 'name mobile').sort({ createdAt: -1 }).limit(2000).lean();
+  return sales
+    .filter((sale) => matchesText(sale.customerName || sale.customer?.name || sale.customerMobile || 'Walk-in', query.customer))
+    .flatMap((sale) => (sale.items || []).map((item) => ({
+      date: sale.createdAt,
+      invoice: sale.invoiceNumber,
+      customer: sale.customerName || sale.customer?.name || sale.customerMobile || 'Walk-in',
+      productId: String(item.product || ''),
+      product: item.name,
+      quantity: item.quantity,
+      taxable: Number(item.lineTotal || 0) - (Number(item.lineTotal || 0) * Number(item.taxRate || 0) / (100 + Number(item.taxRate || 0) || 100)),
+      gstRate: item.taxRate || 0,
+      gst: Number(item.lineTotal || 0) * Number(item.taxRate || 0) / (100 + Number(item.taxRate || 0) || 100),
+      total: item.lineTotal,
+      profit: (Number(item.price || 0) - Number(item.purchasePrice || 0)) * Number(item.quantity || 0)
+    })));
+}
+
+async function purchaseRows(query) {
+  const purchases = await Purchase.find({ ...rangeFor(query, 'purchaseDate'), active: true }).populate('supplier', 'name mobile').sort({ purchaseDate: -1 }).limit(2000).lean();
+  return purchases
+    .filter((purchase) => !query.supplier || String(purchase.supplier?._id || purchase.supplier) === String(query.supplier))
+    .flatMap((purchase) => (purchase.items || []).map((item) => ({
+      date: purchase.purchaseDate || purchase.createdAt,
+      invoice: purchase.invoiceNumber || String(purchase._id).slice(-6).toUpperCase(),
+      supplier: purchase.supplier?.name || '-',
+      productId: String(item.product || ''),
+      product: item.name,
+      quantity: item.quantity,
+      costPrice: item.costPrice,
+      gstRate: item.gstRate || 0,
+      gst: Number(item.lineTotal || 0) - (Number(item.quantity || 0) * Number(item.costPrice || 0)),
+      total: item.lineTotal
+    })));
+}
+
+async function categoryProductFilter(rows, query) {
+  let filtered = rows;
+  if (query.product) filtered = filtered.filter((row) => String(row.productId) === String(query.product) || matchesText(row.product, query.product));
+  if (!query.category) return filtered;
+  const productIds = [...new Set(filtered.map((row) => row.productId).filter(Boolean))];
+  const products = await Product.find({ _id: { $in: productIds }, category: query.category }).select('_id').lean();
+  const allowed = new Set(products.map((product) => String(product._id)));
+  return filtered.filter((row) => allowed.has(String(row.productId)));
+}
+
+function summarize(rows, amountKey = 'total') {
+  return {
+    count: rows.length,
+    quantity: rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0),
+    total: rows.reduce((sum, row) => sum + Number(row[amountKey] || 0), 0),
+    gst: rows.reduce((sum, row) => sum + Number(row.gst || 0), 0),
+    profit: rows.reduce((sum, row) => sum + Number(row.profit || 0), 0)
+  };
+}
+
+function columnsFor(type) {
+  const common = ['date', 'invoice'];
+  const definitions = {
+    sales: [...common, 'customer', 'product', 'quantity', 'gstRate', 'gst', 'total', 'profit'],
+    purchases: [...common, 'supplier', 'product', 'quantity', 'costPrice', 'gstRate', 'gst', 'total'],
+    profit: [...common, 'customer', 'product', 'quantity', 'total', 'profit'],
+    gst: [...common, 'party', 'type', 'product', 'gstRate', 'gst', 'total'],
+    'stock-valuation': ['product', 'category', 'stock', 'purchasePrice', 'sellingPrice', 'purchaseValue', 'sellingValue'],
+    'dead-stock': ['product', 'stock', 'purchaseValue', 'lastSoldAt'],
+    'fast-moving-products': ['product', 'quantity', 'revenue'],
+    'slow-moving-products': ['product', 'stock', 'quantity', 'revenue'],
+    'customer-purchases': ['customer', 'invoices', 'quantity', 'total'],
+    'supplier-purchases': ['supplier', 'invoices', 'quantity', 'total'],
+    'low-stock': ['product', 'category', 'stock', 'lowStockThreshold', 'purchasePrice', 'sellingPrice']
+  };
+  return definitions[type] || definitions.sales;
+}
+
+async function buildReport(type, query) {
+  if (['sales', 'profit'].includes(type)) {
+    const rows = await categoryProductFilter(await salesRows(query), query);
+    return { type, columns: columnsFor(type), rows, summary: summarize(rows) };
+  }
+
+  if (type === 'purchases') {
+    const rows = await categoryProductFilter(await purchaseRows(query), query);
+    return { type, columns: columnsFor(type), rows, summary: summarize(rows) };
+  }
+
+  if (type === 'gst') {
+    const [sales, purchases] = await Promise.all([salesRows(query), purchaseRows(query)]);
+    const rows = [
+      ...sales.map((row) => ({ ...row, party: row.customer, type: 'Sales' })),
+      ...purchases.map((row) => ({ ...row, party: row.supplier, type: 'Purchase' }))
+    ];
+    const filtered = await categoryProductFilter(rows, query);
+    return { type, columns: columnsFor(type), rows: filtered, summary: summarize(filtered) };
+  }
+
+  if (type === 'stock-valuation' || type === 'low-stock') {
+    const filter = { active: true };
+    if (query.category) filter.category = query.category;
+    if (type === 'low-stock') filter.$expr = { $lte: ['$stock', '$lowStockThreshold'] };
+    if (query.product) filter._id = query.product;
+    const products = await Product.find(filter).populate('category', 'name').sort({ stock: 1 }).limit(3000).lean();
+    const rows = products.map((product) => ({
+      product: product.name,
+      category: product.category?.name || '-',
+      stock: product.stock || 0,
+      lowStockThreshold: product.lowStockThreshold || 0,
+      purchasePrice: product.purchasePrice || 0,
+      sellingPrice: product.sellingPrice || 0,
+      purchaseValue: Number(product.purchasePrice || 0) * Number(product.stock || 0),
+      sellingValue: Number(product.sellingPrice || 0) * Number(product.stock || 0)
+    }));
+    return { type, columns: columnsFor(type), rows, summary: summarize(rows, 'purchaseValue') };
+  }
+
+  if (['fast-moving-products', 'slow-moving-products', 'dead-stock'].includes(type)) {
+    const sold = await categoryProductFilter(await salesRows(query), query);
+    const movement = new Map();
+    sold.forEach((row) => {
+      const current = movement.get(row.productId) || { product: row.product, quantity: 0, revenue: 0, lastSoldAt: row.date };
+      current.quantity += Number(row.quantity || 0);
+      current.revenue += Number(row.total || 0);
+      if (new Date(row.date) > new Date(current.lastSoldAt)) current.lastSoldAt = row.date;
+      movement.set(row.productId, current);
+    });
+
+    if (type === 'dead-stock') {
+      const products = await Product.find({ active: true, stock: { $gt: 0 } }).lean();
+      const rows = products
+        .filter((product) => !movement.has(String(product._id)))
+        .map((product) => ({
+          product: product.name,
+          stock: product.stock || 0,
+          purchaseValue: Number(product.purchasePrice || 0) * Number(product.stock || 0),
+          lastSoldAt: '-'
+        }));
+      return { type, columns: columnsFor(type), rows, summary: summarize(rows, 'purchaseValue') };
+    }
+
+    const rows = [...movement.values()].sort((a, b) => type === 'fast-moving-products' ? b.quantity - a.quantity : a.quantity - b.quantity).slice(0, 100);
+    return { type, columns: columnsFor(type), rows, summary: summarize(rows, 'revenue') };
+  }
+
+  if (type === 'customer-purchases') {
+    const rowsByCustomer = new Map();
+    const rows = await salesRows(query);
+    rows.forEach((row) => {
+      if (!matchesText(row.customer, query.customer)) return;
+      const current = rowsByCustomer.get(row.customer) || { customer: row.customer, invoices: new Set(), quantity: 0, total: 0 };
+      current.invoices.add(row.invoice);
+      current.quantity += Number(row.quantity || 0);
+      current.total += Number(row.total || 0);
+      rowsByCustomer.set(row.customer, current);
+    });
+    const reportRows = [...rowsByCustomer.values()].map((row) => ({ ...row, invoices: row.invoices.size })).sort((a, b) => b.total - a.total);
+    return { type, columns: columnsFor(type), rows: reportRows, summary: summarize(reportRows) };
+  }
+
+  if (type === 'supplier-purchases') {
+    const rowsBySupplier = new Map();
+    const rows = await purchaseRows(query);
+    rows.forEach((row) => {
+      const current = rowsBySupplier.get(row.supplier) || { supplier: row.supplier, invoices: new Set(), quantity: 0, total: 0 };
+      current.invoices.add(row.invoice);
+      current.quantity += Number(row.quantity || 0);
+      current.total += Number(row.total || 0);
+      rowsBySupplier.set(row.supplier, current);
+    });
+    const reportRows = [...rowsBySupplier.values()].map((row) => ({ ...row, invoices: row.invoices.size })).sort((a, b) => b.total - a.total);
+    return { type, columns: columnsFor(type), rows: reportRows, summary: summarize(reportRows) };
+  }
+
+  return buildReport('sales', query);
+}
+
+export const advancedReport = (type) => asyncHandler(async (req, res) => {
+  res.json(await buildReport(type, req.query));
+});
+
+export const exportAdvancedReportExcel = (type) => asyncHandler(async (req, res) => {
+  const report = await buildReport(type, req.query);
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(type.slice(0, 31));
+  sheet.columns = report.columns.map((key) => ({ header: key.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase()), key, width: 20 }));
+  report.rows.forEach((row) => sheet.addRow(row));
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename=${type}-report.xlsx`);
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
+export const exportAdvancedReportPdf = (type) => asyncHandler(async (req, res) => {
+  const report = await buildReport(type, req.query);
+  const doc = new PDFDocument({ margin: 36, size: 'A4' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=${type}-report.pdf`);
+  doc.pipe(res);
+  doc.fontSize(18).text(`${type.replace(/-/g, ' ')} Report`).moveDown();
+  doc.fontSize(10).text(`Rows: ${report.summary.count} | Total: ${Number(report.summary.total || 0).toFixed(2)} | GST: ${Number(report.summary.gst || 0).toFixed(2)} | Profit: ${Number(report.summary.profit || 0).toFixed(2)}`).moveDown();
+  report.rows.slice(0, 300).forEach((row) => {
+    doc.fontSize(8).text(report.columns.map((column) => `${column}: ${row[column] instanceof Date ? row[column].toLocaleString() : row[column] ?? '-'}`).join(' | '));
+  });
   doc.end();
 });

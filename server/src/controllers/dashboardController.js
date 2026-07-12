@@ -63,12 +63,38 @@ export const getDashboard = asyncHandler(async (req, res) => {
     DayBookEntry.aggregate([{ $group: { _id: null, cashIn: { $sum: '$cashIn' }, cashOut: { $sum: '$cashOut' } } }])
   ]);
 
+  const [todaySaleDocs, monthSaleDocs, recentSaleDocs, saleChart, topSaleProducts, topBillProducts, topSaleCustomers, topBillCustomers] = await Promise.all([
+    Sale.aggregate([{ $match: { createdAt: { $gte: today, $lt: tomorrow } } }, { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 }, profit: { $sum: '$profit' } } }]),
+    Sale.aggregate([{ $match: { createdAt: { $gte: monthStart } } }, { $group: { _id: null, total: { $sum: '$total' }, count: { $sum: 1 }, profit: { $sum: '$profit' } } }]),
+    Sale.find().populate('customer', 'name mobile outstandingBalance').sort({ createdAt: -1 }).limit(8).lean(),
+    Sale.aggregate([{ $match: { createdAt: { $gte: monthStart } } }, { $group: { _id: { $dayOfMonth: '$createdAt' }, revenue: { $sum: '$total' }, profit: { $sum: '$profit' } } }, { $sort: { _id: 1 } }]),
+    Sale.aggregate([{ $match: { createdAt: { $gte: monthStart } } }, { $unwind: '$items' }, { $group: { _id: '$items.product', name: { $first: '$items.name' }, quantity: { $sum: '$items.quantity' }, revenue: { $sum: '$items.lineTotal' } } }, { $sort: { quantity: -1 } }, { $limit: 5 }]),
+    Bill.aggregate([{ $match: { createdAt: { $gte: monthStart }, status: { $ne: 'Cancelled' } } }, { $unwind: '$items' }, { $group: { _id: '$items.productId', name: { $first: '$items.productName' }, quantity: { $sum: '$items.quantity' }, revenue: { $sum: '$items.netAmount' } } }, { $sort: { quantity: -1 } }, { $limit: 5 }]),
+    Sale.aggregate([{ $match: { createdAt: { $gte: monthStart } } }, { $group: { _id: '$customerName', customer: { $first: '$customerName' }, total: { $sum: '$total' }, bills: { $sum: 1 } } }, { $sort: { total: -1 } }, { $limit: 5 }]),
+    Bill.aggregate([{ $match: { createdAt: { $gte: monthStart }, status: { $ne: 'Cancelled' } } }, { $group: { _id: '$customerName', customer: { $first: '$customerName' }, total: { $sum: '$total' }, bills: { $sum: 1 } } }, { $sort: { total: -1 } }, { $limit: 5 }])
+  ]);
+
+  const mergedChart = new Map();
+  [...revenueChart, ...saleChart].forEach((item) => {
+    const current = mergedChart.get(item._id) || { day: item._id, revenue: 0, profit: 0 };
+    current.revenue += Number(item.revenue || 0);
+    current.profit += Number(item.profit || 0);
+    mergedChart.set(item._id, current);
+  });
+
+  const recentBills = [...recentTransactions, ...recentSaleDocs]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, 8);
+
   res.json({
     totals: {
       allSales: totalSalesAgg[0]?.total || 0,
       allInvoices: totalSalesAgg[0]?.count || 0,
-      todaySales: todaySalesAgg[0]?.total || 0,
-      todayInvoices: todaySalesAgg[0]?.count || 0,
+      todaySales: (todaySalesAgg[0]?.total || 0) + (todaySaleDocs[0]?.total || 0),
+      todayBills: (todaySalesAgg[0]?.count || 0) + (todaySaleDocs[0]?.count || 0),
+      todayInvoices: (todaySalesAgg[0]?.count || 0) + (todaySaleDocs[0]?.count || 0),
+      monthlySales: (revenueChart.reduce((sum, item) => sum + Number(item.revenue || 0), 0)) + (monthSaleDocs[0]?.total || 0),
+      monthlyProfit: monthSaleDocs[0]?.profit || 0,
       productCount,
       lowStockCount: lowStock.length,
       totalOutstandingReceivables: receivableAgg[0]?.total || 0,
@@ -92,8 +118,11 @@ export const getDashboard = asyncHandler(async (req, res) => {
       , cashBalance: (cashSummary[0]?.cashIn || 0) - (cashSummary[0]?.cashOut || 0)
     },
     lowStock,
-    recentTransactions,
-    revenueChart: revenueChart.map((item) => ({ day: item._id, revenue: item.revenue, profit: item.profit || 0 })),
+    recentTransactions: recentBills,
+    recentBills,
+    topSellingProducts: [...topSaleProducts, ...topBillProducts].sort((a, b) => Number(b.quantity || 0) - Number(a.quantity || 0)).slice(0, 5),
+    topCustomers: [...topSaleCustomers, ...topBillCustomers].sort((a, b) => Number(b.total || 0) - Number(a.total || 0)).slice(0, 5),
+    revenueChart: [...mergedChart.values()].sort((a, b) => a.day - b.day),
     mostReturnedProducts,
     recentReceipts,
     recentSupplierPayments

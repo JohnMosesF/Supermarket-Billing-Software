@@ -5,6 +5,7 @@ import { Unit } from '../models/Unit.js';
 import { ensureDefaultUnits } from './unitController.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { logAudit } from '../utils/audit.js';
 
 export const adjustmentRules = [
   body('product').isMongoId(),
@@ -52,5 +53,6 @@ export const adjustStock = asyncHandler(async (req, res) => {
     user: req.user._id
   });
 
+  await logAudit(req, { action: 'Inventory Adjustment', module: 'Inventory', previousValue: { product: product._id, stock: stockBefore }, newValue: { product: product._id, stock: stockAfter, reason: req.body.reason } });
   res.status(201).json({ product, log });
 });

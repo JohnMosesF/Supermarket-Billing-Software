@@ -74,6 +74,9 @@ const defaults = {
   showGrandTotal: true,
   showPaid: true,
   showBalance: true,
+  backupLocation: '',
+  automaticBackup: false,
+  backupBeforeRestore: true,
   thankYouMessage: 'Thank You For Shopping With Us',
   returnPolicy: 'Goods Once Sold Cannot Be Returned',
   footerLine3: 'Visit Again',
@@ -158,6 +161,9 @@ export function SettingsPage() {
     const payload = await file.text();
     const form = new URLSearchParams();
     form.set('payload', payload);
+    form.set('confirmation', window.prompt('Type RESTORE to confirm database restore') || '');
+    form.set('backupBeforeRestore', String(getValues('backupBeforeRestore') !== false));
+    if (form.get('confirmation') !== 'RESTORE') return toast.error('Restore cancelled');
     await api.post('/backup/restore', form, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     toast.success('Backup restored');
   }
@@ -338,7 +344,7 @@ export function SettingsPage() {
       <div className="panel flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-semibold">Backup and restore</h2>
-          <p className="text-sm text-slate-500">Export a JSON backup or restore a previous backup file.</p>
+          <p className="text-sm text-slate-500">Export MongoDB data or restore a previous backup file with confirmation.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn-muted" onClick={downloadBackup}>Download backup</button>
@@ -348,6 +354,16 @@ export function SettingsPage() {
           </label>
         </div>
       </div>
+
+      <form className="panel space-y-4 p-5" onSubmit={handleSubmit(save)}>
+        <h2 className="font-semibold">Backup Settings</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <input className="input" placeholder="Backup Location" {...register('backupLocation')} />
+          <Checkbox register={register} name="automaticBackup" label="Automatic Backup" />
+          <Checkbox register={register} name="backupBeforeRestore" label="Backup before Restore" />
+        </div>
+        <button className="btn-primary"><Save size={17} />Save backup settings</button>
+      </form>
     </div>
   );
 }

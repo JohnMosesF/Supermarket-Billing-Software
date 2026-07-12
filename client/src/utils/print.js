@@ -278,8 +278,9 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
 
     <section class="invoice-info">
       ${showField(rawSettings, 'InvoiceNumber', true) ? infoRow('Invoice', invoice.invoiceNumber) : ''}
-      ${showField(rawSettings, 'Date', true) ? infoRow('Date', formatDateOnly(invoice.invoiceDate)) : ''}
-      ${showField(rawSettings, 'Time', true) ? infoRow('Time', formatTimeOnly(invoice.invoiceDate)) : ''}
+      ${showField(rawSettings, 'Date', true) || showField(rawSettings, 'Time', true) ? ` <div class="date-time-row">
+      ${showField(rawSettings, 'Date', true) ? `<span>Date : ${escapeHtml(formatDateOnly(invoice.invoiceDate))}</span>` : '<span></span>' }
+      ${showField(rawSettings, 'Time', true) ? `<span>Time : ${escapeHtml(formatTimeOnly(invoice.invoiceDate))}</span>` : ''} </div> ` : '' }
       ${showField(rawSettings, 'Cashier', true) ? infoRow('Cashier', invoice.cashier) : ''}
       ${showField(rawSettings, 'CustomerName', true) ? infoRow('Customer', invoice.customerName) : ''}
       ${showField(rawSettings, 'CustomerMobile', true) ? infoRow('Mobile', invoice.customerMobile) : ''}
@@ -371,6 +372,22 @@ export function makeReceiptCss(rawSettings = {}, options = {}) {
     .receipt-footer { text-align: center; break-inside: avoid; }
     .receipt-footer div { margin: 1mm 0; overflow-wrap: anywhere; }
     .signature { margin-top: 8mm !important; padding-top: 1mm; border-top: 1px solid #000; text-align: right; }
+    .date-time-row{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        width:100%;
+        margin:0.5mm 0;
+        font-weight:600;
+    }
+
+    .date-time-row span:first-child{
+        text-align:left;
+    }
+
+    .date-time-row span:last-child{
+        text-align:right;
+    }
     @media print {
       ${options.preview ? '' : `body { padding: ${bodyPadding}; }`}
       .receipt { box-shadow: none; }

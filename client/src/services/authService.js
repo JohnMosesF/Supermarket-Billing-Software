@@ -18,5 +18,12 @@ export async function loginUser(credentials) {
 }
 
 export function logoutUser() {
+  api.post('/auth/logout', {}, { silent: true }).catch(() => {});
   clearStoredToken();
+  try {
+    localStorage.removeItem('supermarket-session');
+    sessionStorage.clear();
+  } catch {
+    // ignore storage failures
+  }
 }

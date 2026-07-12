@@ -24,6 +24,7 @@ const purchaseSchema = new mongoose.Schema(
     total: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
     returnCreditAmount: { type: Number, default: 0, min: 0 },
+    sourcePurchaseOrder: { type: mongoose.Schema.Types.ObjectId, ref: 'PurchaseOrder' },
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     notes: String,
     active: { type: Boolean, default: true }

@@ -6,6 +6,7 @@ import { ensureDefaultUnits } from './unitController.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { makeSku } from '../utils/invoice.js';
+import { logAudit } from '../utils/audit.js';
 
 export const productRules = [
   body('name').trim().notEmpty(),
@@ -106,12 +107,14 @@ export const createProduct = asyncHandler(async (req, res) => {
     });
   }
 
+  await logAudit(req, { action: 'Product Created', module: 'Products', newValue: product.toObject() });
   res.status(201).json({ product });
 });
 
 export const updateProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
   if (!product) throw new ApiError(404, 'Product not found');
+  const previous = product.toObject();
 
   const oldStock = product.stock;
   const payload = req.body.unit ? await resolveUnitFields(req.body) : req.body;
@@ -131,12 +134,14 @@ export const updateProduct = asyncHandler(async (req, res) => {
     });
   }
 
+  await logAudit(req, { action: 'Product Updated', module: 'Products', previousValue: previous, newValue: product.toObject() });
   res.json({ product });
 });
 
 export const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findByIdAndDelete(req.params.id);
   if (!product) throw new ApiError(404, 'Product not found');
+  await logAudit(req, { action: 'Product Deleted', module: 'Products', previousValue: product.toObject() });
   res.json({ message: 'Product deleted' });
 });
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const http = require('http');
@@ -22,6 +22,16 @@ function destroyAllWindows() {
     if (!window.isDestroyed()) {
       window.destroy();
     }
+  }
+}
+
+async function clearElectronAuthState() {
+  try {
+    await session.defaultSession.clearStorageData({
+      storages: ['cookies', 'localstorage', 'sessionstorage', 'indexdb', 'websql']
+    });
+  } catch (error) {
+    console.error('Failed to clear Electron auth state', error);
   }
 }
 
@@ -164,10 +174,10 @@ function createWindow() {
   });
 
   if (isDev) {
-    win.loadURL(process.env.VITE_DEV_SERVER_URL);
+    win.loadURL(`${process.env.VITE_DEV_SERVER_URL.replace(/\/$/, '')}/login`);
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
-    win.loadFile(resourcePath('client', 'dist', 'index.html'));
+    win.loadFile(resourcePath('client', 'dist', 'index.html'), { hash: '/login' });
   }
 }
 const { createBillingWindow } = require('./electronWindowManager.js');
@@ -244,6 +254,7 @@ ipcMain.handle('print-invoice', async (event, invoiceHtml, options = {}) => {
 });
 
 app.whenReady().then(async () => {
+  await clearElectronAuthState();
   if (isDev) {
     try {
       await waitForDevServers();
@@ -261,10 +272,17 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+  clearElectronAuthState();
   if (backendProcess) backendProcess.kill();
   if (process.platform !== 'darwin') app.quit();
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) {
+    clearElectronAuthState().finally(createWindow);
+  }
+});
+
+app.on('before-quit', () => {
+  clearElectronAuthState();
 });

@@ -12,6 +12,7 @@ import { SupplierPayment } from '../models/SupplierPayment.js';
 import { DayBookEntry } from '../models/DayBookEntry.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
+import { logAudit } from '../utils/audit.js';
 import { rebuildDayBook, reconcileCustomerAccounting, reconcileSalePaymentFields, reconcileSupplierAccounting } from '../services/accountingService.js';
 
 const number = (value) => Number(value || 0);
@@ -171,6 +172,7 @@ export const createCustomerReceipt = asyncHandler(async (req, res) => {
     const receipt = await CustomerReceipt.create({ receiptNo: docNo('RCT'), customer: customer._id, amount, paymentMethod: req.body.paymentMethod || 'Cash', allocationType: remaining > 0 ? (req.body.allocationType === 'Advance' ? 'Advance' : 'On Account') : 'Allocated', allocations, unallocatedAmount: remaining, notes: req.body.notes, createdBy: req.user._id, receiptDate: req.body.date || new Date() });
     await reconcileCustomerAccounting(customer._id).catch((error) => console.error('Customer ledger reconciliation failed', error));
     await rebuildDayBook().catch((error) => console.error('Day book rebuild failed', error));
+    await logAudit(req, { action: 'Customer Receipt', module: 'Accounting', newValue: receipt.toObject() });
     res.status(201).json({ receipt });
   } catch (error) {
       for (const { bill, applied, sourceModel } of changed.reverse()) {
@@ -191,6 +193,7 @@ export const createSupplierPayment = asyncHandler(async (req, res) => {
     const payment = await SupplierPayment.create({ voucherNo: docNo('PAY'), supplier: supplier._id, amount, paymentMethod: req.body.paymentMethod || 'Cash', allocations, unallocatedAmount: remaining, notes: req.body.notes, createdBy: req.user._id, paymentDate: req.body.date || new Date() });
     await reconcileSupplierAccounting(supplier._id).catch((error) => console.error('Supplier ledger reconciliation failed', error));
     await rebuildDayBook().catch((error) => console.error('Day book rebuild failed', error));
+    await logAudit(req, { action: 'Supplier Payment', module: 'Accounting', newValue: payment.toObject() });
     res.status(201).json({ payment });
   } catch (error) { for (const { purchase, applied } of changed.reverse()) { purchase.paidAmount -= applied; await purchase.save(); } throw error; }
 });

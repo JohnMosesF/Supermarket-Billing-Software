@@ -3,7 +3,9 @@ import { body } from 'express-validator';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
 import { ApiError } from '../utils/apiError.js';
+import { logAudit } from '../utils/audit.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { permissionsFor } from '../middleware/auth.js';
 
 function signToken(user) {
   return jwt.sign({ id: user._id, role: user.role }, env.jwtSecret, {
@@ -18,7 +20,7 @@ function userPayload(user) {
     name: user.name,
     email: user.email,
     role: user.role,
-    permissions: user.permissions,
+    permissions: permissionsFor(user),
     active: user.active
   };
 }
@@ -42,12 +44,18 @@ export const login = asyncHandler(async (req, res) => {
 
   user.lastLoginAt = new Date();
   await user.save();
+  await logAudit(req, { action: 'Login', module: 'Auth', user, newValue: { email: user.email, role: user.role } });
 
   res.json({
     success: true,
     token: signToken(user),
     user: userPayload(user)
   });
+});
+
+export const logout = asyncHandler(async (req, res) => {
+  await logAudit(req, { action: 'Logout', module: 'Auth' });
+  res.json({ success: true, message: 'Logged out' });
 });
 
 export const me = asyncHandler(async (req, res) => {

@@ -25,26 +25,26 @@ import { useAuthStore } from '../store/authStore.js';
 import { useUiStore } from '../store/uiStore.js';
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/billing', label: 'Billing', icon: ShoppingCart },
-  { to: '/products', label: 'Products', icon: Package },
-  { to: '/customers', label: 'Customers', icon: Users },
-  { to: '/inventory', label: 'Inventory', icon: Boxes },
-  { to: '/purchases', label: 'Purchases', icon: ClipboardList },
-  { to: '/sales-returns', label: 'Sales Returns', icon: Undo2 },
-  { to: '/purchase-returns', label: 'Purchase Returns', icon: Undo2 },
-  { to: '/accounting/customer-ledger', label: 'Customer Ledger', icon: BookOpen },
-  { to: '/accounting/supplier-ledger', label: 'Supplier Ledger', icon: BookOpen, manager: true },
-  { to: '/accounting/customer-outstanding', label: 'Customer Outstanding', icon: WalletCards },
-  { to: '/accounting/supplier-outstanding', label: 'Supplier Outstanding', icon: WalletCards, manager: true },
-  { to: '/accounting/receipts', label: 'Receipts', icon: WalletCards },
-  { to: '/accounting/supplier-payments', label: 'Supplier Payments', icon: WalletCards, manager: true },
-  { to: '/accounting/day-book', label: 'Day Book', icon: BookOpen, manager: true },
-  { to: '/accounting/collections', label: 'Collections', icon: WalletCards },
-  { to: '/suppliers', label: 'Suppliers', icon: Truck },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/users', label: 'Users', icon: Users, admin: true },
-  { to: '/settings', label: 'Settings', icon: Settings }
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard' },
+  { to: '/billing', label: 'Billing', icon: ShoppingCart, permission: 'billing' },
+  { to: '/products', label: 'Products', icon: Package, permission: 'products' },
+  { to: '/customers', label: 'Customers', icon: Users, permission: 'customers' },
+  { to: '/inventory', label: 'Inventory', icon: Boxes, permission: 'inventory' },
+  { to: '/purchases', label: 'Purchases', icon: ClipboardList, permission: 'purchases' },
+  { to: '/sales-returns', label: 'Sales Returns', icon: Undo2, permission: 'sales_returns' },
+  { to: '/purchase-returns', label: 'Purchase Returns', icon: Undo2, permission: 'purchase_returns' },
+  { to: '/accounting/customer-ledger', label: 'Customer Ledger', icon: BookOpen, permission: 'accounting' },
+  { to: '/accounting/supplier-ledger', label: 'Supplier Ledger', icon: BookOpen, permission: 'accounting' },
+  { to: '/accounting/customer-outstanding', label: 'Customer Outstanding', icon: WalletCards, permission: 'accounting' },
+  { to: '/accounting/supplier-outstanding', label: 'Supplier Outstanding', icon: WalletCards, permission: 'accounting' },
+  { to: '/accounting/receipts', label: 'Receipts', icon: WalletCards, permission: 'accounting' },
+  { to: '/accounting/supplier-payments', label: 'Supplier Payments', icon: WalletCards, permission: 'accounting' },
+  { to: '/accounting/day-book', label: 'Day Book', icon: BookOpen, permission: 'accounting' },
+  { to: '/accounting/collections', label: 'Collections', icon: WalletCards, permission: 'accounting' },
+  { to: '/suppliers', label: 'Suppliers', icon: Truck, permission: 'purchases' },
+  { to: '/reports', label: 'Reports', icon: BarChart3, permission: 'reports' },
+  { to: '/users', label: 'Users', icon: Users, permission: 'users' },
+  { to: '/settings', label: 'Settings', icon: Settings, permission: 'settings' }
 ];
 
 export function AppLayout() {
@@ -57,7 +57,8 @@ export function AppLayout() {
     document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  const visibleItems = navItems.filter((item) => (!item.admin || user?.role === 'admin') && (!item.manager || ['admin', 'manager'].includes(user?.role)));
+  const permissions = user?.role === 'admin' ? navItems.map((item) => item.permission) : user?.permissions || [];
+  const visibleItems = navItems.filter((item) => !item.permission || permissions.includes(item.permission));
 
   return (
     <div className="min-h-screen bg-mist text-slate-900 dark:bg-slate-950 dark:text-slate-100">

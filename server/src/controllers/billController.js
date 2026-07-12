@@ -14,6 +14,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { normalizeBillItemSnapshot } from '../utils/billItemSnapshot.js';
 import { reconcileCustomerAccounting, rebuildDayBook } from '../services/accountingService.js';
+import { logAudit } from '../utils/audit.js';
 
 function normalizePaymentMethod(value) {
   const normalized = String(value || 'Cash').trim().toLowerCase();
@@ -355,6 +356,7 @@ export const createBill = asyncHandler(async (req, res) => {
   }
   await rebuildDayBook();
 
+  await logAudit(req, { action: 'Bill Created', module: 'Billing', newValue: bill.toObject() });
   res.status(201).json({ bill, message: 'Bill created successfully' });
 });
 
@@ -384,6 +386,7 @@ export const updateBill = asyncHandler(async (req, res) => {
 
   const bill = await Bill.findById(req.params.id);
   if (!bill) throw new ApiError(404, 'Bill not found');
+  const previous = bill.toObject();
   const previousCustomerId = bill.customer ? String(bill.customer) : null;
 
   if (!items || items.length === 0) {
@@ -467,6 +470,7 @@ export const updateBill = asyncHandler(async (req, res) => {
   await reconcileCustomerAccounting(previousCustomerId);
   if (customer?._id && String(customer._id) !== previousCustomerId) await reconcileCustomerAccounting(customer._id);
   await rebuildDayBook();
+  await logAudit(req, { action: 'Bill Edited', module: 'Billing', previousValue: previous, newValue: bill.toObject() });
   res.json({ bill, message: 'Bill updated successfully' });
 });
 
@@ -476,6 +480,7 @@ export const deleteBill = asyncHandler(async (req, res) => {
   const bill = await Bill.findById(req.params.id);
 
   if (!bill) throw new ApiError(404, 'Bill not found');
+  const previous = bill.toObject();
   const customerId = bill.customer;
 
   // Create deleted bill record
@@ -492,6 +497,7 @@ export const deleteBill = asyncHandler(async (req, res) => {
   await recalculateCustomerBillingTotals(customerId);
   await reconcileCustomerAccounting(customerId);
   await rebuildDayBook();
+  await logAudit(req, { action: 'Bill Deleted', module: 'Billing', previousValue: previous, newValue: { reason } });
 
   res.json({ message: 'Bill deleted successfully' });
 });

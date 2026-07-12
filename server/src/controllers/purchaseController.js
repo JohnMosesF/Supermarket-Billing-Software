@@ -4,18 +4,21 @@ import { Product } from '../models/Product.js';
 import { Purchase } from '../models/Purchase.js';
 import { PurchaseReturn } from '../models/PurchaseReturn.js';
 import { Supplier } from '../models/Supplier.js';
+import { SupplierPriceHistory } from '../models/SupplierPriceHistory.js';
 import { Unit } from '../models/Unit.js';
 import { ensureDefaultUnits } from './unitController.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { makeSku } from '../utils/invoice.js';
 import { reconcileSupplierAccounting, rebuildDayBook } from '../services/accountingService.js';
+import { logAudit } from '../utils/audit.js';
 
 export const purchaseRules = [
   body('items').isArray({ min: 1 }),
   body('items.*.product').optional({ nullable: true, checkFalsy: true }).isMongoId(),
   body('items.*.quantity').isFloat({ min: 0.001 }),
-  body('items.*.costPrice').isFloat({ min: 0 })
+  body('items.*.costPrice').isFloat({ min: 0 }),
+  body('paidAmount').optional().isFloat({ min: 0 })
 ];
 
 export const listPurchases = asyncHandler(async (req, res) => {
@@ -85,6 +88,20 @@ async function resolvePurchaseItems(rawItems) {
   return items;
 }
 
+async function recordSupplierPriceHistory(purchase) {
+  await SupplierPriceHistory.deleteMany({ purchase: purchase._id });
+  const entries = (purchase.items || []).map((item) => ({
+    product: item.product,
+    supplier: purchase.supplier,
+    purchase: purchase._id,
+    purchaseDate: purchase.purchaseDate || purchase.createdAt || new Date(),
+    purchasePrice: Number(item.costPrice || 0),
+    quantity: Number(item.quantity || 0),
+    invoiceNumber: purchase.invoiceNumber
+  })).filter((entry) => entry.product && entry.quantity > 0);
+  if (entries.length) await SupplierPriceHistory.insertMany(entries);
+}
+
 async function applyPurchaseStock(items, purchase, userId, direction = 1) {
   for (const item of items) {
     const product = await Product.findById(item.product);
@@ -139,6 +156,7 @@ async function recalculateSupplier(supplierId) {
 export const createPurchase = asyncHandler(async (req, res) => {
   const items = await resolvePurchaseItems(req.body.items || []);
   const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const paidAmount = Math.min(Number(req.body.paidAmount || 0), total);
 
   const purchase = await Purchase.create({
     supplier: req.body.supplier,
@@ -146,15 +164,18 @@ export const createPurchase = asyncHandler(async (req, res) => {
     purchaseDate: req.body.purchaseDate ? new Date(req.body.purchaseDate) : new Date(),
     items,
     total,
-    paidAmount: req.body.paidAmount || 0,
+    paidAmount,
+    sourcePurchaseOrder: req.body.sourcePurchaseOrder,
     user: req.user?._id,
     notes: req.body.notes
   });
 
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
+  await recordSupplierPriceHistory(purchase);
   await recalculateSupplier(purchase.supplier);
   await reconcileSupplierAccounting(purchase.supplier);
   await rebuildDayBook();
+  await logAudit(req, { action: 'Purchase Created', module: 'Purchases', newValue: purchase.toObject() });
 
   res.status(201).json({ purchase });
 });
@@ -168,6 +189,7 @@ export const getPurchase = asyncHandler(async (req, res) => {
 export const updatePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findById(req.params.id);
   if (!purchase) throw new ApiError(404, 'Purchase not found');
+  const previous = purchase.toObject();
   const previousSupplier = purchase.supplier;
 
   const items = await resolvePurchaseItems(req.body.items || []);
@@ -178,24 +200,89 @@ export const updatePurchase = asyncHandler(async (req, res) => {
   purchase.purchaseDate = req.body.purchaseDate ? new Date(req.body.purchaseDate) : purchase.purchaseDate;
   purchase.items = items;
   purchase.total = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  purchase.paidAmount = req.body.paidAmount || 0;
+  purchase.paidAmount = Math.min(Number(req.body.paidAmount || 0), purchase.total);
+  purchase.sourcePurchaseOrder = req.body.sourcePurchaseOrder || purchase.sourcePurchaseOrder;
   purchase.notes = req.body.notes;
   await purchase.save();
 
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
+  await recordSupplierPriceHistory(purchase);
   await recalculateSupplier(previousSupplier);
   if (String(previousSupplier || '') !== String(purchase.supplier || '')) await recalculateSupplier(purchase.supplier);
   await reconcileSupplierAccounting(previousSupplier);
   if (String(previousSupplier || '') !== String(purchase.supplier || '')) await reconcileSupplierAccounting(purchase.supplier);
   await rebuildDayBook();
+  await logAudit(req, { action: 'Purchase Updated', module: 'Purchases', previousValue: previous, newValue: purchase.toObject() });
   res.json({ purchase });
 });
 
 export const deletePurchase = asyncHandler(async (req, res) => {
   const purchase = await Purchase.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!purchase) throw new ApiError(404, 'Purchase not found');
+  await SupplierPriceHistory.deleteMany({ purchase: purchase._id });
   await recalculateSupplier(purchase.supplier);
   await reconcileSupplierAccounting(purchase.supplier);
   await rebuildDayBook();
+  await logAudit(req, { action: 'Purchase Deleted', module: 'Purchases', previousValue: purchase.toObject(), newValue: { active: false } });
   res.json({ purchase, message: 'Purchase soft deleted' });
 });
+
+export const getSupplierPriceHistory = asyncHandler(async (req, res) => {
+  const productId = req.query.product;
+  if (!productId) throw new ApiError(400, 'Product is required');
+
+  const limit = Math.min(Number(req.query.limit || 20), 100);
+  const filter = { product: productId };
+  if (req.query.supplier) filter.supplier = req.query.supplier;
+
+  const [history, average] = await Promise.all([
+    SupplierPriceHistory.find(filter)
+      .populate('supplier', 'name mobile')
+      .sort({ purchaseDate: -1, createdAt: -1 })
+      .limit(limit)
+      .lean(),
+    SupplierPriceHistory.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$product',
+          averagePurchasePrice: { $avg: '$purchasePrice' },
+          totalQuantity: { $sum: '$quantity' },
+          entries: { $sum: 1 }
+        }
+      }
+    ])
+  ]);
+
+  const last = history[0] || null;
+  res.json({
+    history,
+    lastPurchasePrice: last?.purchasePrice || 0,
+    lastSupplier: last?.supplier || null,
+    averagePurchasePrice: average[0]?.averagePurchasePrice || 0,
+    totalPurchasedQuantity: average[0]?.totalQuantity || 0,
+    entries: average[0]?.entries || 0
+  });
+});
+
+export async function createPurchaseFromPurchaseOrder({ purchaseOrder, items, invoiceNumber, userId, notes }) {
+  const total = items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+  const purchase = await Purchase.create({
+    supplier: purchaseOrder.supplier,
+    invoiceNumber,
+    purchaseDate: new Date(),
+    items,
+    total,
+    paidAmount: 0,
+    sourcePurchaseOrder: purchaseOrder._id,
+    user: userId,
+    notes
+  });
+
+  await applyPurchaseStock(items, purchase, userId, 1);
+  await recordSupplierPriceHistory(purchase);
+  await recalculateSupplier(purchase.supplier);
+  await reconcileSupplierAccounting(purchase.supplier);
+  await rebuildDayBook();
+  return purchase;
+}

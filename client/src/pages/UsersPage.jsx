@@ -5,13 +5,28 @@ import toast from 'react-hot-toast';
 import { api } from '../api/http.js';
 import { PageHeader } from '../components/PageHeader.jsx';
 
+const permissionOptions = [
+  ['dashboard', 'Dashboard'],
+  ['billing', 'Billing'],
+  ['products', 'Products'],
+  ['customers', 'Customers'],
+  ['inventory', 'Inventory'],
+  ['purchases', 'Purchases'],
+  ['sales_returns', 'Sales Returns'],
+  ['purchase_returns', 'Purchase Returns'],
+  ['accounting', 'Accounting'],
+  ['reports', 'Reports'],
+  ['users', 'Users'],
+  ['settings', 'Settings']
+];
+
 export function UsersPage() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [editing, setEditing] = useState(null);
-  const { register, handleSubmit, reset } = useForm({ defaultValues: { role: 'cashier' } });
+  const { register, handleSubmit, reset } = useForm({ defaultValues: { role: 'cashier', permissions: ['dashboard', 'billing', 'customers'] } });
 
   async function load() {
     const { data } = await api.get('/users');
@@ -31,13 +46,13 @@ export function UsersPage() {
       toast.success('Staff account created');
     }
     setEditing(null);
-    reset({ role: 'cashier', password: '' });
+    reset({ role: 'cashier', password: '', permissions: ['dashboard', 'billing', 'customers'] });
     load();
   }
 
   function startEdit(user) {
     setEditing(user);
-    reset({ name: user.name || '', email: user.email || '', phone: user.phone || '', role: user.role || 'cashier', password: '', active: user.active !== false });
+    reset({ name: user.name || '', email: user.email || '', phone: user.phone || '', role: user.role || 'cashier', password: '', active: user.active !== false, permissions: user.permissions || [] });
   }
 
   async function toggleUser(user) {
@@ -79,16 +94,25 @@ export function UsersPage() {
           <input className="input" type="password" placeholder={editing ? 'New password (optional)' : 'Password'} {...register('password')} />
           <select className="input" {...register('role')}>
             <option value="cashier">Cashier</option>
+            <option value="store_staff">Store Staff</option>
             <option value="manager">Manager</option>
             <option value="admin">Admin</option>
           </select>
+          <div className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 p-3 dark:border-slate-800">
+            {permissionOptions.map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" value={value} {...register('permissions')} />
+                {label}
+              </label>
+            ))}
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" {...register('active')} defaultChecked />
             Enable user
           </label>
           <div className="flex gap-2">
             <button className="btn-primary flex-1"><Plus size={17} />{editing ? 'Update' : 'Create'}</button>
-            {editing ? <button type="button" className="btn-muted" onClick={() => { setEditing(null); reset({ role: 'cashier', password: '' }); }}>Cancel</button> : null}
+            {editing ? <button type="button" className="btn-muted" onClick={() => { setEditing(null); reset({ role: 'cashier', password: '', permissions: ['dashboard', 'billing', 'customers'] }); }}>Cancel</button> : null}
           </div>
         </form>
         <div className="scroll-panel">
@@ -100,6 +124,7 @@ export function UsersPage() {
             <select className="input max-w-[140px]" value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
               <option value="all">All roles</option>
               <option value="cashier">Cashier</option>
+              <option value="store_staff">Store Staff</option>
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
             </select>

@@ -72,7 +72,7 @@ export function Dashboard() {
   const totals = data?.totals || {};
   const recent = data?.recentTransactions || [];
   const pendingCredit = recent.filter((sale) => sale.paymentStatus === 'pending' || sale.paymentMethod === 'credit');
-  const monthlySales = useMemo(() => (data?.revenueChart || []).reduce((sum, item) => sum + Number(item.revenue || 0), 0), [data]);
+  const monthlySales = useMemo(() => totals.monthlySales ?? (data?.revenueChart || []).reduce((sum, item) => sum + Number(item.revenue || 0), 0), [data, totals.monthlySales]);
 
   const chartData = useMemo(() => {
     const source = data?.revenueChart || [];
@@ -107,7 +107,9 @@ export function Dashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <RetailKpi icon={Receipt} label="Today's Sales" value={currency(totals.todaySales)} sub={`${totals.todayInvoices || 0} invoices`} tone="green" />
+        <RetailKpi icon={Receipt} label="Today's Bills" value={totals.todayBills || totals.todayInvoices || 0} sub="Invoices created" tone="blue" />
         <RetailKpi icon={TrendingUp} label="Monthly Sales" value={currency(monthlySales)} sub="Current month" tone="blue" />
+        <RetailKpi icon={TrendingUp} label="Monthly Profit" value={currency(totals.monthlyProfit)} sub="Current month" tone="green" />
         <RetailKpi icon={Package} label="Total Products" value={totals.productCount || 0} sub="Active catalog" tone="slate" />
         <RetailKpi icon={AlertTriangle} label="Low Stock Products" value={totals.lowStockCount || 0} sub="Needs attention" tone={totals.lowStockCount ? 'red' : 'green'} />
         <RetailKpi icon={Users} label="Total Customers" value={customers.length} sub="Loaded customer base" tone="orange" />
@@ -123,6 +125,17 @@ export function Dashboard() {
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <div className="panel p-5"><h2 className="font-black">Recent Receipts</h2>{(data?.recentReceipts || []).map((entry) => <div key={entry._id} className="flex justify-between border-b py-2 text-sm"><span>{entry.receiptNo} · {entry.customer?.name || '-'}</span><b>{currency(entry.amount)}</b></div>)}</div>
         <div className="panel p-5"><h2 className="font-black">Recent Supplier Payments</h2>{(data?.recentSupplierPayments || []).map((entry) => <div key={entry._id} className="flex justify-between border-b py-2 text-sm"><span>{entry.voucherNo} · {entry.supplier?.name || '-'}</span><b>{currency(entry.amount)}</b></div>)}</div>
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div className="panel p-5">
+          <h2 className="font-black">Top Selling Products</h2>
+          {(data?.topSellingProducts || []).map((item) => <div key={`${item._id}-${item.name}`} className="flex justify-between border-b py-2 text-sm"><span>{item.name || '-'}</span><b>{Number(item.quantity || 0).toFixed(2)} sold</b></div>)}
+        </div>
+        <div className="panel p-5">
+          <h2 className="font-black">Top Customers</h2>
+          {(data?.topCustomers || []).map((item) => <div key={`${item._id}-${item.customer}`} className="flex justify-between border-b py-2 text-sm"><span>{item.customer || 'Walk-in'}</span><b>{currency(item.total || 0)}</b></div>)}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
