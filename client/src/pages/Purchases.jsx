@@ -87,7 +87,19 @@ export function Purchases() {
     setPurchaseOrders(data.purchaseOrders || []);
   }
 
+  function updateRow(index, patch) {
+    setForm((current) => ({
+      ...current,
+      rows: current.rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row))
+    }));
+  }
+
   function applyProduct(row, productId) {
+    if (productId === '__new__') {
+      updateRow(index, { product: '', name: '', costPrice: 0, gstRate: 0, mrp: 0, sellingPrice: 0 });
+      return;
+    }
+
     const product = products.find((item) => item._id === productId);
     return {
       ...row,
@@ -324,7 +336,10 @@ export function Purchases() {
               <select className="input" value={poForm.supplier} onChange={(event) => setPoForm((current) => ({ ...current, supplier: event.target.value }))} required>
                 <option value="">Select supplier</option>
                 {suppliers.map((supplier) => <option key={supplier._id} value={supplier._id}>{supplier.name}</option>)}
+                <option value="__new__">Create new product</option>
+                {products.map((product) => <option key={product._id} value={product._id}>{product.name}</option>)}                
               </select>
+              {!row.product ? <input className="input mt-2" placeholder="New product name" value={row.name} onChange={(event) => updateRow(index, { name: event.target.value })} /> : null}
               <input className="input" type="date" value={poForm.expectedDate} onChange={(event) => setPoForm((current) => ({ ...current, expectedDate: event.target.value }))} />
               <select className="input" value={poForm.status} onChange={(event) => setPoForm((current) => ({ ...current, status: event.target.value }))}>
                 <option value="draft">Draft</option>

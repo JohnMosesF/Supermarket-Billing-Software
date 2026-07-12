@@ -10,5 +10,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(channel, listener);
     return () => ipcRenderer.removeListener(channel, listener);
   },
+  onForceLogout: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('electron-force-logout', listener);
+    return () => ipcRenderer.removeListener('electron-force-logout', listener);
+  },
   platform: process.platform
 });
+

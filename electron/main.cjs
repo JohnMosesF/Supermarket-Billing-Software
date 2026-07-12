@@ -20,10 +20,17 @@ function destroyAllWindows() {
   for (const window of BrowserWindow.getAllWindows()) {
     markWindowCloseConfirmed(window);
     if (!window.isDestroyed()) {
+      // Tell renderer to clear auth before we destroy the window
+      try {
+        window.webContents?.send('electron-force-logout');
+      } catch {
+        // ignore
+      }
       window.destroy();
     }
   }
 }
+
 
 async function clearElectronAuthState() {
   try {
@@ -284,5 +291,14 @@ app.on('activate', () => {
 });
 
 app.on('before-quit', () => {
+  // Notify renderer to clear persisted auth state
+  try {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents?.send('electron-force-logout');
+    }
+  } catch {
+    // ignore
+  }
   clearElectronAuthState();
 });
+
