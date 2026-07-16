@@ -6,6 +6,7 @@ import App from './App.jsx';
 import './index.css';
 import { logoutUser } from './services/authService.js';
 import { useAuthStore } from './store/authStore.js';
+import { ResponsiveLayout } from './layouts/ResponsiveLayout.jsx';
 
 const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter;
 
@@ -34,9 +35,10 @@ setupElectronForceLogout();
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <Router>
-      <App />
+      <ResponsiveLayout>
+        <App />
+      </ResponsiveLayout>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
     </Router>
   </React.StrictMode>
 );
-

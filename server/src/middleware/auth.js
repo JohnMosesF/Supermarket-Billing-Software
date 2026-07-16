@@ -14,16 +14,18 @@ export const modulePermissions = [
   'sales_returns',
   'purchase_returns',
   'accounting',
+  'expenses',
   'reports',
   'users',
-  'settings'
+  'settings',
+  'brands',
+  'taxes'
 ];
 
 const roleDefaults = {
   admin: modulePermissions,
   manager: modulePermissions.filter((key) => key !== 'users'),
   cashier: ['dashboard', 'billing', 'customers', 'sales_returns'],
-  store_staff: ['dashboard', 'products', 'inventory', 'purchases', 'purchase_returns']
 };
 
 export function permissionsFor(user) {

@@ -46,29 +46,29 @@ export default function BillingSummaryPanel({
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span>Items:</span>
-          <span className="font-semibold">{summary.items}</span>
+          <span className="font-semibold tabular-nums text-right">{summary.items}</span>
         </div>
         <div className="flex justify-between">
           <span>Qty:</span>
-          <span className="font-semibold">{summary.pieces}</span>
+          <span className="font-semibold tabular-nums text-right">{summary.pieces}</span>
         </div>
         <div className="flex justify-between border-t pt-2">
           <span>Subtotal:</span>
-          <span className="font-semibold">{currency(summary.subtotal)}</span>
+          <span className="font-semibold tabular-nums text-right">{currency(summary.subtotal)}</span>
         </div>
         <div className="flex justify-between">
           <span>Tax:</span>
-          <span className="font-semibold">{currency(summary.totalGst)}</span>
+          <span className="font-semibold tabular-nums text-right">{currency(summary.totalGst)}</span>
         </div>
         {summary.discountAmt > 0 && (
           <div className="flex justify-between text-orange-600">
             <span>Discount:</span>
-            <span className="font-semibold">-{currency(summary.discountAmt)}</span>
+            <span className="font-semibold tabular-nums text-right">-{currency(summary.discountAmt)}</span>
           </div>
         )}
-        <div className="flex justify-between border-t pt-2 text-lg font-bold bg-blue-50 p-2 rounded">
-          <span>Total:</span>
-          <span className="text-blue-600">{currency(summary.billAmount)}</span>
+        <div className="flex justify-between border-t bg-blue-50 p-3 text-xl font-bold rounded">
+          <span>Grand Total:</span>
+          <span className="text-right tabular-nums text-blue-700">{currency(summary.billAmount)}</span>
         </div>
       </div>
       

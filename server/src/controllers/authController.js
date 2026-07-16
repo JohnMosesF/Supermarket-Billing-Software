@@ -19,6 +19,7 @@ function userPayload(user) {
     id: user._id,
     name: user.name,
     email: user.email,
+    username: user.username,
     role: user.role,
     permissions: permissionsFor(user),
     active: user.active
@@ -26,13 +27,18 @@ function userPayload(user) {
 }
 
 export const loginRules = [
-  body('email').isEmail().normalizeEmail(),
+  body('email').optional({ checkFalsy: true }).trim(),
+  body('username').optional({ checkFalsy: true }).trim(),
   body('password').isLength({ min: 8 })
 ];
 
 export const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email }).select('+password');
+  const { password } = req.body;
+  const identifier = String(req.body.email || req.body.username || '').trim().toLowerCase();
+  if (!identifier) throw new ApiError(400, 'Email or username is required');
+  const user = await User.findOne({
+    $or: [{ email: identifier }, { username: identifier }]
+  }).select('+password');
 
   if (!user || !(await user.comparePassword(password))) {
     throw new ApiError(401, 'Invalid email or password');
@@ -44,7 +50,7 @@ export const login = asyncHandler(async (req, res) => {
 
   user.lastLoginAt = new Date();
   await user.save();
-  await logAudit(req, { action: 'Login', module: 'Auth', user, newValue: { email: user.email, role: user.role } });
+  await logAudit(req, { action: 'Login', module: 'Auth', user, newValue: { email: user.email, username: user.username, role: user.role } });
 
   res.json({
     success: true,

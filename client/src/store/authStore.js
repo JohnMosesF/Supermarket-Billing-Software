@@ -13,6 +13,7 @@ export const useAuthStore = create(
         if (!data?.token) {
           throw new Error('Login response did not include a token');
         }
+        setStoredToken(data.token, credentials.rememberMe !== false);
         set({ token: data.token, user: data.user });
         return data.user;
       },

@@ -13,7 +13,7 @@ export function Login() {
   const login = useAuthStore((state) => state.login);
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit } = useForm({
-    defaultValues: { email: 'admin@store.com', password: 'Admin@12345' }
+    defaultValues: { email: 'admin@store.com', password: 'Admin@12345', rememberMe: true }
   });
 
   if (token) return <Navigate to="/" replace />;
@@ -52,17 +52,22 @@ export function Login() {
             </div>
           </div>
 
-          <label className="mb-1 block text-sm font-semibold">Email</label>
+          <label className="mb-1 block text-sm font-semibold">Email or Username</label>
           <div className="relative mb-4">
             <Mail className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            <input className="input pl-10" type="email" {...register('email', { required: true })} />
+            <input className="input pl-10" {...register('email', { required: true })} />
           </div>
 
           <label className="mb-1 block text-sm font-semibold">Password</label>
-          <div className="relative mb-6">
+          <div className="relative mb-4">
             <Lock className="absolute left-3 top-2.5 text-slate-400" size={18} />
             <input className="input pl-10" type="password" {...register('password', { required: true })} />
           </div>
+
+          <label className="mb-6 flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" className="h-4 w-4 accent-emerald-600" {...register('rememberMe')} />
+            Remember Me
+          </label>
 
           <button className="btn-primary w-full" disabled={loading}>
             {loading ? 'Signing in...' : 'Login'}

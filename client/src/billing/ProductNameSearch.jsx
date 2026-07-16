@@ -6,6 +6,7 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [allProducts, setAllProducts] = useState([]);
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
 
@@ -13,28 +14,37 @@ export default function ProductNameSearch({ value, onChange, onSelect, placehold
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    productAPI.listProducts(10000)
+      .then((res) => {
+        if (!cancelled) setAllProducts(res.data?.products || []);
+      })
+      .catch(() => {
+        if (!cancelled) setAllProducts([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const listRef = useRef(null);
   const itemRefs = useRef({});
 
-  const search = useCallback(async (q) => {
+  const search = useCallback((q) => {
     if (!q) {
       setResults([]);
       setSelectedIndex(-1);
       return;
     }
     setLoading(true);
-    try {
-      // Use productAPI which is explicitly for products
-      const res = await productAPI.searchProducts(q, 100);
-      const products = (res.data && (res.data.products || res.data)) || [];
-      setResults(products || []);
-      setSelectedIndex(-1);
-    } catch (err) {
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    const products = productAPI.filterProductsByNamePrefix(allProducts, q, 100);
+    setResults(products || []);
+    setSelectedIndex(-1);
+    setLoading(false);
+  }, [allProducts]);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);

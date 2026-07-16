@@ -9,7 +9,13 @@ import { reconcileCustomerAccounting, rebuildDayBook } from '../services/account
 
 export const customerRules = [
   body('name').trim().notEmpty(),
-  body('mobile').trim().notEmpty()
+  body('mobile').trim().notEmpty().matches(/^[0-9+\-\s]{7,15}$/),
+  body('alternatePhone').optional({ checkFalsy: true }).matches(/^[0-9+\-\s]{7,15}$/),
+  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
+  body('gstNumber').optional({ checkFalsy: true }).matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i),
+  body('panNumber').optional({ checkFalsy: true }).matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i),
+  body('openingBalance').optional().isFloat({ min: 0 }),
+  body('creditLimit').optional().isFloat({ min: 0 })
 ];
 
 export const collectionRules = [
@@ -23,15 +29,20 @@ export const listCustomers = asyncHandler(async (req, res) => {
   const showDeleted = String(req.query.showDeleted || 'false').toLowerCase() === 'true';
   const filter = {
     ...(showDeleted ? {} : { active: true }),
-    ...(search ? { $or: [{ name: new RegExp(search, 'i') }, { mobile: new RegExp(search, 'i') }, { email: new RegExp(search, 'i') }] } : {})
+    ...(search ? { $or: [{ customerId: new RegExp(search, 'i') }, { name: new RegExp(search, 'i') }, { mobile: new RegExp(search, 'i') }, { gstNumber: new RegExp(search, 'i') }] } : {})
   };
-  const limit = Math.min(Number(req.query.limit || 100), 1000);
-  const customers = await Customer.find(filter).sort({ updatedAt: -1 }).limit(limit);
-  res.json({ customers });
+  const page = Math.max(Number(req.query.page || 1), 1);
+  const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 1000);
+  const [customers, total] = await Promise.all([
+    Customer.find(filter).sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit),
+    Customer.countDocuments(filter)
+  ]);
+  res.json({ customers, total, page, pages: Math.ceil(total / limit) });
 });
 
 export const createCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.create(req.body);
+  const nextId = req.body.customerId || `CUST-${String((await Customer.countDocuments()) + 1).padStart(5, '0')}`;
+  const customer = await Customer.create({ ...req.body, customerId: nextId });
   res.status(201).json({ customer });
 });
 

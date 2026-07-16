@@ -3,6 +3,7 @@ import { Customer } from '../models/Customer.js';
 import { InventoryLog } from '../models/InventoryLog.js';
 import { Product } from '../models/Product.js';
 import { Sale } from '../models/Sale.js';
+import { Setting } from '../models/Setting.js';
 import { Unit } from '../models/Unit.js';
 import { ensureDefaultUnits } from './unitController.js';
 import { ApiError } from '../utils/apiError.js';
@@ -85,6 +86,8 @@ export const createSale = asyncHandler(async (req, res) => {
   const productIds = req.body.items.map((item) => item.product);
   const products = await Product.find({ _id: { $in: productIds }, active: true });
   const productMap = new Map(products.map((product) => [String(product._id), product]));
+  const settings = await Setting.findOne().lean();
+  const allowNegativeStock = Boolean(settings?.allowNegativeStock);
 
   let subtotal = 0;
   let taxTotal = 0;
@@ -98,7 +101,7 @@ export const createSale = asyncHandler(async (req, res) => {
     if (!unit.allowDecimal && !isWholeNumber(item.quantity)) {
       throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
     }
-    if (product.stock < item.quantity) {
+    if (!allowNegativeStock && product.stock < item.quantity) {
       throw new ApiError(400, 'Insufficient stock available.');
     }
 
@@ -144,7 +147,7 @@ export const createSale = asyncHandler(async (req, res) => {
   }
 
   const sale = await Sale.create({
-    invoiceNumber: req.body.invoiceNumber || makeInvoiceNumber(count),
+    invoiceNumber: req.body.invoiceNumber || makeInvoiceNumber(count, settings?.invoicePrefix || 'INV'),
     customer: req.body.customer || undefined,
     customerName: req.body.customerName,
     customerMobile: req.body.customerMobile,
@@ -172,6 +175,11 @@ export const createSale = asyncHandler(async (req, res) => {
       product: product._id,
       type: 'stock_out',
       quantity: item.quantity,
+      quantityOut: item.quantity,
+      openingStock: stockBefore,
+      closingStock: product.stock,
+      referenceType: 'Sale',
+      referenceNumber: sale.invoiceNumber,
       stockBefore,
       stockAfter: product.stock,
       reason: `Sale ${sale.invoiceNumber}`,

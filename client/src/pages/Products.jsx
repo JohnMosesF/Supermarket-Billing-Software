@@ -11,7 +11,9 @@ import * as XLSX from 'xlsx';
 export function Products() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
+  const [taxes, setTaxes] = useState([]);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [categoryName, setCategoryName] = useState('');
@@ -28,7 +30,7 @@ export function Products() {
 // --- Load Products & Categories ---
   async function load() {
     try {
-      const [productRes, categoryRes, unitRes] = await Promise.all([
+      const [productRes, categoryRes, unitRes, brandRes, taxRes] = await Promise.all([
         api.get('/products', {
           params: {
             search,
@@ -36,12 +38,16 @@ export function Products() {
           }
         }),
         api.get('/categories'),
-        api.get('/units')
+        api.get('/units'),
+        api.get('/brands'),
+        api.get('/taxes')
       ]);
 
       setProducts(productRes.data.products || []);
       setCategories(categoryRes.data.categories || []);
       setUnits(unitRes.data.units || []);
+      setBrands(brandRes.data.brands || []);
+      setTaxes(taxRes.data.taxes || []);
 
     } catch (error) {
       console.error('LOAD ERROR:', error);
@@ -62,9 +68,11 @@ export function Products() {
         ...values,
 
         category: values.category || undefined,
+        brand: values.brand || undefined,
 
         purchasePrice: Number(values.purchasePrice || 0),
         sellingPrice: Number(values.sellingPrice || 0),
+        retailPrice: Number(values.retailPrice || values.sellingPrice || 0),
         wholesalePrice: Number(values.wholesalePrice || 0),
         mrp: Number(values.mrp || 0),
 
@@ -79,6 +87,10 @@ export function Products() {
         localName: values.localName || '',
         companyName: values.companyName || '',
         hsnCode: values.hsnCode || '',
+        barcode: values.barcode || '',
+        description: values.description || '',
+        gstInclusive: Boolean(values.gstInclusive),
+        active: values.active !== false,
         unit: values.unit || 'pcs',
         productId: Number(values.productId || 0),
       };
@@ -95,10 +107,13 @@ export function Products() {
         name: '',
         localName: '',
         sku: '',
+        barcode: '',
         category: '',
+        brand: '',
         mrp: '',
         purchasePrice: '',
         sellingPrice: '',
+        retailPrice: '',
         wholesalePrice: '',
         stock: '',
         openingStock: '',
@@ -107,7 +122,10 @@ export function Products() {
         discount: '',
         companyName: '',
         hsnCode: '',
+        description: '',
         unit: 'pcs',
+        active: true,
+        gstInclusive: false,
       });
 
       setEditing(null);
@@ -128,12 +146,15 @@ export function Products() {
       name: product.name,
       localName: product.localName,
       sku: product.sku,
+      barcode: product.barcode,
 
       category: product.category?._id,
+      brand: product.brand?._id,
 
       mrp: product.mrp,
       purchasePrice: product.purchasePrice,
       sellingPrice: product.sellingPrice,
+      retailPrice: product.retailPrice || product.sellingPrice,
       wholesalePrice: product.wholesalePrice,
 
       stock: product.stock,
@@ -146,6 +167,9 @@ export function Products() {
 
       companyName: product.companyName,
       hsnCode: product.hsnCode,
+      description: product.description,
+      gstInclusive: product.gstInclusive || false,
+      active: product.active !== false,
 
       unit: product.unit,
 
@@ -430,6 +454,8 @@ export function Products() {
       switch (field) {
         case "category":
           return product.category?.name || "";
+        case "brand":
+          return product.brand?.name || "";
         default:
           return product[field] ?? "";
       }
@@ -469,64 +495,30 @@ export function Products() {
           
           <input className="input" type="number" placeholder="Product ID" {...register('productId')} />
           <input className="input" placeholder="Product name" {...register('name', { required: true })} />
-          <input className="input" placeholder="Local Language Name" {...register('localName')} />
+          <input className="input" placeholder="Tamil Name" {...register('localName')} />
           <input className="input" placeholder="SKU auto generated if blank" {...register('sku')} />
+          <input className="input" placeholder="Barcode" {...register('barcode')} />
           
           <select className="input" {...register('category')}>
             <option value="">No category</option>
             {categories.map((category) => <option key={category._id} value={category._id}>{category.name}</option>)}
           </select>
+          <select className="input" {...register('brand')}>
+            <option value="">No brand</option>
+            {brands.map((brand) => <option key={brand._id} value={brand._id}>{brand.name}</option>)}
+          </select>
             
-          <div className="grid grid-cols-[1fr_auto] gap-2">
-            <input className="input" placeholder="New category name" value={categoryName} onChange={(event) => setCategoryName(event.target.value)} />
-            <button type="button" className="btn-muted" onClick={addCategory}>Add</button>
-          </div>
-
-          <div className="panel space-y-2 p-3 shadow-none">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-semibold">Manage Units</span>
-              <button type="button" className="btn-muted py-1.5" onClick={saveUnit}>
-                {unitForm.id ? 'Update' : 'Add'}
-              </button>
-            </div>
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <input
-                className="input"
-                placeholder="Unit name"
-                value={unitForm.name}
-                onChange={(event) => setUnitForm((current) => ({ ...current, name: event.target.value }))}
-              />
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={unitForm.allowDecimal}
-                  onChange={(event) => setUnitForm((current) => ({ ...current, allowDecimal: event.target.checked }))}
-                />
-                Decimal
-              </label>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {units.map((unit) => (
-                <button
-                  type="button"
-                  key={unit._id}
-                  className="rounded-md border border-slate-200 px-2 py-1 text-xs dark:border-slate-700"
-                  onClick={() => setUnitForm({ id: unit._id, name: unit.name, allowDecimal: unit.allowDecimal })}
-                  onDoubleClick={() => removeUnit(unit)}
-                  title="Click to edit, double click to delete"
-                >
-                  {unit.name} {unit.allowDecimal ? '(decimal)' : '(whole)'}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          
           <div className="grid grid-cols-2 gap-3">
             <input className="input" type="number" step="0.01" placeholder="MRP" {...register('mrp')} />
             <input className="input" type="number" step="0.01" placeholder="Purchase price" {...register('purchasePrice', { required: true })} />
+            <input className="input" type="number" step="0.01" placeholder="Retail price" {...register('retailPrice')} />
             <input className="input" type="number" step="0.01" placeholder="Selling price" {...register('sellingPrice', { required: true })} />
             <input className="input" type="number" step="0.01" placeholder="Wholesale price" {...register('wholesalePrice')} />
-            <input className="input" type="number" step="0.01" placeholder="GST %" {...register('taxRate')} />
+            <select className="input" {...register('taxRate')}>
+              <option value="">GST %</option>
+              {taxes.map((tax) => <option key={tax._id} value={tax.rate}>{tax.rate}%</option>)}
+            </select>
             
             <select className="input" {...register('unit')}>
               {units.map((unit) => (
@@ -537,9 +529,21 @@ export function Products() {
             </select>
 
             <input className="input" type="number" placeholder="Stock" {...register('stock')} />
+            <input className="input" type="number" placeholder="Opening Stock" {...register('openingStock')} />
             <input className="input" type="number" placeholder="Low stock" {...register('lowStockThreshold')} />
             <input className="input" placeholder="Company Name" {...register('companyName')} />
             <input className="input" placeholder="HSN Code" {...register('hsnCode')} />
+          </div>
+          <textarea className="input" placeholder="Description" {...register('description')} />
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" {...register('gstInclusive')} />
+              GST Inclusive
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" {...register('active')} defaultChecked />
+              Active
+            </label>
           </div>
           
           <div className="flex gap-2">
@@ -578,7 +582,7 @@ export function Products() {
           </div>
           <div className="flex items-center gap-2 border-b border-slate-100 p-4 dark:border-slate-800">
             <Search size={18} className="text-slate-400" />
-            <input className="w-full bg-transparent text-sm outline-none" placeholder="Search product, SKU, or barcode" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input className="w-full bg-transparent text-sm outline-none" placeholder="Search starts with Product ID, name, SKU, or barcode" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
           {products.length ? (
             <div className="table-shell">
@@ -601,7 +605,15 @@ export function Products() {
                       {sortField === "sku" &&
                         (sortDirection === "asc" ? " ▲" : " ▼")}
                     </th>
-                                        <th
+                    <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("barcode")}
+                    >
+                      Barcode
+                      {sortField === "barcode" &&
+                        (sortDirection === "asc" ? " ^" : " v")}
+                    </th>
+                    <th
                       className="table-th cursor-pointer select-none"
                       onClick={() => handleSort("name")}
                     >
@@ -633,7 +645,15 @@ export function Products() {
                       {sortField === "category" &&
                         (sortDirection === "asc" ? " ▲" : " ▼")}
                     </th>
-                                        <th
+                    <th
+                      className="table-th cursor-pointer select-none"
+                      onClick={() => handleSort("brand")}
+                    >
+                      Brand
+                      {sortField === "brand" &&
+                        (sortDirection === "asc" ? " ^" : " v")}
+                    </th>
+                    <th
                       className="table-th cursor-pointer select-none"
                       onClick={() => handleSort("unit")}
                     >
@@ -727,6 +747,9 @@ export function Products() {
                       <td className="table-td">
                         {product.sku}
                       </td>
+                      <td className="table-td">
+                        {product.barcode || '-'}
+                      </td>
 
                       <td className="table-td">
                         <button
@@ -747,6 +770,9 @@ export function Products() {
 
                       <td className="table-td">
                         {product.category?.name || '-'}
+                      </td>
+                      <td className="table-td">
+                        {product.brand?.name || '-'}
                       </td>
 
                       <td className="table-td">

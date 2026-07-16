@@ -8,6 +8,8 @@ import { normalizeBillItem } from '../utils/normalizeBillItem.js';
 export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
   const [heldBills, setHeldBills] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('date');
 
   useEffect(() => {
     if (isOpen) {
@@ -18,7 +20,7 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
   const loadHeldBills = async () => {
     setLoading(true);
     try {
-      const { data } = await holdBillAPI.getHeldBills();
+      const { data } = await holdBillAPI.getHeldBills(search ? { search } : undefined);
       setHeldBills(data.heldBills || []);
     } catch (err) {
       toast.error('Failed to load held bills');
@@ -59,6 +61,13 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
 
   if (!isOpen) return null;
 
+  const sortedHeldBills = [...heldBills].sort((a, b) => {
+    if (sortBy === 'customer') return String(a.customerName || '').localeCompare(String(b.customerName || ''));
+    if (sortBy === 'amount') return Number(b.total || 0) - Number(a.total || 0);
+    if (sortBy === 'invoice') return String(a.invoiceNo || '').localeCompare(String(b.invoiceNo || ''));
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
@@ -70,19 +79,35 @@ export default function HoldBillsModal({ isOpen, onClose, onResumeHeldBill }) {
         </div>
 
         <div className="p-6">
+          <div className="mb-4 grid grid-cols-3 gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') loadHeldBills(); }}
+              placeholder="Search customer, mobile, invoice"
+              className="col-span-2 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            />
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+              <option value="date">Date</option>
+              <option value="customer">Customer</option>
+              <option value="amount">Amount</option>
+              <option value="invoice">Invoice No</option>
+            </select>
+          </div>
           {loading && <p className="text-center text-slate-500">Loading...</p>}
           {!loading && heldBills.length === 0 && (
             <p className="text-center text-slate-500">No held bills</p>
           )}
           {!loading && heldBills.length > 0 && (
             <div className="space-y-3">
-              {heldBills.map((heldBill) => (
+              {sortedHeldBills.map((heldBill) => (
                 <div
                   key={heldBill._id}
                   className="border border-slate-200 dark:border-slate-700 rounded-lg p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50"
                 >
                   <div className="flex-1">
-                    <p className="font-semibold text-sm">{heldBill.items?.length || 0} items</p>
+                    <p className="font-semibold text-sm">{heldBill.invoiceNo || 'Held Bill'} - {heldBill.items?.length || 0} items</p>
+                    <p className="text-xs text-slate-500">{heldBill.customerName || 'Walk-in Customer'} {heldBill.customerMobile ? `(${heldBill.customerMobile})` : ''}</p>
                     <p className="text-xs text-slate-500">
                       {(heldBill.items || []).slice(0, 3).map((item) => {
                         const normalized = normalizeBillItem(item);

@@ -45,11 +45,20 @@ const creditPaymentSchema = new mongoose.Schema(
 
 const customerSchema = new mongoose.Schema(
   {
+    customerId: { type: String, trim: true, unique: true, sparse: true },
     name: { type: String, required: true, trim: true },
     mobile: { type: String, required: true, unique: true, trim: true },
+    alternatePhone: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
     address: String,
-    gstNumber: String,
+    city: String,
+    state: String,
+    pincode: String,
+    gstNumber: { type: String, trim: true, uppercase: true },
+    panNumber: { type: String, trim: true, uppercase: true },
+    openingBalance: { type: Number, default: 0 },
+    creditLimit: { type: Number, default: 0, min: 0 },
+    remarks: String,
     notes: String,
     loyaltyPoints: { type: Number, default: 0 },
     totalSpent: { type: Number, default: 0 },
@@ -69,6 +78,8 @@ const customerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-customerSchema.index({ name: 'text', mobile: 'text', email: 'text' });
+customerSchema.index({ name: 1 });
+customerSchema.index({ mobile: 1 });
+customerSchema.index({ gstNumber: 1 });
 
 export const Customer = mongoose.model('Customer', customerSchema);

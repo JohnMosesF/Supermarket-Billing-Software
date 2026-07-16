@@ -9,6 +9,7 @@ import { User } from '../src/models/User.js';
 async function startInMemoryMongo() {
   const mongod = await MongoMemoryServer.create();
   process.env.MONGO_URI = mongod.getUri();
+  env.mongoUri = process.env.MONGO_URI;
   return mongod;
 }
 
@@ -33,20 +34,84 @@ async function run() {
       const server = app.listen(0, () => resolve(`http://127.0.0.1:${server.address().port}/api`));
     });
 
+    const heldPayload = {
+      invoiceNo: 'HELD-001',
+      invoiceAt: '2026-07-15T10:30:00.000Z',
+      customer: {
+        id: 'cust-1',
+        name: 'Credit Customer',
+        mobile: '9999999999',
+        address: 'Main Road',
+        city: 'Chennai',
+        gstNumber: '33ABCDE1234F1Z5',
+        panNumber: 'ABCDE1234F',
+        creditLimit: 5000,
+        openingBalance: 250,
+        currentOutstanding: 321,
+        remarks: 'Snapshot customer'
+      },
+      items: [{
+        productId: 1234,
+        productIdNumber: 1234,
+        name: 'Test Product',
+        productName: 'Test Product',
+        localName: 'Tamil Test',
+        sku: 'SKU-HELD',
+        barcode: '8901234567890',
+        hsnCode: '3923',
+        unit: 'pcs',
+        quantity: 2,
+        freeQuantity: 1,
+        price: 99.5,
+        rate: 99.5,
+        priceMode: 'wholesale',
+        discountPercent: 10,
+        discount: 19.9,
+        gst: 12,
+        gstRate: 12,
+        gstAmount: 21.49,
+        gstInclusive: false,
+        taxableAmount: 179.1,
+        lineTotal: 200.59,
+        netAmount: 200.59,
+        total: 200.59,
+        batch: 'B1',
+        expiry: '2027-03',
+        remarks: 'Keep exact'
+      }],
+      subtotal: 179.1,
+      taxTotal: 21.49,
+      discount: 19.9,
+      discountPercent: 0,
+      discountAmount: 0,
+      total: 200.59,
+      paymentMethod: 'credit',
+      paymentDetails: [{ method: 'Credit', amount: 50, reference: 'PART' }],
+      paidAmount: 50,
+      amountPaid: 50,
+      balanceAmount: 150.59,
+      balanceDue: 150.59,
+      outstanding: 150.59,
+      cashReceived: 0,
+      changeReturn: 0,
+      payment: {
+        paymentMethod: 'Credit',
+        paidAmount: 50,
+        amountPaid: 50,
+        balanceAmount: 150.59,
+        outstanding: 150.59,
+        creditAmount: 150.59,
+        paymentDetails: [{ method: 'Credit', amount: 50, reference: 'PART' }]
+      },
+      customerName: 'Credit Customer',
+      customerMobile: '9999999999'
+    };
+
     // 1. Hold a bill
     const holdResp = await fetch(`${baseUrl}/hold-bills`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        items: [{ productId: 1234, name: 'Test Product', quantity: 2, sellingPrice: 10, taxRate: 5 }],
-        subtotal: 20,
-        taxTotal: 1,
-        discount: 0,
-        total: 21,
-        paymentMethod: 'cash',
-        customerName: 'Test',
-        customerMobile: '9999999999'
-      })
+      body: JSON.stringify(heldPayload)
     });
     assert(holdResp.status === 201, 'hold response should be 201');
     const holdBody = await holdResp.json();
@@ -68,6 +133,15 @@ async function run() {
     assert(resumeResp.status === 200, 'resume response 200');
     const resumeBody = await resumeResp.json();
     assert(resumeBody.heldBill && resumeBody.heldBill.items && resumeBody.heldBill.items.length === 1, 'resume returned items');
+    assert(resumeBody.snapshot && Array.isArray(resumeBody.snapshot.cart), 'resume returned snapshot cart');
+    const resumedItem = resumeBody.snapshot.cart[0];
+    assert(resumedItem.price === 99.5, 'resume preserves price');
+    assert(resumedItem.gstAmount === 21.49, 'resume preserves GST amount');
+    assert(resumedItem.discount === 19.9, 'resume preserves discount');
+    assert(resumedItem.priceMode === 'wholesale', 'resume preserves price mode');
+    assert(resumeBody.snapshot.payment.balanceAmount === 150.59, 'resume preserves outstanding balance');
+    assert(resumeBody.snapshot.customer.gstNumber === '33ABCDE1234F1Z5', 'resume preserves customer GST');
+    assert(resumeBody.snapshot.totals.total === 200.59, 'resume preserves total');
 
     // 4. Delete held bill
     const delResp = await fetch(`${baseUrl}/hold-bills/${heldId}`, {

@@ -1,25 +1,35 @@
 import express from 'express';
 import {
   advancedReport,
+  businessIntelligenceDashboard,
   creditSalesReport,
   customerDueReport,
+  exportBusinessDashboardCsv,
+  exportBusinessDashboardExcel,
+  exportBusinessDashboardPdf,
   exportAdvancedReportExcel,
   exportAdvancedReportPdf,
+  exportReturnsExcel,
+  exportReturnsPdf,
   exportSalesExcel,
   exportSalesPdf,
   outstandingBalanceReport,
   paymentCollectionReport,
   productAnalytics,
   profitLossReport,
+  returnsReport,
   salesReport,
   stockValuation
-  , returnsReport, exportReturnsExcel, exportReturnsPdf
 } from '../controllers/reportController.js';
 import { authorize, protect } from '../middleware/auth.js';
 
 export const reportRoutes = express.Router();
 
 reportRoutes.use(protect, authorize('admin', 'manager'));
+reportRoutes.get('/business-intelligence', businessIntelligenceDashboard);
+reportRoutes.get('/business-intelligence/export.xlsx', exportBusinessDashboardExcel);
+reportRoutes.get('/business-intelligence/export.pdf', exportBusinessDashboardPdf);
+reportRoutes.get('/business-intelligence/export.csv', exportBusinessDashboardCsv);
 reportRoutes.get('/sales', salesReport);
 reportRoutes.get('/purchases', advancedReport('purchases'));
 reportRoutes.get('/profit', advancedReport('profit'));

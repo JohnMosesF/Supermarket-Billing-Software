@@ -13,7 +13,7 @@ export async function loginUser(credentials) {
     throw new Error(data.message || 'Login response missing token or user information');
   }
 
-  setStoredToken(data.token);
+  setStoredToken(data.token, credentials.rememberMe !== false);
   return data;
 }
 

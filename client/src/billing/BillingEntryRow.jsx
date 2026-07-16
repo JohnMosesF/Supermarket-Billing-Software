@@ -10,8 +10,27 @@ const parseQuantityInput = (value, allowDecimalQty) => {
   return allowDecimalQty ? parsed : Math.trunc(parsed);
 };
 
+const stockTone = (stock) => {
+  const value = Number(stock ?? 0);
+  if (value <= 0) return 'text-red-600';
+  if (value <= 5) return 'text-orange-600';
+  return 'text-emerald-600';
+};
+
+const highlightMatch = (text, query) => {
+  const value = String(text ?? '');
+  const needle = String(query || '').trim();
+  if (!needle || !value.toLowerCase().startsWith(needle.toLowerCase())) return value;
+  return (
+    <>
+      <mark className="bg-yellow-200 px-0 text-inherit">{value.slice(0, needle.length)}</mark>
+      {value.slice(needle.length)}
+    </>
+  );
+};
+
 /**
- * BillingEntryRow - Advanced POS-style product entry with fuzzy search
+ * BillingEntryRow - Advanced POS-style product entry with product name search
  * 
  * WORKFLOW:
  * 1. Product ID (numeric) - auto-focus on load
@@ -27,7 +46,7 @@ const parseQuantityInput = (value, allowDecimalQty) => {
  * - Arrow Up/Down in dropdown to navigate suggestions
  * - Enter to select suggestion
  */
-  const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocusCustomer }, ref) {
+  const BillingEntryRow = forwardRef(function BillingEntryRow({ onAddItem, onFocusCustomer, canEditPrice = true, editingIndex = null, onCancelEdit = () => {} }, ref) {
   
     // Form state
   const [mongoId, setMongoId] = useState(null); // MongoDB ObjectId (_id)
@@ -38,6 +57,15 @@ const parseQuantityInput = (value, allowDecimalQty) => {
   const [rate, setRate] = useState('0');
   const [qty, setQty] = useState('1');
   const [gst, setGst] = useState('0');
+  const [retailPrice, setRetailPrice] = useState('0');
+  const [wholesalePrice, setWholesalePrice] = useState('0');
+  const [mrp, setMrp] = useState('0');
+  const [priceMode, setPriceMode] = useState('retail');
+  const [itemDiscountPercent, setItemDiscountPercent] = useState('0');
+  const [itemDiscountAmount, setItemDiscountAmount] = useState('0');
+  const [gstInclusive, setGstInclusive] = useState(false);
+  const [hsnCode, setHsnCode] = useState('');
+  const [allowNegativeStock, setAllowNegativeStock] = useState(false);
   const [stock, setStock] = useState(null);
   const [unit, setUnit] = useState('pcs');
   const [allowDecimalQty, setAllowDecimalQty] = useState(false);
@@ -47,12 +75,14 @@ const parseQuantityInput = (value, allowDecimalQty) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [allProducts, setAllProducts] = useState([]);
   
   // Refs for field management
   const productIdRef = useRef(null);
   const nameRef = useRef(null);
   const qtyRef = useRef(null);
   const rateRef = useRef(null);
+  const discountRef = useRef(null);
   const gstRef = useRef(null);
   const suggestionRefs = useRef([]);
 
@@ -84,29 +114,38 @@ const parseQuantityInput = (value, allowDecimalQty) => {
     productIdRef.current?.focus();
   }, []);
 
-  // Expose methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    focusProductId: () => {
-      setMongoId(null);
-      setProductId('');
-      setName('');
-      setLocalName('');
-      setRate('0');
-      setQty('1');
-      setGst('0');
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setSelectedSuggestionIndex(-1);
-      setSearchQuery('');
-      setTimeout(() => productIdRef.current?.focus(), 0);
-    },
-    focusName: () => {
-      setTimeout(() => nameRef.current?.focus(), 0);
-    },
-    focusQty: () => {
-      focusQty(true);
-    }
-  }));
+  useEffect(() => {
+    let cancelled = false;
+
+    productAPI.listProducts(10000)
+      .then((res) => {
+        if (!cancelled) setAllProducts(res.data?.products || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load billing products', err);
+        if (!cancelled) setAllProducts([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    api.get('/inventory/settings', { silent: true })
+      .then((res) => setAllowNegativeStock(Boolean(res.data?.settings?.allowNegativeStock)))
+      .catch(() => setAllowNegativeStock(false));
+  }, []);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) return;
+
+    const products = productAPI.filterProductsByNamePrefix(allProducts, q, 100);
+    setSuggestions(products);
+    setShowSuggestions(products.length > 0);
+    setSelectedSuggestionIndex(products.length > 0 ? 0 : -1);
+  }, [allProducts, searchQuery]);
 
   /**
    * Clear entire entry row and reset focus to product ID
@@ -118,6 +157,14 @@ const parseQuantityInput = (value, allowDecimalQty) => {
     setName('');
     setLocalName('');
     setRate('0');
+    setRetailPrice('0');
+    setWholesalePrice('0');
+    setMrp('0');
+    setPriceMode('retail');
+    setItemDiscountPercent('0');
+    setItemDiscountAmount('0');
+    setGstInclusive(false);
+    setHsnCode('');
     setQty('1');
     setStock(null);
     setUnit('pcs');
@@ -130,8 +177,80 @@ const parseQuantityInput = (value, allowDecimalQty) => {
     productIdRef.current?.focus();
   };
 
+  const cancelEditMode = () => {
+    clearRow();
+    onCancelEdit();
+  };
+
+  const applyProduct = (found) => {
+    const nextRetail = Number(found.retailPrice ?? found.sellingPrice ?? 0);
+    const nextWholesale = Number(found.wholesalePrice ?? nextRetail);
+    const nextMrp = Number(found.mrp ?? nextRetail);
+    setMongoId(found._id || null);
+    setProductId(String(found.productId || ''));
+    setSku(found.sku || '');
+    setName(found.productName || found.name || '');
+    setLocalName(found.localName || '');
+    setRetailPrice(String(nextRetail));
+    setWholesalePrice(String(nextWholesale));
+    setMrp(String(nextMrp));
+    setPriceMode('retail');
+    setRate(String(nextRetail));
+    setGst(String(found.taxRate ?? found.tax ?? 0));
+    setQty('1');
+    setStock(found.stock ?? null);
+    setUnit(found.unit || 'pcs');
+    setAllowDecimalQty(found.allowDecimalQty || false);
+    setGstInclusive(Boolean(found.gstInclusive));
+    setHsnCode(found.hsnCode || '');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    focusQty(true);
+  };
+
+  const loadCartItem = (item) => {
+    const nextRetail = Number(item.retailPrice ?? item.rate ?? item.price ?? 0);
+    const nextWholesale = Number(item.wholesalePrice ?? nextRetail);
+    const nextMrp = Number(item.mrp ?? nextRetail);
+    setMongoId(item._id || item.mongoId || null);
+    setProductId(String(item.productId || ''));
+    setSku(item.sku || '');
+    setName(item.productName || item.name || '');
+    setLocalName(item.localName || '');
+    setRetailPrice(String(nextRetail));
+    setWholesalePrice(String(nextWholesale));
+    setMrp(String(nextMrp));
+    setPriceMode(item.priceMode || 'retail');
+    setRate(String(item.rate ?? item.price ?? nextRetail));
+    setGst(String(item.gst ?? item.gstRate ?? 0));
+    setQty(String(item.qty ?? item.quantity ?? 1));
+    setStock(item.stock ?? null);
+    setUnit(item.unit || 'pcs');
+    setAllowDecimalQty(Boolean(item.allowDecimalQty));
+    setGstInclusive(Boolean(item.gstInclusive));
+    setHsnCode(item.hsnCode || '');
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+    setSearchQuery('');
+    focusQty(true);
+  };
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    focusProductId: clearRow,
+    focusName: () => {
+      setTimeout(() => nameRef.current?.focus(), 0);
+    },
+    focusQty: () => {
+      focusQty(true);
+    },
+    loadCartItem,
+    clearRow
+  }));
+
   /**
-   * Fetch product by numeric ID
+   * Fetch product by barcode, SKU, or numeric product ID
    */
   const handleProductIdEnter = async () => {
     const idStr = String(productId || '').trim();
@@ -142,27 +261,11 @@ const parseQuantityInput = (value, allowDecimalQty) => {
     }
 
     try {
-      const res = await api.get(`/products/id/${encodeURIComponent(idStr)}`, { silent: true });
+      const res = await productAPI.lookupProduct(idStr);
       const found = res.data?.product;
       
       if (found) {
-        // Fill in product details - PRESERVE MongoDB ObjectId (_id)
-        setMongoId(found._id || null);
-        setProductId(String(found.productId || ''));
-        setSku(found.sku || '');
-        setName(found.productName || found.name || '');
-        setLocalName(found.localName || '');
-        setRate(String(found.sellingPrice ?? 0));
-        setGst(String(found.taxRate ?? 0));
-        setQty('1');
-        setStock(found.stock ?? null);
-        setUnit(found.unit || 'pcs');
-        setAllowDecimalQty(found.allowDecimalQty || false);
-        setSuggestions([]);
-        setShowSuggestions(false);
-        
-        // Move to quantity field with default qty selected for immediate replacement.
-        focusQty(true);
+        applyProduct(found);
       } else {
         toast.error('Product not found');
         setProductId('');
@@ -177,7 +280,7 @@ const parseQuantityInput = (value, allowDecimalQty) => {
   /**
    * Search products by name with autocomplete
    */
-  const handleNameChange = async (value) => {
+  const handleNameChange = (value) => {
     setName(value);
     setSearchQuery(value);
     setSelectedSuggestionIndex(-1);
@@ -189,22 +292,14 @@ const parseQuantityInput = (value, allowDecimalQty) => {
       return;
     }
 
-    try {
-      const res = await productAPI.searchProducts(q, 100);
-      const products = res.data?.products || [];
-      setSuggestions(products);
-      setShowSuggestions(products.length > 0);
+    const products = productAPI.filterProductsByNamePrefix(allProducts, q, 100);
+    setSuggestions(products);
+    setShowSuggestions(products.length > 0);
 
-      // Auto-select first result
-      setSelectedSuggestionIndex(
-        products.length > 0 ? 0 : -1
-      );
-
-    } catch (err) {
-      console.error(err);
-      setSuggestions([]);
-      setShowSuggestions(false);
-    }
+    // Auto-select first result
+    setSelectedSuggestionIndex(
+      products.length > 0 ? 0 : -1
+    );
   };
 
   /**
@@ -221,24 +316,11 @@ const parseQuantityInput = (value, allowDecimalQty) => {
       'allowDecimalQty=',
       product.allowDecimalQty
     );
-    setMongoId(product._id || null); // PRESERVE MongoDB ObjectId
-    setProductId(String(product.productId || ''));
-    setName(product.productName || product.name || '');
-    setLocalName(product.localName || '');
-    setRate(String(product.sellingPrice ?? 0));
-    setGst(String(product.taxRate || product.tax || 0));
-    setQty('1');
-    setStock(product.stock ?? null);
-    setUnit(product.unit || 'pcs');
-    setAllowDecimalQty(product.allowDecimalQty || false);
+    applyProduct(product);
     setSuggestions([]);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
     setSearchQuery('');
-    setSku(product.sku || '');
-
-    // Move to quantity field with default qty selected for immediate replacement.
-    focusQty(true);
   };
 
   /**
@@ -343,11 +425,17 @@ const parseQuantityInput = (value, allowDecimalQty) => {
     }
 
     const grossAmount = Number(rate || 0) * quantity;
-    const gstAmount = grossAmount - grossAmount / (1 + Number(gst || 0) / 100);
-    const amount = grossAmount - gstAmount;
+    const percentDiscount = grossAmount * Number(itemDiscountPercent || 0) / 100;
+    const discountAmount = Number(itemDiscountAmount || 0) || percentDiscount;
+    const afterDiscount = Math.max(grossAmount - discountAmount, 0);
+    const gstAmount = gstInclusive
+      ? afterDiscount - afterDiscount / (1 + Number(gst || 0) / 100)
+      : afterDiscount * Number(gst || 0) / 100;
+    const amount = gstInclusive ? afterDiscount - gstAmount : afterDiscount;
+    const netAmount = gstInclusive ? afterDiscount : afterDiscount + gstAmount;
 
     // Validate stock before adding
-    if (stock != null && quantity > parseFloat(stock)) {
+    if (!allowNegativeStock && stock != null && quantity > parseFloat(stock)) {
       toast.error('Quantity exceeds available stock');
       return;
     }
@@ -368,7 +456,15 @@ const parseQuantityInput = (value, allowDecimalQty) => {
       allowDecimalQty,
 
       rate: Number(rate || 0),
+      priceMode,
+      retailPrice: Number(retailPrice || 0),
+      wholesalePrice: Number(wholesalePrice || 0),
+      mrp: Number(mrp || 0),
       gst: Number(gst || 0),
+      gstInclusive,
+      hsnCode,
+      discount: discountAmount,
+      discountPercent: Number(itemDiscountPercent || 0),
 
       stock,
 
@@ -401,7 +497,7 @@ const parseQuantityInput = (value, allowDecimalQty) => {
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      clearRow();
+      editingIndex != null ? cancelEditMode() : clearRow();
     }
   };
 
@@ -436,7 +532,7 @@ const parseQuantityInput = (value, allowDecimalQty) => {
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      clearRow();
+      editingIndex != null ? cancelEditMode() : clearRow();
     }
   };
 
@@ -450,12 +546,28 @@ const parseQuantityInput = (value, allowDecimalQty) => {
         // Shift+Tab - go back to qty
         qtyRef.current?.focus();
       } else {
-        // Move to GST field
+        discountRef.current?.focus();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      editingIndex != null ? cancelEditMode() : clearRow();
+    }
+  };
+
+  /**
+   * Keyboard handler for Discount field
+   */
+  const handleDiscountKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        rateRef.current?.focus();
+      } else {
         gstRef.current?.focus();
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      clearRow();
+      editingIndex != null ? cancelEditMode() : clearRow();
     }
   };
 
@@ -466,37 +578,47 @@ const parseQuantityInput = (value, allowDecimalQty) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       if (e.shiftKey) {
-        // Shift+Tab - go back to rate
-        rateRef.current?.focus();
+        discountRef.current?.focus();
       } else {
         // Add item and move forward (will focus product ID)
         handleAddItem();
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      clearRow();
+      editingIndex != null ? cancelEditMode() : clearRow();
     }
   };
 
   // Calculate amounts for display
   const quantity = parseQuantityInput(qty, allowDecimalQty);
   const grossAmount = Number(rate || 0) * quantity;
-  const gstAmount = grossAmount - grossAmount / (1 + Number(gst || 0) / 100);
-  const amount = grossAmount - gstAmount;
-  const netAmount = grossAmount;
+  const percentDiscount = grossAmount * Number(itemDiscountPercent || 0) / 100;
+  const discountAmount = Number(itemDiscountAmount || 0) || percentDiscount;
+  const afterDiscount = Math.max(grossAmount - discountAmount, 0);
+  const gstAmount = gstInclusive
+    ? afterDiscount - afterDiscount / (1 + Number(gst || 0) / 100)
+    : afterDiscount * Number(gst || 0) / 100;
+  const amount = gstInclusive ? afterDiscount - gstAmount : afterDiscount;
+  const netAmount = gstInclusive ? afterDiscount : afterDiscount + gstAmount;
 
   return (
     <div className="space-y-2">
+      {editingIndex != null && (
+        <div className="flex items-center justify-between rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+          <span>Editing Item #{editingIndex + 1}</span>
+          <button type="button" className="rounded px-2 py-1 hover:bg-blue-100" onClick={cancelEditMode}>ESC Cancel</button>
+        </div>
+      )}
       {/* Header row */}
       <div className="grid grid-cols-12 gap-2 text-xs font-semibold bg-gray-100 p-2 rounded-sm">
         <div className="col-span-1">PID</div>
         <div className="col-span-4">Product Name</div>
         <div className="col-span-1 text-center">Qty</div>
         <div className="col-span-1 text-right">Price</div>
+        <div className="col-span-1 text-center">Type</div>
+        <div className="col-span-1 text-right">Disc</div>
         <div className="col-span-1 text-right">GST%</div>
-        <div className="col-span-1 text-right">Amt</div>
         <div className="col-span-1 text-right">Net</div>
-        <div className="col-span-1"></div>
       </div>
 
       {/* Entry row */}
@@ -504,11 +626,11 @@ const parseQuantityInput = (value, allowDecimalQty) => {
         {/* Product ID */}
         <input
           ref={productIdRef}
-          type="number"
+          type="text"
           className="col-span-1 p-2 border rounded-sm text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          placeholder="ID"
+          placeholder="PID/SKU"
           value={productId}
-          onChange={(e) => setProductId(e.target.value.replace(/[^0-9]/g, ''))}
+          onChange={(e) => setProductId(e.target.value.trimStart())}
           onKeyDown={handleProductIdKeyDown}
         />
 
@@ -517,7 +639,7 @@ const parseQuantityInput = (value, allowDecimalQty) => {
           <input
             ref={nameRef}
             type="text"
-            className="w-full p-2 border rounded-sm text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-full p-2 border rounded-sm text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             placeholder="Product name (or search)"
             value={name}
             onChange={(e) => handleNameChange(e.target.value)}
@@ -527,12 +649,12 @@ const parseQuantityInput = (value, allowDecimalQty) => {
 
           {/* Autocomplete Dropdown */}
           {showSuggestions && suggestions.length > 0 && (
-            <ul className="absolute z-50 bg-white border border-gray-300 mt-1 max-h-48 overflow-y-auto w-full text-xs rounded-sm shadow-lg">
+            <ul className="fixed z-[9999] mt-1 max-h-72 min-w-[30rem] overflow-y-auto rounded-sm border border-gray-300 bg-white text-xs shadow-2xl" style={{ left: nameRef.current?.getBoundingClientRect().left || 0, top: (nameRef.current?.getBoundingClientRect().bottom || 0) + 4, width: nameRef.current?.getBoundingClientRect().width || undefined }}>
               {suggestions.map((product, idx) => (
                 <li
                   ref={(el) => (suggestionRefs.current[idx] = el) }
                   key={idx}
-                  className={`p-2 cursor-pointer flex justify-between items-center ${
+                  className={`cursor-pointer px-3 py-2 ${
                     idx === selectedSuggestionIndex
                       ? 'bg-blue-500 text-white'
                       : 'hover:bg-gray-100'
@@ -540,11 +662,21 @@ const parseQuantityInput = (value, allowDecimalQty) => {
                   onMouseDown={() => selectSuggestion(product)}
                   onMouseEnter={() => setSelectedSuggestionIndex(idx)}
                 >
-                  <span className="font-semibold">{product.productName || product.name}</span>
-                  <span className="text-xs opacity-70">
-                    {product.productId ? `ID:${product.productId}` : ''}
-                    {product.sku ? ` SKU:${product.sku}` : ''}
-                  </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold">{highlightMatch(product.productName || product.name, name)}</div>
+                      <div className="mt-0.5 text-[11px] opacity-80">
+                        {product.productId ? <>PID: {highlightMatch(product.productId, name)} </> : null}
+                        {product.sku ? <>SKU: {highlightMatch(product.sku, name)} </> : null}
+                        {product.barcode ? <>Barcode: {highlightMatch(product.barcode, name)} </> : null}
+                        {product.localName ? <>Tamil: {highlightMatch(product.localName, name)}</> : null}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="font-semibold">{currency(product.sellingPrice || 0)}</div>
+                      <div className={`text-[11px] font-semibold ${idx === selectedSuggestionIndex ? 'text-white' : stockTone(product.stock)}`}>Stock : {product.stock ?? 0} {product.unit || 'pcs'}</div>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -590,9 +722,43 @@ const parseQuantityInput = (value, allowDecimalQty) => {
           step="0.01"
           className="col-span-1 p-2 border rounded-sm text-xs text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
           placeholder="0.00"
+          disabled={!canEditPrice}
           value={rate}
           onChange={(e) => setRate(e.target.value.replace(/[^0-9.]/g, ''))}
           onKeyDown={handleRateKeyDown}
+        />
+
+        <select
+          className="col-span-1 p-2 border rounded-sm text-xs text-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          value={priceMode}
+          disabled={!canEditPrice}
+          onChange={(e) => {
+            const mode = e.target.value;
+            setPriceMode(mode);
+            if (mode === 'retail') setRate(retailPrice);
+            if (mode === 'wholesale') setRate(wholesalePrice);
+            if (mode === 'mrp') setRate(mrp);
+          }}
+        >
+          <option value="retail">Retail</option>
+          <option value="wholesale">Wholesale</option>
+          <option value="mrp">MRP</option>
+          <option value="manual">Manual</option>
+        </select>
+
+        <input
+          ref={discountRef}
+          type="number"
+          min="0"
+          step="0.01"
+          className="col-span-1 p-2 border rounded-sm text-xs text-right focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          placeholder="Disc %"
+          value={itemDiscountPercent}
+          onChange={(e) => {
+            setItemDiscountPercent(e.target.value.replace(/[^0-9.]/g, ''));
+            setItemDiscountAmount('0');
+          }}
+          onKeyDown={handleDiscountKeyDown}
         />
 
         {/* GST */}
@@ -607,19 +773,9 @@ const parseQuantityInput = (value, allowDecimalQty) => {
           onKeyDown={handleGstKeyDown}
         />
 
-        {/* Amount */}
-        <div className="col-span-1 text-right text-xs font-semibold pr-2">
-          {currency(amount)}
-        </div>
-
         {/* Net Amount */}
         <div className="col-span-1 text-right text-xs font-bold pr-2 bg-blue-50 p-1 rounded">
           {currency(netAmount)}
-        </div>
-
-        {/* Stock */}
-        <div className="col-span-1 text-center text-sm">
-          {stock == null ? '-' : (stock <= 0 ? <span className="text-red-600">Out of Stock</span> : <span>Stock: {stock} {unit}</span>)}
         </div>
 
         {/* Action Button */}
@@ -628,12 +784,19 @@ const parseQuantityInput = (value, allowDecimalQty) => {
             onClick={handleAddItem}
             className="w-full bg-green-600 text-white rounded-sm text-xs hover:bg-green-700 font-semibold py-2"
             title="Add item to cart"
-            disabled={!mongoId || (stock != null && stock <= 0) || (stock != null && Number(qty || 0) > Number(stock))}
+            disabled={!mongoId || (!allowNegativeStock && ((stock != null && stock <= 0) || (stock != null && Number(qty || 0) > Number(stock))))}
           >
-            Add
+            {editingIndex != null ? 'Update' : 'Add'}
           </button>
         </div>
       </div>
+
+      {mongoId && (
+        <div className={`px-2 text-xs font-semibold ${stockTone(stock)}`}>
+          Current Stock : {stock ?? 0} {unit || 'pcs'}
+          {allowNegativeStock ? <span className="ml-2 text-slate-500">(negative stock allowed)</span> : null}
+        </div>
+      )}
 
       {/* Quick help */}
       <div className="text-xs text-gray-500 px-2">
@@ -647,3 +810,4 @@ const parseQuantityInput = (value, allowDecimalQty) => {
 });
 
 export default BillingEntryRow;
+

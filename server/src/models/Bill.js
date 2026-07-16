@@ -19,6 +19,9 @@ const billItemSchema = new mongoose.Schema(
     taxableAmount: { type: Number, min: 0, default: 0 },
     netAmount: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, min: 0, default: 0 },
+    discountPercent: { type: Number, min: 0, default: 0 },
+    gstInclusive: { type: Boolean, default: false },
+    priceMode: { type: String, trim: true, default: 'retail' },
     category: { type: String, trim: true },
     companyName: { type: String, trim: true },
     hsnCode: { type: String, trim: true },
@@ -42,6 +45,7 @@ const billSchema = new mongoose.Schema(
     taxTotal: { type: Number, required: true, min: 0, default: 0 },
     discount: { type: Number, required: true, min: 0, default: 0 },
     discountPercent: { type: Number, min: 0, default: 0 },
+    discountAmount: { type: Number, min: 0, default: 0 },
     notes: { type: String, trim: true },
     total: { type: Number, required: true, min: 0 },
     paidAmount: { type: Number, required: true, min: 0, default: 0 },
@@ -57,7 +61,7 @@ const billSchema = new mongoose.Schema(
     invoiceAt: { type: Date },
     paymentMethod: {
       type: String,
-      enum: ['Cash', 'UPI', 'Card', 'Credit'],
+      enum: ['Cash', 'UPI', 'Card', 'Credit', 'Cheque', 'Bank Transfer', 'Split', 'Wallet', 'Online'],
       required: true,
       default: 'Cash',
       set: (value) => {
@@ -66,15 +70,35 @@ const billSchema = new mongoose.Schema(
         if (normalized === 'cash') return 'Cash';
         if (normalized === 'card') return 'Card';
         if (normalized === 'credit') return 'Credit';
+        if (normalized === 'cheque') return 'Cheque';
+        if (normalized === 'bank' || normalized === 'bank_transfer' || normalized === 'bank transfer') return 'Bank Transfer';
+        if (normalized === 'split') return 'Split';
+        if (normalized === 'wallet') return 'Wallet';
+        if (normalized === 'online') return 'Online';
         return value;
       }
     },
+    paymentDetails: {
+      type: [
+        {
+          method: { type: String, trim: true },
+          amount: { type: Number, min: 0, default: 0 },
+          reference: { type: String, trim: true }
+        }
+      ],
+      default: []
+    },
+    cashReceived: { type: Number, min: 0, default: 0 },
+    changeReturn: { type: Number, min: 0, default: 0 },
     status: {
       type: String,
       enum: ['Completed', 'Hold', 'Cancelled', 'Refunded'],
       required: true,
       default: 'Completed'
     },
+    cancelledAt: Date,
+    cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    cancellationReason: { type: String, trim: true },
     staff: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   { timestamps: true }
@@ -89,6 +113,12 @@ billSchema.pre('validate', function (next) {
   }
   next();
 });
+
+billSchema.index({ invoiceNo: 1 });
+billSchema.index({ invoiceAt: -1, createdAt: -1 });
+billSchema.index({ customerMobile: 1, createdAt: -1 });
+billSchema.index({ customerName: 1 });
+billSchema.index({ status: 1, createdAt: -1 });
 
 const Bill = mongoose.model('Bill', billSchema);
 export default Bill;

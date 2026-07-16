@@ -6,14 +6,20 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },
+    username: { type: String, required: true, unique: true, sparse: true, lowercase: true, trim: true },
     password: { type: String, required: true, minlength: 8, select: false },
-    role: { type: String, enum: ['admin', 'manager', 'cashier', 'store_staff'], default: 'cashier' },
+    role: { type: String, enum: ['admin', 'manager', 'cashier'], default: 'cashier' },
     permissions: [{ type: String }],
     active: { type: Boolean, default: true },
     lastLoginAt: Date
   },
   { timestamps: true }
 );
+
+userSchema.pre('validate', function setUsername(next) {
+  if (!this.username && this.email) this.username = this.email.split('@')[0];
+  next();
+});
 
 userSchema.pre('save', async function hashPassword(next) {
   if (!this.isModified('password')) return next();

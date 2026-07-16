@@ -69,7 +69,11 @@ export function Billing() {
   const codeRef = useRef(null);
   const nameRef = useRef(null);
   const customerRef = useRef(null);
+  const paidAmountRef = useRef(null);
+  const cashReceivedRef = useRef(null);
+  const saveBillButtonRef = useRef(null);
   const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [cart, setCart] = useState([]);
   const [selectedRow, setSelectedRow] = useState(0);
@@ -79,6 +83,7 @@ export function Billing() {
   const [entryQty, setEntryQty] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paidAmount, setPaidAmount] = useState('');
+  const [cashReceived, setCashReceived] = useState('');
   const [customer, setCustomer] = useState({ _id: null, name: '', mobile: '', address: '', outstandingBalance: 0, totalCredit: 0 });
   const [discount, setDiscount] = useState(0);
   const [sale, setSale] = useState(null);
@@ -87,26 +92,29 @@ export function Billing() {
 
   useEffect(() => {
     api.get('/settings', { silent: true }).then((res) => setSettings(res.data.settings)).catch(() => {});
+    productAPI.listProducts(10000).then((res) => {
+      setAllProducts(res.data?.products || []);
+    }).catch(() => {
+      setAllProducts([]);
+    });
     const clock = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(clock);
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const q = query || productCode;
-      if (!q) {
-        setProducts([]);
-        return;
-      }
-      productAPI.searchProducts(q, 100).then((res) => {
-        setProducts(res.data.products || []);
-        setHighlightedSuggestion(0);
-      }).catch(() => {
-        setProducts([]);
-      });
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [query, productCode]);
+    const nameQuery = query.trim();
+    const codeQuery = productCode.trim();
+    if (!nameQuery && !codeQuery) {
+      setProducts([]);
+      return;
+    }
+
+    const matches = nameQuery
+      ? productAPI.filterProductsByNamePrefix(allProducts, nameQuery, 100)
+      : productAPI.filterProducts(allProducts, codeQuery, 100);
+    setProducts(matches);
+    setHighlightedSuggestion(0);
+  }, [allProducts, query, productCode]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -162,6 +170,14 @@ export function Billing() {
   const paid = paidAmount === '' ? (isCredit ? 0 : totals.grandTotal) : Number(paidAmount || 0);
   const balanceAmount = Math.max(totals.grandTotal - paid, 0);
   const changeReturn = Math.max(paid - totals.grandTotal, 0);
+  const cashReceivedAmount = Number(cashReceived || 0);
+  const cashDifference = cashReceived === '' ? 0 : cashReceivedAmount - totals.grandTotal;
+  const cashDifferenceLabel = cashDifference < 0 ? 'Remaining Amount' : cashDifference > 0 ? 'Change to Return' : 'Change';
+  const cashDifferenceTone = cashDifference < 0
+    ? 'border-red-200 bg-red-50 text-red-700'
+    : cashDifference > 0
+      ? 'border-green-200 bg-green-50 text-green-700'
+      : 'border-slate-200 bg-slate-50 text-slate-700';
   const customerOutstanding = Number(customer.outstandingBalance || 0);
   const customerTotalCredit = Number(customer.totalCredit || 0);
   const customerCreditBills = customer.creditTransactions?.filter((tx) => Number(tx.dueAmount || 0) > 0) || [];
@@ -177,6 +193,7 @@ export function Billing() {
     setEntryQty(1);
     setDiscount(0);
     setPaidAmount('');
+    setCashReceived('');
     setCustomer({ _id: null, name: '', mobile: '', address: '', outstandingBalance: 0, totalCredit: 0, creditTransactions: [] });
     setSale(null);
     codeRef.current?.focus();
@@ -373,7 +390,7 @@ export function Billing() {
   }, [handleShortcuts]);
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-5rem)] bg-slate-100 pb-20 text-slate-950 dark:bg-slate-950 dark:text-slate-100 sm:-m-6">
+    <div className="-m-[var(--page-padding)] min-h-[calc(100vh-var(--header-height))] bg-slate-100 pb-[var(--compact-80)] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <div className="sticky top-0 z-20 border-b border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:px-6">
         <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr_1fr] lg:items-center">
           <div>
@@ -410,7 +427,7 @@ export function Billing() {
                 Product Name Search
                 <div className="relative mt-1">
                   <Search className="absolute left-3 top-3 text-slate-400" size={17} />
-                  <input ref={nameRef} className="input h-11 pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type name or barcode" />
+                  <input ref={nameRef} className="input h-11 pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Type product name" />
                 </div>
                 {(query || productCode) && products.length ? (
                   <div className="absolute left-0 right-0 top-[4.5rem] z-30 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
@@ -473,7 +490,7 @@ export function Billing() {
           </div>
 
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="max-h-[calc(100vh-290px)] min-h-[310px] overflow-auto">
+            <div className="max-h-[calc(100vh-(var(--header-height)+var(--legacy-billing-offset)))] min-h-[var(--legacy-billing-offset)] overflow-auto">
               <table className="w-full min-w-[980px] border-separate border-spacing-0 text-sm">
                 <thead className="sticky top-0 z-10 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-800">
                   <tr>
@@ -586,7 +603,14 @@ export function Billing() {
                 <div className="flex items-center gap-2 text-sm font-bold"><CreditCard size={16} />Payment Method</div>
                 <div className="grid grid-cols-2 gap-2 2xl:grid-cols-5">
                   {paymentModes.map((mode) => (
-                    <button key={mode.value} className={`min-h-11 rounded-lg px-2 text-sm font-bold ${paymentMethod === mode.value ? 'bg-blue-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700'}`} onClick={() => setPaymentMethod(mode.value)}>
+                    <button
+                      key={mode.value}
+                      className={`min-h-11 rounded-lg px-2 text-sm font-bold ${paymentMethod === mode.value ? 'bg-blue-700 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700'}`}
+                      onClick={() => {
+                        setPaymentMethod(mode.value);
+                        if (mode.value !== 'cash') setCashReceived('');
+                      }}
+                    >
                       {mode.label}
                     </button>
                   ))}
@@ -601,6 +625,7 @@ export function Billing() {
                 <label className="text-xs font-semibold uppercase text-slate-500">
                   Paid Amount
                   <input
+                    ref={paidAmountRef}
                     className="input mt-1 h-11 text-lg font-bold"
                     type="number"
                     min="0"
@@ -611,10 +636,47 @@ export function Billing() {
                       const value = Math.max(0, Number(event.target.value));
                       setPaidAmount(String(isCredit ? Math.min(value, totals.grandTotal) : value));
                     }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && paymentMethod === 'cash') {
+                        event.preventDefault();
+                        cashReceivedRef.current?.focus();
+                      }
+                    }}
                     placeholder={String(totals.grandTotal)}
                   />
                 </label>
               </div>
+
+              {paymentMethod === 'cash' ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+                  <label className="text-xs font-semibold uppercase text-slate-500">
+                    Cash Received
+                    <input
+                      ref={cashReceivedRef}
+                      className="input mt-1 h-11 text-lg font-bold"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={cashReceived}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setCashReceived(value === '' ? '' : String(Math.max(0, Number(value))));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          saveBillButtonRef.current?.focus();
+                        }
+                      }}
+                      placeholder="0.00"
+                    />
+                  </label>
+                  <div className={`mt-3 rounded-lg border p-3 ${cashDifferenceTone}`}>
+                    <span className="text-xs font-semibold uppercase">{cashDifferenceLabel}</span>
+                    <strong className="block text-2xl">{currency(Math.abs(cashDifference))}</strong>
+                  </div>
+                </div>
+              ) : null}
 
               {isCredit ? (
                 <div className="rounded-xl border border-orange-200 bg-orange-50 p-3 text-orange-900">
@@ -632,7 +694,7 @@ export function Billing() {
                 <div className="rounded-lg bg-orange-50 p-3 text-orange-800"><span className="text-xs">Outstanding Balance</span><strong className="block text-lg">{currency(customerOutstanding)}</strong></div>
                 <div className="rounded-lg bg-blue-50 p-3 text-blue-800"><span className="text-xs">Previous Credit Bills</span><strong className="block text-lg">{customerCreditBills.length}</strong></div>
                 <div className="rounded-lg bg-slate-50 p-3 text-slate-800"><span className="text-xs">Last Due Amount</span><strong className="block text-lg">{currency(lastDue)}</strong></div>
-                <div className="rounded-lg bg-green-50 p-3 text-green-800"><span className="text-xs">Change Return</span><strong className="block text-lg">{currency(changeReturn)}</strong></div>
+                <div className="rounded-lg bg-green-50 p-3 text-green-800"><span className="text-xs">Change Return</span><strong className="block text-lg">{currency(paymentMethod === 'cash' ? Math.max(cashDifference, 0) : changeReturn)}</strong></div>
               </div>
             </div>
           </div>
@@ -652,7 +714,7 @@ export function Billing() {
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white px-4 py-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-wrap items-center justify-center gap-2">
           <button className="btn-muted" onClick={resetBill}><FilePlus2 size={16} />F1 New</button>
-          <button className="btn-primary" onClick={checkout}>Save Bill</button>
+          <button ref={saveBillButtonRef} className="btn-primary" onClick={checkout}>Save Bill</button>
           <button className="rounded-md bg-orange-500 px-4 py-2 text-sm font-bold text-white"><Hold size={16} className="inline" /> F4 Hold</button>
           <button className="btn-muted"><RotateCcw size={16} />Recall Hold</button>
           <button className="rounded-md bg-green-600 px-4 py-2 text-sm font-bold text-white" onClick={handlePrint}><Printer size={16} className="inline" />F8 Print</button>

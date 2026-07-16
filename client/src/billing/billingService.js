@@ -26,6 +26,9 @@ function normalizeProductResult(product) {
     unit: product.unit || '',
     barcode: product.barcode || '',
     sellingPrice: Number(product.sellingPrice ?? product.price ?? product.rate ?? 0),
+    retailPrice: Number(product.retailPrice ?? product.sellingPrice ?? product.price ?? product.rate ?? 0),
+    wholesalePrice: Number(product.wholesalePrice ?? product.sellingPrice ?? product.price ?? product.rate ?? 0),
+    mrp: Number(product.mrp ?? product.sellingPrice ?? product.price ?? product.rate ?? 0),
     stock: Number(product.stock ?? 0),
     taxRate: Number(product.taxRate ?? product.tax ?? 0),
     tax: Number(product.taxRate ?? product.tax ?? 0),
@@ -33,6 +36,8 @@ function normalizeProductResult(product) {
     available: Number(product.stock ?? 0) > 0,
     unit: product.unit || 'pcs',
     allowDecimalQty: Boolean(product.allowDecimalQty),
+    gstInclusive: Boolean(product.gstInclusive),
+    hsnCode: product.hsnCode || '',
   };
   if (normalized.productId === 0) normalized.productId = undefined;
   return normalized;
@@ -49,9 +54,63 @@ function dedupeProducts(products) {
   });
 }
 
+function productMatchesSearch(product, query) {
+  const needle = String(query || '').trim().toLowerCase();
+  if (!needle) return false;
+
+  return [
+    product.productId,
+    product.sku,
+    product.productName,
+    product.name,
+    product.localName,
+    product.barcode,
+  ].some((value) => String(value ?? '').toLowerCase().startsWith(needle));
+}
+
+function productNameStartsWith(product, query) {
+  const needle = String(query || '').trim().toLowerCase();
+  if (!needle) return false;
+
+  const productName = String(product.productName || product.name || '').trim().toLowerCase();
+  return [
+    product.productId,
+    product.sku,
+    product.barcode,
+    product.productName,
+    product.name,
+    product.localName
+  ].some((value) => String(value ?? '').trim().toLowerCase().startsWith(needle));
+}
+
+function filterProducts(products, query, limit = 100) {
+  const max = Math.max(Number(limit || 100), 1);
+  return products.filter((product) => productMatchesSearch(product, query)).slice(0, max);
+}
+
+function filterProductsByNamePrefix(products, query, limit = 100) {
+  const max = Math.max(Number(limit || 100), 1);
+  return products.filter((product) => productNameStartsWith(product, query)).slice(0, max);
+}
+
 // Product API
 export const productAPI = {
-  // Search products with fuzzy matching (client caches recent queries)
+  listProducts: (limit = 10000) => {
+    const key = `prod_list:${limit}`;
+    const cached = getClientCache(key);
+    if (cached) return Promise.resolve({ data: { products: cached } });
+    return api.get('/products', { params: { limit } }).then((res) => {
+      const products = (res.data && (res.data.products || res.data)) || [];
+      const normalized = dedupeProducts(products.map(normalizeProductResult));
+      setClientCache(key, normalized, 60000);
+      return { data: { products: normalized } };
+    });
+  },
+
+  filterProducts,
+  filterProductsByNamePrefix,
+
+  // Prefix-only product search with short local cache for POS autocomplete
   searchProducts: (query, limit = 100) => {
     const key = `prod_search:${query}:${limit}`;
     const cached = getClientCache(key);
@@ -63,6 +122,11 @@ export const productAPI = {
       return { data: { products: normalized } };
     });
   },
+
+  lookupProduct: (code) => api.get(`/products/lookup/${encodeURIComponent(code)}`).then((res) => {
+    const product = normalizeProductResult(res.data.product || {});
+    return { data: { product } };
+  }),
 
   // Get product by numeric ID
   getProductById: (productId) => {
@@ -141,7 +205,7 @@ export const holdBillAPI = {
   holdBill: (data) => api.post('/bills/hold', data),
 
   // Get held bills
-  getHeldBills: () => api.get('/bills/hold/all'),
+  getHeldBills: (params = {}) => api.get('/bills/hold/all', { params }),
 
   // Resume held bill
   resumeHeldBill: (heldBillId) => api.get(`/bills/hold/${heldBillId}`),
@@ -162,5 +226,5 @@ export const refundAPI = {
 // Print Logs API
 export const printLogAPI = {
   // Log print attempt
-  logPrint: (data) => api.post('/print-logs', data),
+  logPrint: (data) => api.post('/bills/print-logs', data),
 };

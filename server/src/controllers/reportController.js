@@ -1,13 +1,19 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { Customer } from '../models/Customer.js';
+import { CustomerReceipt } from '../models/CustomerReceipt.js';
 import { Product } from '../models/Product.js';
 import { Purchase } from '../models/Purchase.js';
+import { PurchaseOrder } from '../models/PurchaseOrder.js';
 import { Sale } from '../models/Sale.js';
 import { SalesReturn } from '../models/SalesReturn.js';
 import { Supplier } from '../models/Supplier.js';
+import { SupplierPayment } from '../models/SupplierPayment.js';
+import { AuditLog } from '../models/AuditLog.js';
+import { InventoryLog } from '../models/InventoryLog.js';
 import { PurchaseReturn } from '../models/PurchaseReturn.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { getCache, setCache } from '../utils/cache.js';
 
 function dateFilter(req) {
   const filter = {};
@@ -36,6 +42,433 @@ function rangeFor(query, field = 'createdAt') {
 function matchesText(value, expected) {
   if (!expected) return true;
   return String(value || '').toLowerCase().includes(String(expected).toLowerCase());
+}
+
+function percent(value, total) {
+  return total > 0 ? Number(((Number(value || 0) / total) * 100).toFixed(2)) : 0;
+}
+
+function normalizeMethod(method) {
+  return String(method || '').toLowerCase().replace(/\s+/g, '_');
+}
+
+function csvEscape(value) {
+  const text = value instanceof Date ? value.toISOString() : String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function dashboardRange(query) {
+  return {
+    sales: rangeFor(query, 'createdAt'),
+    purchases: rangeFor(query, 'purchaseDate'),
+    returns: rangeFor(query, 'returnDate'),
+    supplierPayments: rangeFor(query, 'paymentDate'),
+    created: rangeFor(query, 'createdAt')
+  };
+}
+
+async function buildBusinessDashboard(query = {}) {
+  const range = dashboardRange(query);
+  const cacheKey = `bi-dashboard:${JSON.stringify(query)}`;
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  const [
+    salesSummary,
+    paymentSummary,
+    salesTrend,
+    monthlySalesTrend,
+    productPerformance,
+    purchaseSummary,
+    purchaseMonthlyTrend,
+    inventorySummary,
+    deadStockProducts,
+    customerSummary,
+    topCustomers,
+    customerFrequency,
+    supplierSummary,
+    topSuppliers,
+    supplierFrequency,
+    salesReturnSummary,
+    purchaseReturnSummary,
+    taxSummary,
+    supplierPaymentSummary,
+    customerReceiptSummary,
+    purchaseOrderCount,
+    auditLogs,
+    inventoryActivities
+  ] = await Promise.all([
+    Sale.aggregate([
+      { $match: range.sales },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: '$total' },
+          grossSales: { $sum: '$subtotal' },
+          gstCollected: { $sum: '$taxTotal' },
+          discountsGiven: { $sum: '$discount' },
+          totalProfit: { $sum: { $cond: [{ $gt: ['$profit', 0] }, '$profit', 0] } },
+          totalLoss: { $sum: { $cond: [{ $lt: ['$profit', 0] }, { $abs: '$profit' }, 0] } },
+          highestBill: { $max: '$total' },
+          lowestBill: { $min: '$total' },
+          numberOfBills: { $sum: 1 },
+          creditBills: { $sum: { $cond: [{ $eq: ['$paymentMethod', 'credit'] }, 1, 0] } },
+          cashBills: { $sum: { $cond: [{ $eq: ['$paymentMethod', 'cash'] }, 1, 0] } },
+          paidAmount: { $sum: '$paidAmount' },
+          balanceAmount: { $sum: '$balanceAmount' }
+        }
+      }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      { $group: { _id: '$paymentMethod', amount: { $sum: '$total' }, bills: { $sum: 1 } } },
+      { $sort: { amount: -1 } }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          sales: { $sum: '$total' },
+          profit: { $sum: '$profit' },
+          bills: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          sales: { $sum: '$total' },
+          profit: { $sum: '$profit' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.product',
+          name: { $first: '$items.name' },
+          unit: { $first: '$items.unit' },
+          quantity: { $sum: '$items.quantity' },
+          revenue: { $sum: '$items.lineTotal' },
+          profit: {
+            $sum: {
+              $multiply: [
+                { $subtract: ['$items.price', '$items.purchasePrice'] },
+                '$items.quantity'
+              ]
+            }
+          },
+          marginBase: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+          cost: { $sum: { $multiply: ['$items.purchasePrice', '$items.quantity'] } }
+        }
+      },
+      { $addFields: { margin: { $cond: [{ $gt: ['$marginBase', 0] }, { $multiply: [{ $divide: ['$profit', '$marginBase'] }, 100] }, 0] } } },
+      { $sort: { quantity: -1 } },
+      { $limit: 100 }
+    ]),
+    Purchase.aggregate([
+      { $match: { ...range.purchases, active: true } },
+      {
+        $group: {
+          _id: null,
+          totalPurchases: { $sum: '$total' },
+          purchaseInvoices: { $sum: 1 },
+          amountPaid: { $sum: '$paidAmount' },
+          pendingPayments: {
+            $sum: {
+              $cond: [
+                { $gt: [{ $subtract: ['$total', { $add: [{ $ifNull: ['$paidAmount', 0] }, { $ifNull: ['$returnCreditAmount', 0] }] }] }, 0] },
+                { $subtract: ['$total', { $add: [{ $ifNull: ['$paidAmount', 0] }, { $ifNull: ['$returnCreditAmount', 0] }] }] },
+                0
+              ]
+            }
+          },
+          purchaseCost: { $sum: '$total' },
+          purchaseGst: { $sum: { $sum: { $map: { input: '$items', as: 'item', in: { $subtract: [{ $ifNull: ['$$item.lineTotal', 0] }, { $multiply: [{ $ifNull: ['$$item.quantity', 0] }, { $ifNull: ['$$item.costPrice', 0] }] }] } } } } }
+        }
+      }
+    ]),
+    Purchase.aggregate([
+      { $match: { ...range.purchases, active: true } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$purchaseDate' } }, purchases: { $sum: '$total' } } },
+      { $sort: { _id: 1 } }
+    ]),
+    Product.aggregate([
+      { $match: { active: true } },
+      {
+        $group: {
+          _id: null,
+          totalProducts: { $sum: 1 },
+          inventoryPurchaseValue: { $sum: { $multiply: ['$purchasePrice', '$stock'] } },
+          inventorySellingValue: { $sum: { $multiply: ['$sellingPrice', '$stock'] } },
+          outOfStock: { $sum: { $cond: [{ $lte: ['$stock', 0] }, 1, 0] } },
+          lowStock: { $sum: { $cond: [{ $and: [{ $gt: ['$stock', 0] }, { $lte: ['$stock', '$lowStockThreshold'] }] }, 1, 0] } },
+          expiringSoon: {
+            $sum: {
+              $cond: [
+                { $and: [{ $gte: ['$expiryDate', new Date()] }, { $lte: ['$expiryDate', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)] }] },
+                1,
+                0
+              ]
+            }
+          },
+          expiredProducts: { $sum: { $cond: [{ $lt: ['$expiryDate', new Date()] }, 1, 0] } }
+        }
+      }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      { $unwind: '$items' },
+      { $group: { _id: '$items.product' } }
+    ]),
+    Customer.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalCustomers: { $sum: 1 },
+          newCustomers: { $sum: { $cond: [{ $and: [{ $gte: ['$createdAt', range.created.createdAt?.$gte || new Date(0)] }, { $lte: ['$createdAt', range.created.createdAt?.$lte || new Date()] }] }, 1, 0] } },
+          customerOutstanding: { $sum: '$outstandingBalance' },
+          totalReceipts: { $sum: '$totalPaid' }
+        }
+      }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      { $group: { _id: { $ifNull: ['$customer', '$customerMobile'] }, customer: { $first: { $ifNull: ['$customerName', '$customerMobile'] } }, total: { $sum: '$total' }, bills: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+      { $limit: 10 }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      { $group: { _id: { $ifNull: ['$customer', '$customerMobile'] }, customer: { $first: { $ifNull: ['$customerName', '$customerMobile'] } }, purchases: { $sum: 1 }, total: { $sum: '$total' } } },
+      { $sort: { purchases: -1, total: -1 } },
+      { $limit: 10 }
+    ]),
+    Supplier.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalSuppliers: { $sum: 1 },
+          supplierOutstanding: { $sum: '$outstandingBalance' },
+          supplierPayments: { $sum: '$totalPayments' }
+        }
+      }
+    ]),
+    Purchase.aggregate([
+      { $match: { ...range.purchases, active: true } },
+      { $group: { _id: '$supplier', total: { $sum: '$total' }, invoices: { $sum: 1 } } },
+      { $lookup: { from: 'suppliers', localField: '_id', foreignField: '_id', as: 'supplier' } },
+      { $unwind: { path: '$supplier', preserveNullAndEmptyArrays: true } },
+      { $project: { supplier: { $ifNull: ['$supplier.name', 'Unknown Supplier'] }, total: 1, invoices: 1 } },
+      { $sort: { total: -1 } },
+      { $limit: 10 }
+    ]),
+    Purchase.aggregate([
+      { $match: { ...range.purchases, active: true } },
+      { $group: { _id: '$supplier', purchases: { $sum: 1 }, total: { $sum: '$total' } } },
+      { $lookup: { from: 'suppliers', localField: '_id', foreignField: '_id', as: 'supplier' } },
+      { $unwind: { path: '$supplier', preserveNullAndEmptyArrays: true } },
+      { $project: { supplier: { $ifNull: ['$supplier.name', 'Unknown Supplier'] }, purchases: 1, total: 1 } },
+      { $sort: { purchases: -1, total: -1 } },
+      { $limit: 10 }
+    ]),
+    SalesReturn.aggregate([
+      { $match: { ...range.returns, status: 'Completed' } },
+      { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$refundAmount' }, gst: { $sum: '$gstAmount' } } }
+    ]),
+    PurchaseReturn.aggregate([
+      { $match: { ...range.returns, status: 'Completed' } },
+      { $group: { _id: null, count: { $sum: 1 }, amount: { $sum: '$returnAmount' }, gst: { $sum: '$gstAmount' } } }
+    ]),
+    Sale.aggregate([
+      { $match: range.sales },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: null,
+          taxableAmount: { $sum: { $subtract: [{ $ifNull: ['$items.lineTotal', 0] }, { $multiply: [{ $ifNull: ['$items.lineTotal', 0] }, { $divide: [{ $ifNull: ['$items.taxRate', 0] }, { $add: [100, { $ifNull: ['$items.taxRate', 0] }] }] }] }] } },
+          taxCollected: { $sum: { $multiply: [{ $ifNull: ['$items.lineTotal', 0] }, { $divide: [{ $ifNull: ['$items.taxRate', 0] }, { $add: [100, { $ifNull: ['$items.taxRate', 0] }] }] }] } }
+        }
+      }
+    ]),
+    SupplierPayment.aggregate([
+      { $match: { ...range.supplierPayments, status: 'Posted' } },
+      { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]),
+    CustomerReceipt.aggregate([
+      { $match: { ...rangeFor(query, 'receiptDate'), status: 'Posted' } },
+      { $group: { _id: null, amount: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]),
+    PurchaseOrder.countDocuments({ ...range.created, active: true }),
+    AuditLog.find(range.created).populate('user', 'name email').sort({ createdAt: -1 }).limit(75).lean(),
+    InventoryLog.find(range.created).populate('user', 'name email').sort({ createdAt: -1 }).limit(25).lean()
+  ]);
+
+  const sales = salesSummary[0] || {};
+  const purchases = purchaseSummary[0] || {};
+  const inventory = inventorySummary[0] || {};
+  const customers = customerSummary[0] || {};
+  const suppliers = supplierSummary[0] || {};
+  const salesReturns = salesReturnSummary[0] || {};
+  const purchaseReturns = purchaseReturnSummary[0] || {};
+  const tax = taxSummary[0] || {};
+  const supplierPayments = supplierPaymentSummary[0] || {};
+  const customerReceipts = customerReceiptSummary[0] || {};
+  const totalPaymentAmount = paymentSummary.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const soldProductIds = new Set(deadStockProducts.map((item) => String(item._id)));
+  const allStockedProducts = await Product.find({ active: true, stock: { $gt: 0 } }).select('name stock purchasePrice sellingPrice').lean();
+  const deadStock = allStockedProducts.filter((product) => !soldProductIds.has(String(product._id)));
+  const returningCustomers = Math.max((topCustomers || []).filter((item) => item.bills > 1).length, 0);
+  const productRows = productPerformance.map((item) => ({
+    name: item.name || 'Unknown Product',
+    unit: item.unit || 'pcs',
+    quantity: Number(item.quantity || 0),
+    revenue: Number(item.revenue || 0),
+    profit: Number(item.profit || 0),
+    margin: Number(item.margin || 0)
+  }));
+  const monthlyMap = new Map();
+  monthlySalesTrend.forEach((item) => monthlyMap.set(item._id, { month: item._id, sales: item.sales || 0, profit: item.profit || 0, purchases: 0 }));
+  purchaseMonthlyTrend.forEach((item) => {
+    const current = monthlyMap.get(item._id) || { month: item._id, sales: 0, profit: 0, purchases: 0 };
+    current.purchases = item.purchases || 0;
+    monthlyMap.set(item._id, current);
+  });
+
+  const result = {
+    generatedAt: new Date(),
+    range: query,
+    sales: {
+      totalSales: sales.totalSales || 0,
+      netSales: (sales.totalSales || 0) - (salesReturns.amount || 0),
+      grossSales: sales.grossSales || 0,
+      gstCollected: sales.gstCollected || 0,
+      discountsGiven: sales.discountsGiven || 0,
+      roundOffTotal: 0,
+      totalProfit: sales.totalProfit || 0,
+      totalLoss: sales.totalLoss || 0,
+      averageBillValue: sales.numberOfBills ? (sales.totalSales || 0) / sales.numberOfBills : 0,
+      highestBill: sales.highestBill || 0,
+      lowestBill: sales.lowestBill || 0,
+      numberOfBills: sales.numberOfBills || 0,
+      creditBills: sales.creditBills || 0,
+      cashBills: sales.cashBills || 0
+    },
+    purchases: {
+      totalPurchases: purchases.totalPurchases || 0,
+      purchaseGst: purchases.purchaseGst || 0,
+      outstandingSupplierAmount: suppliers.supplierOutstanding || 0,
+      amountPaidToSuppliers: supplierPayments.amount || purchases.amountPaid || 0,
+      pendingSupplierPayments: purchases.pendingPayments || 0,
+      purchaseReturns: purchaseReturns.amount || 0,
+      purchaseCost: purchases.purchaseCost || 0
+    },
+    inventory: {
+      inventoryPurchaseValue: inventory.inventoryPurchaseValue || 0,
+      inventorySellingValue: inventory.inventorySellingValue || 0,
+      totalProducts: inventory.totalProducts || 0,
+      outOfStock: inventory.outOfStock || 0,
+      lowStock: inventory.lowStock || 0,
+      expiringSoon: inventory.expiringSoon || 0,
+      expiredProducts: inventory.expiredProducts || 0,
+      deadStock: deadStock.length,
+      fastMovingProducts: productRows.slice(0, 10),
+      slowMovingProducts: [...productRows].sort((a, b) => a.quantity - b.quantity).slice(0, 10)
+    },
+    customers: {
+      totalCustomers: customers.totalCustomers || 0,
+      newCustomers: customers.newCustomers || 0,
+      returningCustomers,
+      customerOutstanding: customers.customerOutstanding || 0,
+      totalReceipts: customerReceipts.amount || 0,
+      topCustomers: topCustomers.map((item) => ({ customer: item.customer || 'Walk-in', total: item.total || 0, bills: item.bills || 0 })),
+      customerPurchaseFrequency: customerFrequency.map((item) => ({ customer: item.customer || 'Walk-in', purchases: item.purchases || 0, total: item.total || 0 }))
+    },
+    suppliers: {
+      totalSuppliers: suppliers.totalSuppliers || 0,
+      supplierOutstanding: suppliers.supplierOutstanding || 0,
+      supplierPayments: supplierPayments.amount || suppliers.supplierPayments || 0,
+      topSuppliers,
+      purchaseFrequency: supplierFrequency
+    },
+    payments: ['cash', 'upi', 'card', 'credit', 'bank_transfer', 'wallet'].map((method) => {
+      const found = paymentSummary.find((item) => normalizeMethod(item._id) === method);
+      return { method, amount: found?.amount || 0, percentage: percent(found?.amount || 0, totalPaymentAmount), bills: found?.bills || 0 };
+    }),
+    products: {
+      topSelling: productRows.slice(0, 10),
+      leastSelling: [...productRows].sort((a, b) => a.quantity - b.quantity).slice(0, 10),
+      mostProfitable: [...productRows].sort((a, b) => b.profit - a.profit).slice(0, 10),
+      leastProfitable: [...productRows].sort((a, b) => a.profit - b.profit).slice(0, 10),
+      highestMargin: [...productRows].sort((a, b) => b.margin - a.margin).slice(0, 10),
+      lowestMargin: [...productRows].sort((a, b) => a.margin - b.margin).slice(0, 10)
+    },
+    returns: {
+      salesReturns: salesReturns.amount || 0,
+      purchaseReturns: purchaseReturns.amount || 0,
+      returnAmount: (salesReturns.amount || 0) + (purchaseReturns.amount || 0),
+      returnPercentage: percent(salesReturns.amount || 0, sales.totalSales || 0),
+      salesReturnCount: salesReturns.count || 0,
+      purchaseReturnCount: purchaseReturns.count || 0
+    },
+    tax: {
+      cgst: (tax.taxCollected || 0) / 2,
+      sgst: (tax.taxCollected || 0) / 2,
+      igst: 0,
+      taxableAmount: tax.taxableAmount || 0,
+      taxCollected: tax.taxCollected || 0
+    },
+    charts: {
+      dailySalesTrend: salesTrend.map((item) => ({ date: item._id, sales: item.sales || 0, profit: item.profit || 0, bills: item.bills || 0 })),
+      monthlySalesTrend: monthlySalesTrend.map((item) => ({ month: item._id, sales: item.sales || 0 })),
+      paymentMethod: ['cash', 'upi', 'card', 'credit', 'bank_transfer', 'wallet'].map((method) => {
+        const found = paymentSummary.find((item) => normalizeMethod(item._id) === method);
+        return { name: method.replace('_', ' '), value: found?.amount || 0 };
+      }),
+      topProducts: productRows.slice(0, 10).map((item) => ({ name: item.name, quantity: item.quantity, revenue: item.revenue })),
+      monthlyProfit: monthlySalesTrend.map((item) => ({ month: item._id, profit: item.profit || 0 })),
+      purchaseVsSales: [...monthlyMap.values()].sort((a, b) => a.month.localeCompare(b.month))
+    },
+    audit: [
+      ...auditLogs.map((entry) => ({
+        dateTime: entry.createdAt,
+        user: entry.userName || entry.user?.name || entry.user?.email || 'System',
+        module: entry.module,
+        action: entry.action,
+        referenceNumber: entry.newValue?.invoiceNumber || entry.newValue?.returnNo || entry.newValue?.voucherNo || entry.newValue?.poNumber || entry.previousValue?.invoiceNumber || '-'
+      })),
+      ...inventoryActivities.map((entry) => ({
+        dateTime: entry.createdAt,
+        user: entry.user?.name || entry.user?.email || 'System',
+        module: 'Inventory',
+        action: entry.type || entry.reason || 'Stock Adjustment',
+        referenceNumber: entry.purchaseInvoiceNo || String(entry.referenceId || '').slice(-8) || '-'
+      }))
+    ].sort((a, b) => new Date(b.dateTime) - new Date(a.dateTime)).slice(0, 75),
+    activityCounts: {
+      billsCreated: sales.numberOfBills || 0,
+      billsEdited: auditLogs.filter((entry) => /edit|update/i.test(entry.action) && /bill|sale/i.test(entry.module)).length,
+      billsCancelled: auditLogs.filter((entry) => /cancel|delete/i.test(entry.action) && /bill|sale/i.test(entry.module)).length,
+      purchases: purchases.purchaseInvoices || 0,
+      purchaseOrders: purchaseOrderCount,
+      receipts: customerReceipts.count || 0,
+      supplierPayments: supplierPayments.count || 0,
+      returns: (salesReturns.count || 0) + (purchaseReturns.count || 0),
+      stockAdjustments: inventoryActivities.filter((entry) => entry.type === 'adjustment').length,
+      loginHistory: auditLogs.filter((entry) => /login/i.test(entry.action)).length,
+      logoutHistory: auditLogs.filter((entry) => /logout/i.test(entry.action)).length
+    }
+  };
+
+  setCache(cacheKey, result, 30000);
+  return result;
 }
 
 export const salesReport = asyncHandler(async (req, res) => {
@@ -210,6 +643,99 @@ export const paymentCollectionReport = asyncHandler(async (req, res) => {
     totalCollected: collections.reduce((sum, item) => sum + item.amount, 0),
     collections
   });
+});
+
+export const businessIntelligenceDashboard = asyncHandler(async (req, res) => {
+  res.json(await buildBusinessDashboard(req.query));
+});
+
+function dashboardMetricRows(dashboard) {
+  const groups = [
+    ['Sales Analytics', dashboard.sales],
+    ['Purchase Analytics', dashboard.purchases],
+    ['Inventory Analytics', dashboard.inventory],
+    ['Customer Analytics', dashboard.customers],
+    ['Supplier Analytics', dashboard.suppliers],
+    ['Return Analytics', dashboard.returns],
+    ['Tax Analytics', dashboard.tax],
+    ['Audit Counts', dashboard.activityCounts]
+  ];
+
+  return groups.flatMap(([section, metrics]) => Object.entries(metrics)
+    .filter(([, value]) => !Array.isArray(value) && typeof value !== 'object')
+    .map(([metric, value]) => ({ section, metric, value })));
+}
+
+export const exportBusinessDashboardExcel = asyncHandler(async (req, res) => {
+  const dashboard = await buildBusinessDashboard(req.query);
+  const workbook = new ExcelJS.Workbook();
+  const summary = workbook.addWorksheet('BI Summary');
+  summary.columns = [
+    { header: 'Section', key: 'section', width: 28 },
+    { header: 'Metric', key: 'metric', width: 32 },
+    { header: 'Value', key: 'value', width: 18 }
+  ];
+  dashboardMetricRows(dashboard).forEach((row) => summary.addRow(row));
+
+  const payments = workbook.addWorksheet('Payments');
+  payments.columns = [
+    { header: 'Method', key: 'method', width: 18 },
+    { header: 'Amount', key: 'amount', width: 16 },
+    { header: 'Percentage', key: 'percentage', width: 16 },
+    { header: 'Bills', key: 'bills', width: 12 }
+  ];
+  dashboard.payments.forEach((row) => payments.addRow(row));
+
+  const audit = workbook.addWorksheet('Audit');
+  audit.columns = [
+    { header: 'Date Time', key: 'dateTime', width: 24 },
+    { header: 'User', key: 'user', width: 24 },
+    { header: 'Module', key: 'module', width: 18 },
+    { header: 'Action', key: 'action', width: 24 },
+    { header: 'Reference Number', key: 'referenceNumber', width: 24 }
+  ];
+  dashboard.audit.forEach((row) => audit.addRow(row));
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename=business-intelligence-dashboard.xlsx');
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
+export const exportBusinessDashboardPdf = asyncHandler(async (req, res) => {
+  const dashboard = await buildBusinessDashboard(req.query);
+  const doc = new PDFDocument({ margin: 36, size: 'A4' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename=business-intelligence-dashboard.pdf');
+  doc.pipe(res);
+  doc.fontSize(18).text('Business Intelligence Dashboard').moveDown(0.5);
+  doc.fontSize(9).text(`Generated: ${new Date(dashboard.generatedAt).toLocaleString()}`).moveDown();
+  dashboardMetricRows(dashboard).forEach((row) => {
+    doc.fontSize(8).text(`${row.section} | ${row.metric}: ${row.value}`);
+  });
+  doc.addPage().fontSize(14).text('Recent Audit Activity').moveDown();
+  dashboard.audit.slice(0, 60).forEach((row) => {
+    doc.fontSize(8).text(`${new Date(row.dateTime).toLocaleString()} | ${row.user} | ${row.module} | ${row.action} | ${row.referenceNumber}`);
+  });
+  doc.end();
+});
+
+export const exportBusinessDashboardCsv = asyncHandler(async (req, res) => {
+  const dashboard = await buildBusinessDashboard(req.query);
+  const rows = [
+    ['Section', 'Metric', 'Value'],
+    ...dashboardMetricRows(dashboard).map((row) => [row.section, row.metric, row.value]),
+    [],
+    ['Payment Method', 'Amount', 'Percentage', 'Bills'],
+    ...dashboard.payments.map((row) => [row.method, row.amount, row.percentage, row.bills]),
+    [],
+    ['Date Time', 'User', 'Module', 'Action', 'Reference Number'],
+    ...dashboard.audit.map((row) => [row.dateTime, row.user, row.module, row.action, row.referenceNumber])
+  ];
+  const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename=business-intelligence-dashboard.csv');
+  res.send(csv);
 });
 
 function returnQuery(req, type) {

@@ -11,6 +11,7 @@ import { ReturnBalance } from '../models/ReturnBalance.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 import { reconcileCustomerAccounting, reconcileSupplierAccounting, rebuildDayBook } from '../services/accountingService.js';
+import { logAudit } from '../utils/audit.js';
 
 const EPSILON = 0.000001;
 const regex = (value) => new RegExp(String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -80,6 +81,12 @@ async function applyStock(items, direction, context) {
         product: product._id,
         type: direction > 0 ? 'stock_in' : 'stock_out',
         quantity,
+        quantityIn: direction > 0 ? quantity : 0,
+        quantityOut: direction < 0 ? quantity : 0,
+        openingStock: stockBefore,
+        closingStock: stockAfter,
+        referenceType: context.source === 'purchase_return' || context.source === 'sales_return' ? 'Return' : 'Adjustment',
+        referenceNumber: context.returnNo,
         stockBefore,
         stockAfter,
         reason: `${context.kind} ${context.returnNo} | ${context.originalNo}`,
@@ -172,6 +179,7 @@ export const createSalesReturn = asyncHandler(async (req, res) => {
     }
     await reconcileCustomerAccounting(bill.customer).catch((error) => console.error('Customer ledger reconciliation failed', error));
     await rebuildDayBook().catch((error) => console.error('Day book rebuild failed', error));
+    await logAudit(req, { action: 'Sales Return', module: 'Billing', newValue: salesReturn.toObject() });
     res.status(201).json({ salesReturn });
   } catch (error) {
     if (billCreditApplied > 0) await Bill.updateOne({ _id: bill._id }, { $inc: { returnCreditAmount: -billCreditApplied, dueAmount: billCreditApplied } });
@@ -235,6 +243,7 @@ export const createPurchaseReturn = asyncHandler(async (req, res) => {
     if (purchaseCreditApplied > 0) await Purchase.updateOne({ _id: purchase._id }, { $inc: { returnCreditAmount: purchaseCreditApplied } });
     await reconcileSupplierAccounting(purchase.supplier?._id).catch((error) => console.error('Supplier ledger reconciliation failed', error));
     await rebuildDayBook().catch((error) => console.error('Day book rebuild failed', error));
+    await logAudit(req, { action: 'Purchase Return', module: 'Inventory', newValue: purchaseReturn.toObject() });
     res.status(201).json({ purchaseReturn });
   } catch (error) {
     if (purchaseCreditApplied > 0) await Purchase.updateOne({ _id: purchase._id }, { $inc: { returnCreditAmount: -purchaseCreditApplied } });

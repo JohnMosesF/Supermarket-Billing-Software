@@ -1,12 +1,11 @@
 import { Product } from '../models/Product.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { fuzzySearchProducts, stringSimilarity, extractKeywords } from '../utils/fuzzySearch.js';
 import { getCache, setCache } from '../utils/cache.js';
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Advanced product search with fuzzy matching, keyword support, and multiple field search
+ * Prefix-only product search for POS autocomplete.
  */
 export const searchProducts = asyncHandler(async (req, res) => {
   const query = String(req.query.q || '').trim();
@@ -25,50 +24,24 @@ export const searchProducts = asyncHandler(async (req, res) => {
     return res.json({ products: cached });
   }
 
-  // Fast paths using DB queries to avoid loading entire product collection
   const numericQuery = /^[0-9]+$/.test(query);
-
-  if (numericQuery) {
-    // exact productId match
-    const prod = await Product.findOne({ productId: Number(query), active: true }, {
-      productId: 1,
-      name: 1,
-      localName: 1,
-      sku: 1,
-      barcode: 1,
-      sellingPrice: 1,
-      stock: 1,
-      taxRate: 1,
-      category: 1,
-      allowDecimalQty: 1,
-      unit: 1,
-    }).lean();
-
-    if (prod) {
-      const payload = [{
-        _id: prod._id,
-        productId: prod.productId,
-        productName: prod.name,
-        name: prod.name,
-        localName: prod.localName || '',
-        sku: prod.sku,
-        barcode: prod.barcode,
-        sellingPrice: prod.sellingPrice,
-        stock: prod.stock,
-        taxRate: prod.taxRate || 0,
-        tax: prod.taxRate || 0,
-        available: prod.stock > 0,
-        allowDecimalQty: prod.allowDecimalQty || false,
-        unit: prod.unit || 'pcs',
-      }];
-      setCache(cacheKey, payload, 15000);
-      return res.json({ products: payload });
-    }
-  }
-
-  // Prefix search on name/sku using indexed queries
   const prefixRegex = new RegExp(`^${escapeRegex(query)}`, 'i');
-  const prefixResults = await Product.find({ active: true, $or: [{ name: prefixRegex }, { sku: prefixRegex }] }, {
+  const productIdExpr = numericQuery ? {
+    $regexMatch: {
+      input: { $toString: '$productId' },
+      regex: `^${escapeRegex(query)}`
+    }
+  } : null;
+  const prefixResults = await Product.find({
+    active: true,
+    $or: [
+      { name: prefixRegex },
+      { localName: prefixRegex },
+      { sku: prefixRegex },
+      { barcode: prefixRegex },
+      ...(productIdExpr ? [{ $expr: productIdExpr }] : [])
+    ]
+  }, {
     productId: 1,
     name: 1,
     localName: 1,
@@ -80,7 +53,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
     category: 1,
     allowDecimalQty: 1,
     unit: 1,
-  }).limit(limit).lean();
+  }).sort({ name: 1 }).limit(limit).lean();
 
   if (prefixResults && prefixResults.length > 0) {
     const payload = prefixResults.map((product) => ({
@@ -103,48 +76,7 @@ export const searchProducts = asyncHandler(async (req, res) => {
     return res.json({ products: payload });
   }
 
-  // Reduce candidate set for fuzzy search by matching first keyword (contains)
-  const firstWord = query.split(/\s+/)[0];
-  const containsRegex = new RegExp(escapeRegex(firstWord), 'i');
-  const candidates = await Product.find({ active: true, $or: [{ name: containsRegex }, { sku: containsRegex }, { barcode: containsRegex }] }, {
-    productId: 1,
-    name: 1,
-    localName: 1,
-    sku: 1,
-    barcode: 1,
-    sellingPrice: 1,
-    stock: 1,
-    taxRate: 1,
-    category: 1,
-    allowDecimalQty: 1,
-    unit: 1,
-  }).limit(1000).lean();
-
-  // Apply fuzzy search to candidate subset
-  const searchResults = fuzzySearchProducts(query, candidates);
-
-  // Take top results up to limit
-  const topResults = searchResults.slice(0, limit);
-
-  const payload = topResults.map((product) => ({
-    _id: product._id,
-    productId: product.productId,
-    productName: product.name,
-    name: product.name,
-    localName: product.localName || '',
-    sku: product.sku,
-    barcode: product.barcode,
-    sellingPrice: product.sellingPrice,
-    stock: product.stock,
-    unit: product.unit || 'pcs',
-    taxRate: product.taxRate || 0,
-    tax: product.taxRate || 0,
-    available: product.stock > 0,
-    allowDecimalQty: product.allowDecimalQty || false,
-  }));
-
-  console.log(`Found ${payload.length} products matching "${query}"`);
-  res.json({ products: payload });
+  res.json({ products: [] });
 });
 
 /**
@@ -193,6 +125,68 @@ export const searchByProductId = asyncHandler(async (req, res) => {
   };
 
   res.json({ product: payload });
+});
+
+/**
+ * Resolve a POS scanner/search token by exact barcode, exact SKU, or exact numeric product ID.
+ */
+export const lookupProduct = asyncHandler(async (req, res) => {
+  const code = String(req.params.code || req.query.code || '').trim();
+  if (!code) return res.status(400).json({ message: 'Product lookup code is required' });
+
+  const query = {
+    active: true,
+    $or: [
+      { barcode: code },
+      { sku: code.toUpperCase() },
+      ...(/^[0-9]+$/.test(code) ? [{ productId: Number(code) }] : [])
+    ]
+  };
+
+  const product = await Product.findOne(query, {
+    productId: 1,
+    name: 1,
+    localName: 1,
+    sku: 1,
+    barcode: 1,
+    sellingPrice: 1,
+    retailPrice: 1,
+    wholesalePrice: 1,
+    mrp: 1,
+    stock: 1,
+    taxRate: 1,
+    category: 1,
+    allowDecimalQty: 1,
+    unit: 1,
+    gstInclusive: 1,
+    hsnCode: 1
+  }).lean();
+
+  if (!product) return res.status(404).json({ message: 'Product not found' });
+
+  res.json({
+    product: {
+      _id: product._id,
+      productId: product.productId,
+      productName: product.name,
+      name: product.name,
+      localName: product.localName || '',
+      sku: product.sku,
+      barcode: product.barcode,
+      sellingPrice: product.sellingPrice,
+      retailPrice: product.retailPrice,
+      wholesalePrice: product.wholesalePrice,
+      mrp: product.mrp,
+      stock: product.stock,
+      taxRate: product.taxRate || 0,
+      tax: product.taxRate || 0,
+      available: product.stock > 0,
+      allowDecimalQty: product.allowDecimalQty || false,
+      unit: product.unit || 'pcs',
+      gstInclusive: Boolean(product.gstInclusive),
+      hsnCode: product.hsnCode || ''
+    }
+  });
 });
 
 /**

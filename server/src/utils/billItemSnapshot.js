@@ -6,6 +6,7 @@ export function normalizeBillItemSnapshot(it = {}, product = null) {
   const gst = Number(it.gstRate ?? it.gst ?? it.taxRate ?? it.tax ?? product?.taxRate ?? 0);
   const total = Number(it.netAmount ?? it.total ?? it.amount ?? (price * quantity));
   const discount = Number(it.discount ?? 0);
+  const discountPercent = Number(it.discountPercent ?? it.discountPct ?? 0);
   const nestedProduct = it.product && typeof it.product === 'object' ? it.product : {};
   const productIdValue = nestedProduct._id ?? it.mongoId ?? it.productId ?? it._id ?? it.product ?? null;
   const productIdObj = productIdValue && mongoose.Types.ObjectId.isValid(String(productIdValue))
@@ -28,9 +29,12 @@ export function normalizeBillItemSnapshot(it = {}, product = null) {
     wholesalePrice: Number(it.wholesalePrice ?? productSnapshot.wholesalePrice ?? 0),
     gst: gst,
     gstAmount: Number(it.gstAmount ?? ((Math.max(quantity * price - discount, 0) * gst) / 100)),
-    taxableAmount: Math.max(quantity * price - discount, 0),
+    taxableAmount: Number(it.taxableAmount ?? Math.max(quantity * price - discount, 0)),
     netAmount: total,
     discount,
+    discountPercent,
+    gstInclusive: Boolean(it.gstInclusive ?? productSnapshot.gstInclusive ?? false),
+    priceMode: String(it.priceMode ?? it.pricingMode ?? 'retail').trim(),
     category: String(it.category ?? productSnapshot.category ?? '').trim(),
     companyName: String(it.companyName ?? productSnapshot.companyName ?? '').trim(),
     hsnCode: String(it.hsnCode ?? it.hsn ?? productSnapshot.hsnCode ?? '').trim(),

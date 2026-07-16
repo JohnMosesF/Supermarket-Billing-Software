@@ -5,11 +5,19 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const categoryRules = [
   body('name').trim().notEmpty(),
-  body('taxRate').optional().isFloat({ min: 0 })
+  body('description').optional().trim(),
+  body('taxRate').optional().isFloat({ min: 0 }),
+  body('active').optional().isBoolean()
 ];
 
 export const listCategories = asyncHandler(async (req, res) => {
-  const categories = await Category.find().sort({ name: 1 });
+  const search = String(req.query.search || '').trim();
+  const showDeleted = String(req.query.showDeleted || 'false').toLowerCase() === 'true';
+  const filter = {
+    ...(showDeleted ? {} : { active: true }),
+    ...(search ? { name: new RegExp(search, 'i') } : {})
+  };
+  const categories = await Category.find(filter).sort({ name: 1 });
   res.json({ categories });
 });
 
@@ -25,7 +33,7 @@ export const updateCategory = asyncHandler(async (req, res) => {
 });
 
 export const deleteCategory = asyncHandler(async (req, res) => {
-  const category = await Category.findByIdAndDelete(req.params.id);
+  const category = await Category.findByIdAndUpdate(req.params.id, { active: false }, { new: true });
   if (!category) throw new ApiError(404, 'Category not found');
-  res.json({ message: 'Category deleted' });
+  res.json({ category, message: 'Category deleted' });
 });

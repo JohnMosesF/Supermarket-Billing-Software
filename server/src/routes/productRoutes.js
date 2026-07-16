@@ -9,7 +9,7 @@ import {
   productRules,
   updateProduct
 } from '../controllers/productController.js';
-import { searchProducts, searchByProductId, getNextProductId } from '../controllers/productSearchController.js';
+import { searchProducts, searchByProductId, getNextProductId, lookupProduct } from '../controllers/productSearchController.js';
 import { authorize, protect } from '../middleware/auth.js';
 import { upload } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
@@ -19,6 +19,7 @@ export const productRoutes = express.Router();
 productRoutes.use(protect);
 productRoutes.get('/sku', generateSku);
 productRoutes.get('/search', searchProducts);
+productRoutes.get('/lookup/:code', lookupProduct);
 productRoutes.get('/id/:productId', searchByProductId); // Search by numeric product ID
 productRoutes.get('/next-id', getNextProductId); // Get next available product ID
 productRoutes.route('/')

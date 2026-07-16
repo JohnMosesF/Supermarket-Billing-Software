@@ -1,8 +1,9 @@
 import { ArrowDown, ArrowUp, ImagePlus, Save } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { api } from '../api/http.js';
+import { TextInputDialog } from '../components/AppDialog.jsx';
 import { PageHeader } from '../components/PageHeader.jsx';
 
 const invoiceFields = [
@@ -135,6 +136,10 @@ function normalizePayload(values) {
 export function SettingsPage() {
   const { register, handleSubmit, reset, watch, setValue, getValues } = useForm({ defaultValues: defaults });
   const totalsOrder = watch('totalsOrder') || defaultTotalsOrder;
+  const [restorePayload, setRestorePayload] = useState('');
+  const [restoreConfirmation, setRestoreConfirmation] = useState('');
+  const [restoreError, setRestoreError] = useState('');
+  const [restoringBackup, setRestoringBackup] = useState(false);
 
   useEffect(() => {
     api.get('/settings').then((res) => reset({ ...defaults, ...res.data.settings, totalsOrder: res.data.settings?.totalsOrder?.length ? res.data.settings.totalsOrder : defaultTotalsOrder }));
@@ -157,15 +162,36 @@ export function SettingsPage() {
 
   async function restoreBackup(event) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
     const payload = await file.text();
+    setRestorePayload(payload);
+    setRestoreConfirmation('');
+    setRestoreError('');
+  }
+
+  async function confirmRestoreBackup() {
+    if (restoreConfirmation !== 'RESTORE') {
+      setRestoreError('Type RESTORE to confirm database restore');
+      return;
+    }
+
     const form = new URLSearchParams();
-    form.set('payload', payload);
-    form.set('confirmation', window.prompt('Type RESTORE to confirm database restore') || '');
+    form.set('payload', restorePayload);
+    form.set('confirmation', restoreConfirmation);
     form.set('backupBeforeRestore', String(getValues('backupBeforeRestore') !== false));
-    if (form.get('confirmation') !== 'RESTORE') return toast.error('Restore cancelled');
-    await api.post('/backup/restore', form, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
-    toast.success('Backup restored');
+    setRestoringBackup(true);
+    try {
+      await api.post('/backup/restore', form, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      toast.success('Backup restored');
+      setRestorePayload('');
+      setRestoreConfirmation('');
+      setRestoreError('');
+    } catch (error) {
+      setRestoreError(error.response?.data?.message || 'Restore failed');
+    } finally {
+      setRestoringBackup(false);
+    }
   }
 
   function moveTotal(index, direction) {
@@ -192,6 +218,8 @@ export function SettingsPage() {
         <Section title="Store Details" description="These details appear in the receipt header. Optional fields stay hidden when empty.">
           <div className="grid gap-4 md:grid-cols-2">
             <input className="input" placeholder="Store Name" {...register('storeName')} />
+            <input className="input" placeholder="Company Name" {...register('companyName')} />
+            <input className="input" placeholder="Owner Name" {...register('ownerName')} />
             <input className="input" placeholder="Branch Name" {...register('branchName')} />
             <input className="input" placeholder="Address Line 1" {...register('addressLine1')} />
             <input className="input" placeholder="Address Line 2" {...register('addressLine2')} />
@@ -199,10 +227,12 @@ export function SettingsPage() {
             <input className="input" placeholder="State" {...register('state')} />
             <input className="input" placeholder="Pincode" {...register('pincode')} />
             <input className="input" placeholder="Phone" {...register('phone')} />
+            <input className="input" placeholder="Mobile" {...register('mobile')} />
             <input className="input" placeholder="WhatsApp" {...register('whatsapp')} />
             <input className="input" placeholder="Email" {...register('email')} />
             <input className="input" placeholder="Website" {...register('website')} />
             <input className="input" placeholder="GSTIN" {...register('gstNumber')} />
+            <input className="input" placeholder="PAN Number" {...register('panNumber')} />
             <input className="input" placeholder="FSSAI Number" {...register('fssaiNumber')} />
             <label className="btn-muted cursor-pointer">
               <ImagePlus size={17} /> Logo Upload
@@ -300,6 +330,7 @@ export function SettingsPage() {
             <input className="input" placeholder="Footer Line 2" {...register('footerLine2')} />
             <input className="input" placeholder="Footer Line 3" {...register('footerLine3')} />
             <input className="input" placeholder="Invoice Footer (legacy)" {...register('invoiceFooter')} />
+            <textarea className="input md:col-span-2" placeholder="Terms & Conditions" {...register('termsAndConditions')} />
             <Checkbox register={register} name="signatureLine" label="Signature Line" />
           </div>
         </Section>
@@ -364,6 +395,27 @@ export function SettingsPage() {
         </div>
         <button className="btn-primary"><Save size={17} />Save backup settings</button>
       </form>
+
+      <TextInputDialog
+        open={Boolean(restorePayload)}
+        title="Restore Backup"
+        label="Type RESTORE to confirm"
+        value={restoreConfirmation}
+        error={restoreError}
+        confirmLabel="Restore"
+        busy={restoringBackup}
+        onChange={(value) => {
+          setRestoreConfirmation(value);
+          if (value === 'RESTORE') setRestoreError('');
+        }}
+        onCancel={() => {
+          if (restoringBackup) return;
+          setRestorePayload('');
+          setRestoreConfirmation('');
+          setRestoreError('');
+        }}
+        onConfirm={confirmRestoreBackup}
+      />
     </div>
   );
 }

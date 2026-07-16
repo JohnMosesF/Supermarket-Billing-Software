@@ -5,6 +5,8 @@ import DeletedBill from '../models/DeletedBill.js';
 import PrintLog from '../models/PrintLog.js';
 import HoldBill from '../models/HoldBill.js';
 import { Product } from '../models/Product.js';
+import { Setting } from '../models/Setting.js';
+import { makeInvoiceNumber } from '../utils/invoice.js';
 import { InventoryLog } from '../models/InventoryLog.js';
 import { Unit } from '../models/Unit.js';
 import { ensureDefaultUnits } from './unitController.js';
@@ -21,7 +23,45 @@ function normalizePaymentMethod(value) {
   if (normalized === 'upi') return 'UPI';
   if (normalized === 'card') return 'Card';
   if (normalized === 'credit') return 'Credit';
+  if (normalized === 'cheque') return 'Cheque';
+  if (normalized === 'bank' || normalized === 'bank_transfer' || normalized === 'bank transfer') return 'Bank Transfer';
+  if (normalized === 'split') return 'Split';
+  if (normalized === 'wallet') return 'Wallet';
+  if (normalized === 'online') return 'Online';
   return 'Cash';
+}
+
+function normalizePaymentDetails(body, total, paymentMethod) {
+  const raw = Array.isArray(body.paymentDetails) ? body.paymentDetails : Array.isArray(body.splitPayments) ? body.splitPayments : [];
+  const details = raw
+    .map((entry) => ({
+      method: normalizePaymentMethod(entry.method || entry.paymentMethod),
+      amount: Number(entry.amount || 0),
+      reference: String(entry.reference || '').trim()
+    }))
+    .filter((entry) => entry.amount > 0);
+
+  if (details.length) return details;
+  const paid = requestPaidAmount(body, paymentMethod === 'Credit' ? 0 : total);
+  return paid > 0 ? [{ method: paymentMethod, amount: paid, reference: String(body.paymentReference || '').trim() }] : [];
+}
+
+async function generateUniqueInvoiceNo(requestedNo) {
+  if (requestedNo) {
+    const duplicate = await Bill.exists({ invoiceNo: requestedNo });
+    if (duplicate) throw new ApiError(409, 'Invoice number already exists');
+    return requestedNo;
+  }
+
+  const settings = await Setting.findOne().lean();
+  const prefix = settings?.invoicePrefix || 'INV';
+  let count = await Bill.countDocuments();
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const candidate = makeInvoiceNumber(count + attempt, prefix);
+    const exists = await Bill.exists({ invoiceNo: candidate });
+    if (!exists) return candidate;
+  }
+  throw new ApiError(409, 'Unable to generate a unique invoice number');
 }
 
 function paymentStatusFromAmounts(total, paid) {
@@ -32,6 +72,165 @@ function paymentStatusFromAmounts(total, paid) {
 
 function requestPaidAmount(body, fallback = 0) {
   return Number(body.paidAmount ?? body.amountPaid ?? body.paid ?? fallback);
+}
+
+const money = (value, fallback = 0) => {
+  const parsed = Number(value ?? fallback);
+  return Number.isFinite(parsed) ? parsed : Number(fallback || 0);
+};
+
+function clonePlain(value, fallback) {
+  if (value === undefined || value === null) return fallback;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeHeldItemSnapshot(item = {}) {
+  const quantity = money(item.quantity ?? item.qty, 0);
+  const price = money(item.price ?? item.rate ?? item.sellingPrice, 0);
+  const gstRate = money(item.gstRate ?? item.gst ?? item.taxRate ?? item.tax, 0);
+  const discountPercent = money(item.discountPercent, 0);
+  const discount = money(item.discount ?? item.discountAmount, 0);
+  const gross = quantity * price;
+  const taxableBase = Math.max(gross - discount, 0);
+  const gstInclusive = Boolean(item.gstInclusive);
+  const computedGst = gstInclusive && gstRate > 0
+    ? taxableBase - taxableBase / (1 + gstRate / 100)
+    : taxableBase * gstRate / 100;
+  const gstAmount = money(item.gstAmount, computedGst);
+  const taxableAmount = money(item.taxableAmount ?? item.amount, gstInclusive ? taxableBase - gstAmount : taxableBase);
+  const netAmount = money(item.netAmount ?? item.lineTotal ?? item.total, gstInclusive ? taxableBase : taxableAmount + gstAmount);
+  return {
+    ...clonePlain(item, {}),
+    productId: item.productId ?? item.mongoId ?? item._id ?? item.product,
+    mongoId: String(item.mongoId || item._id || (mongoose.Types.ObjectId.isValid(String(item.productId || '')) ? item.productId : '') || ''),
+    productIdNumber: item.productIdNumber ?? item.numericProductId ?? item.productIdValue,
+    productName: item.productName || item.name || item.itemName || '',
+    localName: item.localName || '',
+    sku: item.sku || item.productCode || '',
+    barcode: item.barcode || '',
+    hsnCode: item.hsnCode || item.hsn || '',
+    unit: item.unit || 'pcs',
+    quantity,
+    qty: quantity,
+    freeQuantity: money(item.freeQuantity, 0),
+    price,
+    rate: money(item.rate, price),
+    sellingPrice: money(item.sellingPrice, price),
+    wholesalePrice: money(item.wholesalePrice, 0),
+    mrp: money(item.mrp, 0),
+    gst: gstRate,
+    gstRate,
+    gstAmount,
+    taxableAmount,
+    netAmount,
+    lineTotal: money(item.lineTotal, netAmount),
+    total: money(item.total, netAmount),
+    discount,
+    discountPercent,
+    discountAmount: money(item.discountAmount, discount),
+    gstInclusive,
+    priceMode: item.priceMode || item.pricingMode || 'retail',
+    stockAtSale: money(item.stockAtSale ?? item.stock, 0),
+    batch: item.batch || '',
+    expiry: item.expiry || '',
+    remarks: item.remarks || '',
+    metadata: item.metadata && typeof item.metadata === 'object' ? clonePlain(item.metadata, {}) : {}
+  };
+}
+
+function buildHoldSnapshot(body, user) {
+  const cart = clonePlain(body.cart, null) || clonePlain(body.items, []);
+  const normalizedCart = Array.isArray(cart) ? cart.map(normalizeHeldItemSnapshot) : [];
+  const normalizedPaymentMethod = normalizePaymentMethod(body.paymentMethod || body.payment?.method || body.payment?.paymentMethod || 'Cash');
+  const total = money(body.total ?? body.totals?.total ?? body.totals?.billTotal ?? body.totals?.grandTotal, 0);
+  const paidAmount = money(body.paidAmount ?? body.amountPaid ?? body.payment?.paidAmount ?? body.payment?.amountPaid, normalizedPaymentMethod === 'Credit' ? 0 : total);
+  const balanceAmount = money(body.balanceAmount ?? body.balanceDue ?? body.payment?.balanceAmount ?? body.payment?.balanceDue, Math.max(total - paidAmount, 0));
+  const paymentDetails = Array.isArray(body.paymentDetails)
+    ? clonePlain(body.paymentDetails, [])
+    : Array.isArray(body.payment?.paymentDetails)
+      ? clonePlain(body.payment.paymentDetails, [])
+      : normalizePaymentDetails(body, total, normalizedPaymentMethod);
+  const invoice = {
+    invoiceNo: body.invoiceNo || body.invoiceNumber || null,
+    invoiceNumber: body.invoiceNumber || body.invoiceNo || null,
+    invoiceAt: body.invoiceAt || null,
+    mode: body.invoiceMode || body.mode || 'new',
+    ...clonePlain(body.invoice, {})
+  };
+  const customer = {
+    id: body.customerId || body.customer?._id || body.customer?.id || null,
+    customerId: body.customerId || body.customer?.customerId || null,
+    name: body.customerName || body.customer?.name || 'Walk-in Customer',
+    mobile: body.customerMobile || body.customer?.mobile || '',
+    phone: body.customerPhone || body.customer?.phone || body.customerMobile || '',
+    address: body.customerAddress || body.customer?.address || '',
+    city: body.customerCity || body.customer?.city || '',
+    gstNumber: body.customerGST || body.customerGstNumber || body.customer?.gstNumber || '',
+    panNumber: body.customerPAN || body.customerPanNumber || body.customer?.panNumber || '',
+    creditLimit: money(body.customerCreditLimit ?? body.customer?.creditLimit, 0),
+    openingBalance: money(body.customerOpeningBalance ?? body.customer?.openingBalance, 0),
+    currentOutstanding: money(body.customerOutstanding ?? body.currentOutstanding ?? body.customer?.currentOutstanding ?? body.customer?.outstandingBalance, balanceAmount),
+    remarks: body.customerRemarks || body.customer?.remarks || '',
+    ...clonePlain(body.customer, {})
+  };
+  const totals = {
+    subtotal: money(body.subtotal ?? body.totals?.subtotal, 0),
+    taxTotal: money(body.taxTotal ?? body.totals?.taxTotal ?? body.totals?.gst, 0),
+    gst: money(body.gst ?? body.taxTotal ?? body.totals?.gst, 0),
+    cgst: money(body.cgst ?? body.totals?.cgst, 0),
+    sgst: money(body.sgst ?? body.totals?.sgst, 0),
+    igst: money(body.igst ?? body.totals?.igst, 0),
+    discount: money(body.discount ?? body.totals?.discount, 0),
+    discountPercent: money(body.discountPercent ?? body.totals?.discountPercent, 0),
+    discountAmount: money(body.discountAmount ?? body.totals?.discountAmount, 0),
+    roundOff: money(body.roundOff ?? body.totals?.roundOff, 0),
+    total,
+    billTotal: money(body.billTotal ?? body.totals?.billTotal, total),
+    netTotal: money(body.netTotal ?? body.totals?.netTotal, total),
+    totalQuantity: money(body.totalQuantity ?? body.totals?.totalQuantity, normalizedCart.reduce((sum, item) => sum + money(item.quantity, 0), 0)),
+    totalItems: money(body.totalItems ?? body.totals?.totalItems, normalizedCart.length)
+  };
+  const payment = {
+    method: normalizedPaymentMethod,
+    paymentMethod: normalizedPaymentMethod,
+    paymentDetails,
+    cashReceived: money(body.cashReceived ?? body.payment?.cashReceived, 0),
+    amountPaid: paidAmount,
+    paidAmount,
+    balance: balanceAmount,
+    balanceAmount,
+    balanceDue: balanceAmount,
+    outstanding: money(body.outstanding ?? body.payment?.outstanding, balanceAmount),
+    changeReturn: money(body.changeReturn ?? body.payment?.changeReturn, 0),
+    creditAmount: money(body.creditAmount ?? body.payment?.creditAmount, normalizedPaymentMethod === 'Credit' ? balanceAmount : 0),
+    partialPayment: Boolean(body.partialPayment ?? body.payment?.partialPayment ?? balanceAmount > 0),
+    splitPayments: clonePlain(body.splitPayments, paymentDetails),
+    ...clonePlain(body.payment, {})
+  };
+  return {
+    invoice,
+    customer,
+    cart: normalizedCart,
+    totals,
+    payment,
+    settings: clonePlain(body.settings, {}),
+    uiState: {
+      selectedIndex: body.selectedIndex ?? body.uiState?.selectedIndex ?? -1,
+      editingCartIndex: body.editingCartIndex ?? body.uiState?.editingCartIndex ?? null,
+      invoiceMode: body.invoiceMode || body.uiState?.invoiceMode || 'hold',
+      ...clonePlain(body.uiState, {})
+    },
+    metadata: {
+      source: 'pos-hold',
+      heldAt: new Date().toISOString(),
+      heldBy: user?._id,
+      ...clonePlain(body.metadata, {})
+    }
+  };
 }
 
 function isWholeNumber(value) {
@@ -46,6 +245,8 @@ async function getUnitRule(unitName) {
 }
 
 async function validateBillItemsForSale(items, stockCredits = []) {
+  const settings = await Setting.findOne().lean();
+  const allowNegativeStock = Boolean(settings?.allowNegativeStock);
   const creditsByProduct = new Map();
   for (const item of stockCredits || []) {
     const key = String(item.productId || item.product || item._id);
@@ -61,16 +262,18 @@ async function validateBillItemsForSale(items, stockCredits = []) {
       throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
     }
     const available = Number(product.stock || 0) + (creditsByProduct.get(String(it.productId)) || 0);
-    if (available < it.quantity) {
+    if (!allowNegativeStock && available < it.quantity) {
       throw new ApiError(400, 'Insufficient stock available.');
     }
   }
 }
 
 async function deductSoldStock(items, bill, userId) {
+  const settings = await Setting.findOne().lean();
+  const allowNegativeStock = Boolean(settings?.allowNegativeStock);
   for (const it of items) {
     const product = await Product.findOneAndUpdate(
-      { _id: it.productId, stock: { $gte: it.quantity } },
+      allowNegativeStock ? { _id: it.productId } : { _id: it.productId, stock: { $gte: it.quantity } },
       { $inc: { stock: -Math.abs(it.quantity) } },
       { new: false }
     );
@@ -81,6 +284,11 @@ async function deductSoldStock(items, bill, userId) {
       product: it.productId,
       type: 'stock_out',
       quantity: Math.abs(it.quantity),
+      quantityOut: Math.abs(it.quantity),
+      openingStock: stockBefore,
+      closingStock: stockAfter,
+      referenceType: 'Sale',
+      referenceNumber: bill.invoiceNo,
       stockBefore,
       stockAfter,
       invoiceId: bill._id,
@@ -105,6 +313,11 @@ async function restoreSoldStock(items, reason, userId, billId) {
       product: product._id,
       type: 'stock_in',
       quantity,
+      quantityIn: quantity,
+      openingStock: stockBefore,
+      closingStock: product.stock,
+      referenceType: 'Restore',
+      referenceNumber: reason,
       stockBefore,
       stockAfter: product.stock,
       invoiceId: billId,
@@ -180,7 +393,7 @@ async function recalculateCustomerBillingTotals(customerId) {
 
 // Create bill
 export const createBill = asyncHandler(async (req, res) => {
-  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, total, customerMobile, customerName, customerAddress, notes } = req.body;
+  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, discountAmount, total, customerMobile, customerName, customerAddress, notes } = req.body;
   const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
 
   if (!items || items.length === 0) {
@@ -244,17 +457,15 @@ export const createBill = asyncHandler(async (req, res) => {
   }
 
   // Auto-generate invoice number if not provided
-  let finalInvoiceNo = invoiceNo;
-  if (!finalInvoiceNo) {
-    const lastBill = await Bill.findOne().sort({ createdAt: -1 }).lean();
-    const lastNumber = lastBill ? parseInt(lastBill.invoiceNo.replace(/\D/g, '') || 0) : 0;
-    finalInvoiceNo = `INV${String(lastNumber + 1).padStart(6, '0')}`;
-  }
+  const finalInvoiceNo = await generateUniqueInvoiceNo(invoiceNo || req.body.invoiceNumber);
 
   const billTotal = Number(total || 0);
-  const paidAmount = paymentMethod === 'Credit'
-    ? requestPaidAmount(req.body, 0)
-    : requestPaidAmount(req.body, billTotal);
+  const paymentDetails = normalizePaymentDetails(req.body, billTotal, paymentMethod);
+  const paidAmount = paymentDetails.length
+    ? paymentDetails.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+    : paymentMethod === 'Credit'
+      ? requestPaidAmount(req.body, 0)
+      : requestPaidAmount(req.body, billTotal);
 
   if (paidAmount < 0) {
     throw new ApiError(400, 'Amount paid cannot be negative');
@@ -284,12 +495,16 @@ export const createBill = asyncHandler(async (req, res) => {
     taxTotal: taxTotal || 0,
     discount: discount || 0,
     discountPercent: discountPercent || 0,
+    discountAmount: discountAmount || 0,
     total: billTotal,
     paidAmount,
     balanceAmount: dueAmount,
     dueAmount,
     paymentStatus,
     paymentMethod,
+    paymentDetails,
+    cashReceived: Number(req.body.cashReceived || 0),
+    changeReturn: Math.max(Number(req.body.cashReceived || 0) - billTotal, 0),
     customerMobile: customerMobile || null,
     customerName: customerName || 'Walk-in Customer',
     customerAddress: customerAddress || '',
@@ -380,6 +595,7 @@ export const updateBill = asyncHandler(async (req, res) => {
     paymentMethod,
     amountPaid,
     discountPercent,
+    discountAmount,
     notes,
     customerAddress
   } = req.body;
@@ -432,7 +648,8 @@ export const updateBill = asyncHandler(async (req, res) => {
     customerName,
     customerAddress
   });
-  if (normalizePaymentMethod(paymentMethod || bill.paymentMethod) === 'Credit' && !customer) {
+  const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
+  if (normalizedPaymentMethod === 'Credit' && !customer) {
     throw new ApiError(400, 'Customer name and mobile number are required for credit bills');
   }
 
@@ -450,13 +667,19 @@ export const updateBill = asyncHandler(async (req, res) => {
   bill.taxTotal = taxTotal != null ? taxTotal : bill.taxTotal;
   bill.discount = discount != null ? discount : bill.discount;
   bill.discountPercent = discountPercent != null ? discountPercent : bill.discountPercent;
+  bill.discountAmount = discountAmount != null ? discountAmount : bill.discountAmount;
   bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount;
   bill.customer = customer?._id || undefined;
   bill.customerName = customerName || 'Walk-in Customer';
   bill.customerMobile = customerMobile || undefined;
   bill.customerAddress = customerAddress || customer?.address || '';
-  bill.paymentMethod = normalizePaymentMethod(paymentMethod || bill.paymentMethod);
-  bill.paidAmount = requestPaidAmount(req.body, bill.paymentMethod === 'Credit' ? bill.paidAmount ?? 0 : bill.total);
+  bill.paymentMethod = normalizedPaymentMethod;
+  bill.paymentDetails = normalizePaymentDetails(req.body, bill.total, bill.paymentMethod);
+  bill.paidAmount = bill.paymentDetails.length
+    ? bill.paymentDetails.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
+    : requestPaidAmount(req.body, bill.paymentMethod === 'Credit' ? bill.paidAmount ?? 0 : bill.total);
+  bill.cashReceived = Number(req.body.cashReceived || 0);
+  bill.changeReturn = Math.max(bill.cashReceived - bill.total, 0);
   const balanceAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
   bill.dueAmount = balanceAmount;
   bill.balanceAmount = balanceAmount;
@@ -476,14 +699,15 @@ export const updateBill = asyncHandler(async (req, res) => {
 
 // Delete bill (soft delete)
 export const deleteBill = asyncHandler(async (req, res) => {
-  const { reason } = req.body;
+  const reason = String(req.body.reason || '').trim();
+  if (!reason) throw new ApiError(400, 'Cancellation reason is required');
   const bill = await Bill.findById(req.params.id);
 
   if (!bill) throw new ApiError(404, 'Bill not found');
+  if (bill.status === 'Cancelled') return res.json({ bill, message: 'Bill already cancelled' });
   const previous = bill.toObject();
   const customerId = bill.customer;
 
-  // Create deleted bill record
   await DeletedBill.create({
     invoiceNo: bill.invoiceNo,
     deletedBy: req.user?._id,
@@ -492,14 +716,21 @@ export const deleteBill = asyncHandler(async (req, res) => {
   });
   await restoreSoldStock(bill.items, `Deleted bill restore ${bill.invoiceNo}`, req.user?._id, bill._id);
 
-  // Delete bill
-  await Bill.findByIdAndDelete(req.params.id);
+  bill.status = 'Cancelled';
+  bill.cancelledAt = new Date();
+  bill.cancelledBy = req.user?._id;
+  bill.cancellationReason = reason;
+  bill.paymentStatus = 'Unpaid';
+  bill.paidAmount = 0;
+  bill.balanceAmount = 0;
+  bill.dueAmount = 0;
+  await bill.save();
   await recalculateCustomerBillingTotals(customerId);
   await reconcileCustomerAccounting(customerId);
   await rebuildDayBook();
-  await logAudit(req, { action: 'Bill Deleted', module: 'Billing', previousValue: previous, newValue: { reason } });
+  await logAudit(req, { action: 'Bill Cancelled', module: 'Billing', previousValue: previous, newValue: { invoiceNo: bill.invoiceNo, reason } });
 
-  res.json({ message: 'Bill deleted successfully' });
+  res.json({ bill, message: 'Bill cancelled successfully' });
 });
 
 export const getDeletedBills = asyncHandler(async (req, res) => {
@@ -631,82 +862,51 @@ export const getTodaysSales = asyncHandler(async (req, res) => {
 
 // Hold bill
 export const holdBill = asyncHandler(async (req, res) => {
-  const { items, subtotal, taxTotal, discount, total, paymentMethod, customerName, customerMobile, invoiceNo } = req.body;
+  const snapshot = buildHoldSnapshot(req.body, req.user);
+  const { cart, totals, payment, customer, invoice } = snapshot;
 
-  if (!items || items.length === 0) {
+  if (!cart || cart.length === 0) {
     throw new ApiError(400, 'Held bill must contain at least one item');
   }
 
-  // Normalize and validate items
-  const normalizedItems = [];
-  for (const it of items) {
-    let pid = it.productId || it._id || null;
-    // If pid is present but not a valid ObjectId, try to resolve by numeric productId or name
-    if (pid && !mongoose.Types.ObjectId.isValid(String(pid))) {
-      // Try numeric productId (handle number or numeric string)
-      const pidStr = String(pid);
-      if (/^[0-9]+$/.test(pidStr)) {
-        let prod = await Product.findOne({ productId: Number(pidStr) }).lean();
-        if (prod) {
-          pid = prod._id;
-        } else {
-          // create a minimal product record so we have an ObjectId reference
-          const newProd = await Product.create({
-            productId: Number(pidStr),
-            name: it.productName || it.name || `Prod ${pidStr}`,
-            sku: `AUTO${Date.now()}${Math.floor(Math.random() * 1000)}`,
-            barcode: null,
-            purchasePrice: 0,
-            sellingPrice: Number(it.price || it.sellingPrice || it.rate || 0) || 0,
-            taxRate: Number(it.gst || it.taxRate || it.tax || 0) || 0,
-            stock: 0,
-            active: true
-          });
-          pid = newProd._id;
-        }
-      } else if (it.productName) {
-        const prod = await Product.findOne({ name: it.productName }).lean();
-        if (prod) pid = prod._id;
-      }
-    }
-
-    if (!pid || !mongoose.Types.ObjectId.isValid(String(pid))) {
-      throw new ApiError(400, `Invalid product identifier for item: ${JSON.stringify(it)}`);
-    }
-
-    const productIdObj = new mongoose.Types.ObjectId(String(pid));
-
-    const product = await Product.findById(productIdObj).lean();
-    const normalized = normalizeBillItemSnapshot({
-      ...it,
-      productId: productIdObj,
-      productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
-      stockAtSale: it.stockAtSale ?? product?.stock ?? 0
-    }, product);
-
-    normalizedItems.push(normalized);
-  }
-
   const payload = {
-    items: normalizedItems,
-    subtotal: subtotal || 0,
-    taxTotal: taxTotal || 0,
-    discount: discount || 0,
-    total: total || 0,
-    paymentMethod: paymentMethod || 'Cash',
-    customerName: customerName || 'Walk-in Customer',
-    customerMobile: customerMobile || null,
-    invoiceNo: invoiceNo || null,
+    snapshot,
+    invoice: snapshot.invoice,
+    customer: snapshot.customer,
+    cart: snapshot.cart,
+    totals: snapshot.totals,
+    payment: snapshot.payment,
+    settings: snapshot.settings,
+    uiState: snapshot.uiState,
+    metadata: snapshot.metadata,
+    items: cart,
+    subtotal: totals.subtotal || 0,
+    taxTotal: totals.taxTotal || 0,
+    discount: totals.discount || 0,
+    discountPercent: totals.discountPercent || 0,
+    discountAmount: totals.discountAmount || 0,
+    total: totals.total || 0,
+    paymentMethod: payment.paymentMethod || payment.method || 'Cash',
+    paymentDetails: payment.paymentDetails || [],
+    cashReceived: payment.cashReceived || 0,
+    changeReturn: payment.changeReturn || 0,
+    paidAmount: payment.paidAmount || payment.amountPaid || 0,
+    amountPaid: payment.amountPaid || payment.paidAmount || 0,
+    balanceAmount: payment.balanceAmount || payment.balanceDue || 0,
+    balanceDue: payment.balanceDue || payment.balanceAmount || 0,
+    outstanding: payment.outstanding || payment.balanceAmount || 0,
+    creditAmount: payment.creditAmount || 0,
+    customerName: customer.name || 'Walk-in Customer',
+    customerMobile: customer.mobile || null,
+    invoiceNo: invoice.invoiceNo || invoice.invoiceNumber || null,
     heldBy: req.user?._id
   };
 
   // include invoice date/time if provided
-  if (req.body.invoiceAt) {
-    const at = new Date(req.body.invoiceAt);
+  if (invoice.invoiceAt) {
+    const at = new Date(invoice.invoiceAt);
     if (!isNaN(at.getTime())) payload.invoiceAt = at;
   }
-
-  console.log('Saving hold bill', payload);
 
   const heldBill = await HoldBill.create(payload);
 
@@ -715,25 +915,62 @@ export const holdBill = asyncHandler(async (req, res) => {
 
 // Get held bills
 export const getHeldBills = asyncHandler(async (req, res) => {
-  const heldBills = await HoldBill.find({ expiresAt: { $gt: new Date() } })
+  const filter = {};
+  const search = String(req.query.search || req.query.q || '').trim();
+  if (search) {
+    const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    filter.$or = [{ customerName: regex }, { customerMobile: regex }, { invoiceNo: regex }, { 'items.productName': regex }];
+  }
+  const heldBills = await HoldBill.find(filter)
     .sort({ createdAt: -1 });
   res.json({ heldBills });
 });
 
 // Resume held bill
 export const resumeHeldBill = asyncHandler(async (req, res) => {
-  console.log('Resume held bill requested:', req.params.id);
   const heldBill = await HoldBill.findById(req.params.id).lean();
   if (!heldBill) throw new ApiError(404, 'Held bill not found');
 
-  // Return the complete held bill data for restoration
-  res.json({ heldBill });
+  const snapshot = heldBill.snapshot && Object.keys(heldBill.snapshot).length
+    ? heldBill.snapshot
+    : {
+      invoice: heldBill.invoice || { invoiceNo: heldBill.invoiceNo, invoiceAt: heldBill.invoiceAt },
+      customer: heldBill.customer || { name: heldBill.customerName, mobile: heldBill.customerMobile },
+      cart: heldBill.cart?.length ? heldBill.cart : heldBill.items || [],
+      totals: heldBill.totals || {
+        subtotal: heldBill.subtotal,
+        taxTotal: heldBill.taxTotal,
+        discount: heldBill.discount,
+        discountPercent: heldBill.discountPercent,
+        discountAmount: heldBill.discountAmount,
+        total: heldBill.total
+      },
+      payment: heldBill.payment || {
+        paymentMethod: heldBill.paymentMethod,
+        paymentDetails: heldBill.paymentDetails,
+        cashReceived: heldBill.cashReceived,
+        changeReturn: heldBill.changeReturn,
+        paidAmount: heldBill.paidAmount,
+        amountPaid: heldBill.amountPaid,
+        balanceAmount: heldBill.balanceAmount,
+        balanceDue: heldBill.balanceDue,
+        outstanding: heldBill.outstanding,
+        creditAmount: heldBill.creditAmount
+      },
+      settings: heldBill.settings || {},
+      uiState: heldBill.uiState || {},
+      metadata: heldBill.metadata || {}
+    };
+
+  // Return both the historical heldBill shape and the authoritative POS snapshot.
+  res.json({ heldBill: { ...heldBill, snapshot }, snapshot });
 });
 
 // Delete held bill
 export const deleteHeldBill = asyncHandler(async (req, res) => {
   const result = await HoldBill.findByIdAndDelete(req.params.id);
   if (!result) throw new ApiError(404, 'Held bill not found');
+  await logAudit(req, { action: 'Hold Bill Deleted', module: 'Billing', previousValue: result.toObject() });
   res.json({ message: 'Held bill discarded' });
 });
 
@@ -784,14 +1021,18 @@ export const getRefunds = asyncHandler(async (req, res) => {
 
 // Log print
 export const logPrint = asyncHandler(async (req, res) => {
-  const { invoiceNo, printer, success, error } = req.body;
+  const { invoiceNo, printer, success, error, paperWidth, duplicateCopy } = req.body;
 
   const printLog = await PrintLog.create({
     invoiceNo,
     printer,
+    paperWidth,
+    duplicateCopy: Boolean(duplicateCopy),
+    printedBy: req.user?._id,
     success,
     error,
   });
 
+  await logAudit(req, { action: duplicateCopy ? 'Bill Reprinted' : 'Bill Printed', module: 'Billing', newValue: { invoiceNo, printer, paperWidth, success, error } });
   res.status(201).json({ printLog });
 });

@@ -47,6 +47,24 @@ function money(value, symbol = '₹') {
   return `${sign}${symbol}${Math.abs(amount).toFixed(2)}`;
 }
 
+function amountToWords(value) {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const twoDigits = (num) => (num < 20 ? ones[num] : `${tens[Math.floor(num / 10)]}${num % 10 ? ` ${ones[num % 10]}` : ''}`);
+  const words = (num) => {
+    if (num <= 0) return '';
+    if (num < 100) return twoDigits(num);
+    if (num < 1000) return `${ones[Math.floor(num / 100)]} Hundred${num % 100 ? ` ${words(num % 100)}` : ''}`;
+    if (num < 100000) return `${words(Math.floor(num / 1000))} Thousand${num % 1000 ? ` ${words(num % 1000)}` : ''}`;
+    if (num < 10000000) return `${words(Math.floor(num / 100000))} Lakh${num % 100000 ? ` ${words(num % 100000)}` : ''}`;
+    return `${words(Math.floor(num / 10000000))} Crore${num % 10000000 ? ` ${words(num % 10000000)}` : ''}`;
+  };
+  const amount = number(value, 0);
+  const rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+  return `${words(rupees) || 'Zero'} Rupees${paise ? ` and ${words(paise)} Paise` : ''} Only`;
+}
+
 function cleanLines(lines) {
   return lines.map((line) => String(line || '').trim()).filter(Boolean);
 }
@@ -128,6 +146,13 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
   const roundOff = number(raw.roundOff ?? totals.roundOff, total - (subtotal + taxTotal - discount));
   const paidAmount = number(raw.paidAmount ?? raw.amountPaid ?? raw.paid, total);
   const balanceAmount = Math.max(total - paidAmount, 0);
+  const paymentDetails = Array.isArray(raw.paymentDetails)
+    ? raw.paymentDetails.map((entry) => ({
+      method: entry.method || entry.paymentMethod || '',
+      amount: number(entry.amount, 0),
+      reference: entry.reference || ''
+    })).filter((entry) => entry.amount > 0)
+    : [];
 
   return {
     storeName: settings.storeName || raw.storeName || 'StoreDesk POS',
@@ -151,8 +176,10 @@ export function normalizeInvoiceSale(input = {}, settings = {}) {
     customerMobile: raw.customerMobile || state.customerMobile || raw.customer?.mobile || '',
     customerGst: raw.customerGst || raw.customerGST || raw.customer?.gstNumber || '',
     paymentMethod: raw.paymentMethod || state.paymentMethod || 'cash',
+    paymentDetails,
     paidAmount,
     balanceAmount,
+    amountInWords: raw.amountInWords || amountToWords(total),
     savings: number(raw.savings ?? totals.savings, discount),
     items,
     subtotal,
@@ -234,9 +261,10 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
   ]);
 
   const itemRows = invoice.items.map((item) => {
+    const hsnText = item.hsn ? ` HSN:${item.hsn}` : '';
     return `<div class="item-row">
       <span class="item-rate">${escapeHtml(money(item.price, settings.currencySymbol))}</span>
-      <span class="item-name">${escapeHtml(item.displayName || item.name || 'Item')}</span>
+      <span class="item-name">${escapeHtml(`${item.displayName || item.name || 'Item'}${hsnText}`)}</span>
       <span class="item-qty">${escapeHtml(formatQuantityWithUnit(item.quantityText, item.unit))}</span>
       <span class="item-amount">${escapeHtml(money(item.lineTotal, settings.currencySymbol))}</span>
     </div>`;
@@ -266,6 +294,13 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
   const taxSummary = showField(rawSettings, 'TaxSummary', false) && invoice.taxTotal
     ? `${dividerMarkup(settings)}<div class="section-title">TAX SUMMARY</div><table class="tax-summary"><thead><tr><th>GST</th><th class="num">Taxable</th>${rawSettings.gstMode === 'igst' ? '<th class="num">IGST</th>' : '<th class="num">CGST</th><th class="num">SGST</th>'}</tr></thead><tbody>${taxSummaryRows(invoice, rawSettings)}</tbody></table>`
     : '';
+  const amountWords = showField(rawSettings, 'AmountInWords', true)
+    ? `<div class="amount-words"><b>Amount in words:</b> ${escapeHtml(invoice.amountInWords)}</div>`
+    : '';
+  const splitPaymentRows = invoice.paymentDetails.length > 1
+    ? `${dividerMarkup(settings)}<div class="section-title">PAYMENT SPLIT</div>${invoice.paymentDetails.map((entry) => infoRow(String(entry.method).toUpperCase(), money(entry.amount, settings.currencySymbol))).join('')}`
+    : '';
+  const qrPlaceholder = rawSettings.showQrPlaceholder === false ? '' : '<div class="qr-placeholder">QR</div>';
 
   return `<div class="receipt receipt-${escapeHtml(settings.receiptWidth.replace('mm', ''))}">
     <header class="receipt-header ${settings.centerHeader ? 'center' : ''}">
@@ -308,7 +343,10 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
       ${showField(rawSettings, 'Balance', true) ? totalRow('BALANCE', invoice.balanceAmount, settings, 'grand-total') : ''}
     </section>
 
+    ${amountWords}
+    ${splitPaymentRows}
     ${taxSummary}
+    ${qrPlaceholder}
 
     ${footer.length || rawSettings.signatureLine ? dividerMarkup(settings) : ''}
     <footer class="receipt-footer">
@@ -369,6 +407,8 @@ export function makeReceiptCss(rawSettings = {}, options = {}) {
     .tax-summary { width: 100%; border-collapse: collapse; font-size: ${Math.max(settings.fontSize - 1.5, 8)}px; }
     .tax-summary th, .tax-summary td { padding: 0.75mm 0; text-align: left; }
     .tax-summary .num, .tax-summary th.num { text-align: right; }
+    .amount-words { margin: 1.5mm 0; font-size: ${Math.max(settings.fontSize - 1, 8)}px; overflow-wrap: anywhere; }
+    .qr-placeholder { width: 18mm; height: 18mm; border: 1px dashed #000; margin: 2mm auto; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: ${Math.max(settings.fontSize - 2, 8)}px; }
     .receipt-footer { text-align: center; break-inside: avoid; }
     .receipt-footer div { margin: 1mm 0; overflow-wrap: anywhere; }
     .signature { margin-top: 8mm !important; padding-top: 1mm; border-top: 1px solid #000; text-align: right; }

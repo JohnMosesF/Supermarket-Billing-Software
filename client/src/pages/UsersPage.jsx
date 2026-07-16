@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { api } from '../api/http.js';
+import { ConfirmDialog, TextInputDialog } from '../components/AppDialog.jsx';
 import { PageHeader } from '../components/PageHeader.jsx';
 
 const permissionOptions = [
@@ -15,6 +16,7 @@ const permissionOptions = [
   ['sales_returns', 'Sales Returns'],
   ['purchase_returns', 'Purchase Returns'],
   ['accounting', 'Accounting'],
+  ['expenses', 'Expenses'],
   ['reports', 'Reports'],
   ['users', 'Users'],
   ['settings', 'Settings']
@@ -26,6 +28,10 @@ export function UsersPage() {
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [editing, setEditing] = useState(null);
+  const [passwordTarget, setPasswordTarget] = useState(null);
+  const [nextPassword, setNextPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { register, handleSubmit, reset } = useForm({ defaultValues: { role: 'cashier', permissions: ['dashboard', 'billing', 'customers'] } });
 
   async function load() {
@@ -46,13 +52,13 @@ export function UsersPage() {
       toast.success('Staff account created');
     }
     setEditing(null);
-    reset({ role: 'cashier', password: '', permissions: ['dashboard', 'billing', 'customers'] });
+    reset({ role: 'cashier', password: '', permissions: ['dashboard', 'billing', 'customers'], active: true });
     load();
   }
 
   function startEdit(user) {
     setEditing(user);
-    reset({ name: user.name || '', email: user.email || '', phone: user.phone || '', role: user.role || 'cashier', password: '', active: user.active !== false, permissions: user.permissions || [] });
+    reset({ name: user.name || '', email: user.email || '', username: user.username || '', phone: user.phone || '', role: user.role || 'cashier', password: '', active: user.active !== false, permissions: user.permissions || [] });
   }
 
   async function toggleUser(user) {
@@ -61,17 +67,32 @@ export function UsersPage() {
     load();
   }
 
-  async function resetPassword(user) {
-    const nextPassword = window.prompt(`Set a new password for ${user.name}`);
-    if (!nextPassword) return;
-    await api.patch(`/users/${user._id}`, { password: nextPassword });
-    toast.success('Password updated');
+  function resetPassword(user) {
+    setPasswordTarget(user);
+    setNextPassword('');
+    setPasswordError('');
   }
 
-  async function removeUser(user) {
-    if (!window.confirm(`Soft delete ${user.name}?`)) return;
-    await api.delete(`/users/${user._id}`);
+  async function confirmResetPassword() {
+    if (!nextPassword.trim()) {
+      setPasswordError('Password is required');
+      return;
+    }
+    await api.patch(`/users/${passwordTarget._id}`, { password: nextPassword });
+    toast.success('Password updated');
+    setPasswordTarget(null);
+    setNextPassword('');
+    setPasswordError('');
+  }
+
+  function removeUser(user) {
+    setDeleteTarget(user);
+  }
+
+  async function confirmRemoveUser() {
+    await api.delete(`/users/${deleteTarget._id}`);
     toast.success('User archived');
+    setDeleteTarget(null);
     load();
   }
 
@@ -90,11 +111,11 @@ export function UsersPage() {
           <h2 className="font-semibold">{editing ? 'Edit user' : 'Create user'}</h2>
           <input className="input" placeholder="Name" {...register('name', { required: true })} />
           <input className="input" type="email" placeholder="Email" {...register('email', { required: true })} />
+          <input className="input" placeholder="Username" {...register('username')} />
           <input className="input" placeholder="Phone" {...register('phone')} />
           <input className="input" type="password" placeholder={editing ? 'New password (optional)' : 'Password'} {...register('password')} />
           <select className="input" {...register('role')}>
             <option value="cashier">Cashier</option>
-            <option value="store_staff">Store Staff</option>
             <option value="manager">Manager</option>
             <option value="admin">Admin</option>
           </select>
@@ -112,7 +133,7 @@ export function UsersPage() {
           </label>
           <div className="flex gap-2">
             <button className="btn-primary flex-1"><Plus size={17} />{editing ? 'Update' : 'Create'}</button>
-            {editing ? <button type="button" className="btn-muted" onClick={() => { setEditing(null); reset({ role: 'cashier', password: '', permissions: ['dashboard', 'billing', 'customers'] }); }}>Cancel</button> : null}
+            {editing ? <button type="button" className="btn-muted" onClick={() => { setEditing(null); reset({ role: 'cashier', password: '', permissions: ['dashboard', 'billing', 'customers'], active: true }); }}>Cancel</button> : null}
           </div>
         </form>
         <div className="scroll-panel">
@@ -124,7 +145,6 @@ export function UsersPage() {
             <select className="input max-w-[140px]" value={filterRole} onChange={(event) => setFilterRole(event.target.value)}>
               <option value="all">All roles</option>
               <option value="cashier">Cashier</option>
-              <option value="store_staff">Store Staff</option>
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
             </select>
@@ -136,11 +156,12 @@ export function UsersPage() {
           </div>
           <div className="table-shell">
             <table className="w-full table-sticky">
-              <thead><tr><th className="table-th">Name</th><th className="table-th">Email</th><th className="table-th">Phone</th><th className="table-th">Role</th><th className="table-th">Status</th><th className="table-th">Created</th><th className="table-th"></th></tr></thead>
+              <thead><tr><th className="table-th">Name</th><th className="table-th">Username</th><th className="table-th">Email</th><th className="table-th">Phone</th><th className="table-th">Role</th><th className="table-th">Status</th><th className="table-th">Created</th><th className="table-th"></th></tr></thead>
               <tbody>
                 {filteredUsers.map((user) => (
                   <tr key={user._id}>
                     <td className="table-td font-semibold">{user.name}</td>
+                    <td className="table-td">{user.username || '-'}</td>
                     <td className="table-td">{user.email}</td>
                     <td className="table-td">{user.phone || '-'}</td>
                     <td className="table-td capitalize">{user.role}</td>
@@ -161,6 +182,34 @@ export function UsersPage() {
           </div>
         </div>
       </div>
+      <TextInputDialog
+        open={Boolean(passwordTarget)}
+        title="Reset Password"
+        label={`New password for ${passwordTarget?.name || 'user'}`}
+        inputType="password"
+        value={nextPassword}
+        error={passwordError}
+        confirmLabel="Update Password"
+        onChange={(value) => {
+          setNextPassword(value);
+          if (value.trim()) setPasswordError('');
+        }}
+        onCancel={() => {
+          setPasswordTarget(null);
+          setNextPassword('');
+          setPasswordError('');
+        }}
+        onConfirm={confirmResetPassword}
+      />
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Archive User"
+        message={`Soft delete ${deleteTarget?.name || 'this user'}?`}
+        confirmLabel="Archive"
+        danger
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmRemoveUser}
+      />
     </div>
   );
 }

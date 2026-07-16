@@ -12,11 +12,17 @@ export const productRules = [
   body('name').trim().notEmpty(),
   body('purchasePrice').isFloat({ min: 0 }),
   body('sellingPrice').isFloat({ min: 0 }),
+  body('retailPrice').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
   body('mrp').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
   body('wholesalePrice').optional({ nullable: true, checkFalsy: true }).isFloat({ min: 0 }),
   body('stock').optional().isFloat({ min: 0 }),
+  body('openingStock').optional().isFloat({ min: 0 }),
+  body('lowStockThreshold').optional().isFloat({ min: 0 }),
   body('taxRate').optional().isFloat({ min: 0 }),
-  body('unit').optional().trim().notEmpty()
+  body('unit').optional().trim().notEmpty(),
+  body('barcode').optional({ checkFalsy: true }).trim(),
+  body('sku').optional({ checkFalsy: true }).trim(),
+  body('gstInclusive').optional().isBoolean()
 ];
 
 async function resolveUnitFields(payload) {
@@ -31,6 +37,16 @@ async function resolveUnitFields(payload) {
   };
 }
 
+function normalizeProductPayload(payload) {
+  const next = { ...payload };
+  if (next.sku) next.sku = String(next.sku).trim().toUpperCase();
+  if (!String(next.barcode || '').trim()) delete next.barcode;
+  if (!String(next.description || '').trim()) delete next.description;
+  if (next.retailPrice === undefined && next.sellingPrice !== undefined) next.retailPrice = next.sellingPrice;
+  if (next.openingStock === undefined && next.stock !== undefined) next.openingStock = next.stock;
+  return next;
+}
+
 export const productQueryRules = [
   query('page').optional().isInt({ min: 1 }),
   query('limit').optional().isInt({ min: 1, max: 10000 })
@@ -43,10 +59,15 @@ export const listProducts = asyncHandler(async (req, res) => {
   const filter = {};
 
   if (search) {
+    const regex = new RegExp(`^${search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+    const productIdExpr = /^\d+$/.test(search)
+      ? { $regexMatch: { input: { $toString: '$productId' }, regex: `^${search}` } }
+      : null;
     filter.$or = [
-      { name: new RegExp(search, 'i') },
-      { sku: new RegExp(search, 'i') },
-      { barcode: new RegExp(search, 'i') }
+      { name: regex },
+      { sku: regex },
+      { barcode: regex },
+      ...(productIdExpr ? [{ $expr: productIdExpr }] : [])
     ];
   }
 
@@ -54,7 +75,7 @@ export const listProducts = asyncHandler(async (req, res) => {
   if (req.query.lowStock === 'true') filter.$expr = { $lte: ['$stock', '$lowStockThreshold'] };
 
   const [products, total] = await Promise.all([
-    Product.find(filter).populate('category').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+    Product.find(filter).populate('category').populate('brand').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
     Product.countDocuments(filter)
   ]);
 
@@ -62,7 +83,7 @@ export const listProducts = asyncHandler(async (req, res) => {
 });
 
 export const getProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id).lean();
+  const product = await Product.findById(req.params.id).populate('category').populate('brand').lean();
   if (!product) throw new ApiError(404, 'Product not found');
   res.json({ product });
 });
@@ -84,14 +105,16 @@ export const createProduct = asyncHandler(async (req, res) => {
 
   const total = await Product.countDocuments();
 
-  const payload = await resolveUnitFields({
+  const payload = await resolveUnitFields(normalizeProductPayload({
     ...req.body,
     productId: nextProductId,
     sku: req.body.sku || makeSku(req.body.name, total),
+    retailPrice: req.body.retailPrice || req.body.sellingPrice,
+    openingStock: req.body.openingStock ?? req.body.stock ?? 0,
     imageUrl: req.file
       ? `/uploads/${req.file.filename}`
       : req.body.imageUrl
-  });
+  }));
 
   const product = await Product.create(payload);
 
@@ -100,6 +123,11 @@ export const createProduct = asyncHandler(async (req, res) => {
       product: product._id,
       type: 'stock_in',
       quantity: product.stock,
+      quantityIn: product.stock,
+      openingStock: 0,
+      closingStock: product.stock,
+      referenceType: 'Opening',
+      referenceNumber: product.sku,
       stockBefore: 0,
       stockAfter: product.stock,
       reason: 'Opening stock',
@@ -117,7 +145,8 @@ export const updateProduct = asyncHandler(async (req, res) => {
   const previous = product.toObject();
 
   const oldStock = product.stock;
-  const payload = req.body.unit ? await resolveUnitFields(req.body) : req.body;
+  const normalized = normalizeProductPayload(req.body);
+  const payload = req.body.unit ? await resolveUnitFields(normalized) : normalized;
   Object.assign(product, payload);
   if (req.file) product.imageUrl = `/uploads/${req.file.filename}`;
   await product.save();
@@ -127,6 +156,12 @@ export const updateProduct = asyncHandler(async (req, res) => {
       product: product._id,
       type: 'adjustment',
       quantity: Number(req.body.stock) - oldStock,
+      quantityIn: Number(req.body.stock) > oldStock ? Number(req.body.stock) - oldStock : 0,
+      quantityOut: Number(req.body.stock) < oldStock ? oldStock - Number(req.body.stock) : 0,
+      openingStock: oldStock,
+      closingStock: product.stock,
+      referenceType: 'Adjustment',
+      referenceNumber: 'Product stock edited',
       stockBefore: oldStock,
       stockAfter: product.stock,
       reason: 'Product stock edited',

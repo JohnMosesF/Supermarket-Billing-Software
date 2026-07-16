@@ -1,7 +1,7 @@
-export function makeInvoiceNumber(count = 0) {
+export function makeInvoiceNumber(count = 0, prefix = 'INV') {
   const now = new Date();
   const date = now.toISOString().slice(0, 10).replaceAll('-', '');
-  return `INV-${date}-${String(count + 1).padStart(5, '0')}`;
+  return `${prefix || 'INV'}-${date}-${String(count + 1).padStart(5, '0')}`;
 }
 
 export function makeSku(name = 'PRD', count = 0) {

@@ -3,7 +3,9 @@ import { authorize, protect } from '../middleware/auth.js';
 import {
   createCustomerReceipt, createSupplierPayment, customerLedger, customerOutstanding, dayBook,
   exportCustomerLedger, exportSupplierLedger, paymentRegister, pendingCustomerBills,
-  pendingSupplierPurchases, receiptRegister, supplierLedger, supplierOutstanding, exportAccountingRegister
+  pendingSupplierPurchases, receiptRegister, supplierLedger, supplierOutstanding, exportAccountingRegister,
+  cancelCustomerReceipt, cancelSupplierPayment, markReceiptReprint, markPaymentReprint,
+  salesLedger, purchaseLedger, stockLedger, itemLedger, cashBook, collectionsReport
 } from '../controllers/accountingController.js';
 
 export const accountingRoutes = express.Router();
@@ -15,6 +17,8 @@ accountingRoutes.get('/customers/:id/ledger.pdf', exportCustomerLedger('pdf'));
 accountingRoutes.get('/customers/:id/pending-bills', pendingCustomerBills);
 accountingRoutes.post('/receipts', createCustomerReceipt);
 accountingRoutes.get('/receipts', receiptRegister);
+accountingRoutes.post('/receipts/:id/cancel', cancelCustomerReceipt);
+accountingRoutes.post('/receipts/:id/reprint', markReceiptReprint);
 accountingRoutes.get('/suppliers/outstanding', authorize('admin', 'manager'), supplierOutstanding);
 accountingRoutes.get('/suppliers/:id/ledger', authorize('admin', 'manager'), supplierLedger);
 accountingRoutes.get('/suppliers/:id/ledger.xlsx', authorize('admin', 'manager'), exportSupplierLedger('xlsx'));
@@ -22,7 +26,15 @@ accountingRoutes.get('/suppliers/:id/ledger.pdf', authorize('admin', 'manager'),
 accountingRoutes.get('/suppliers/:id/pending-purchases', authorize('admin', 'manager'), pendingSupplierPurchases);
 accountingRoutes.post('/supplier-payments', authorize('admin', 'manager'), createSupplierPayment);
 accountingRoutes.get('/supplier-payments', authorize('admin', 'manager'), paymentRegister);
+accountingRoutes.post('/supplier-payments/:id/cancel', authorize('admin', 'manager'), cancelSupplierPayment);
+accountingRoutes.post('/supplier-payments/:id/reprint', authorize('admin', 'manager'), markPaymentReprint);
 accountingRoutes.get('/day-book', authorize('admin', 'manager'), dayBook);
+accountingRoutes.get('/cash-book', authorize('admin', 'manager'), cashBook);
+accountingRoutes.get('/sales-ledger', authorize('admin', 'manager'), salesLedger);
+accountingRoutes.get('/purchase-ledger', authorize('admin', 'manager'), purchaseLedger);
+accountingRoutes.get('/stock-ledger', authorize('admin', 'manager'), stockLedger);
+accountingRoutes.get('/items/:id/ledger', authorize('admin', 'manager'), itemLedger);
+accountingRoutes.get('/collections-report', authorize('admin', 'manager'), collectionsReport);
 for (const kind of ['receipts', 'payments', 'customer-outstanding', 'supplier-outstanding', 'day-book']) {
   accountingRoutes.get(`/exports/${kind}.xlsx`, authorize('admin', 'manager'), exportAccountingRegister(kind, 'xlsx'));
   accountingRoutes.get(`/exports/${kind}.pdf`, authorize('admin', 'manager'), exportAccountingRegister(kind, 'pdf'));

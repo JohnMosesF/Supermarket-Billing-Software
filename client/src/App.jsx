@@ -17,8 +17,10 @@ import { SettingsPage } from './pages/SettingsPage.jsx';
 import { Suppliers } from './pages/Suppliers.jsx';
 import { SalesReturns } from './pages/SalesReturns.jsx';
 import { PurchaseReturns } from './pages/PurchaseReturns.jsx';
-import { CollectionReport, DayBook, LedgerPage, OutstandingPage, ReceiptEntry, SupplierPaymentEntry } from './pages/Accounting.jsx';
+import { CashBook, CollectionReport, DayBook, ItemLedger, LedgerPage, OutstandingPage, PurchaseLedger, ReceiptEntry, SalesLedger, StockLedger, SupplierPaymentEntry } from './pages/Accounting.jsx';
+import { Expenses } from './pages/Expenses.jsx';
 import { UsersPage } from './pages/UsersPage.jsx';
+import { MasterDataPage } from './pages/MasterDataPage.jsx';
 
 export default function App() {
   return (
@@ -31,6 +33,10 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="billing" element={<Billing />} />
             <Route path="products" element={<Products />} />
+            <Route path="masters/categories" element={<MasterDataPage type="categories" />} />
+            <Route path="masters/brands" element={<MasterDataPage type="brands" />} />
+            <Route path="masters/units" element={<MasterDataPage type="units" />} />
+            <Route path="masters/gst" element={<MasterDataPage type="taxes" />} />
             <Route path="customers" element={<Customers />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="purchases" element={<Purchases />} />
@@ -44,7 +50,13 @@ export default function App() {
             <Route path="accounting/receipts" element={<ReceiptEntry />} />
             <Route path="accounting/supplier-payments" element={<SupplierPaymentEntry />} />
             <Route path="accounting/day-book" element={<DayBook />} />
+            <Route path="accounting/cash-book" element={<CashBook />} />
+            <Route path="accounting/sales-ledger" element={<SalesLedger />} />
+            <Route path="accounting/purchase-ledger" element={<PurchaseLedger />} />
+            <Route path="accounting/stock-ledger" element={<StockLedger />} />
+            <Route path="accounting/item-ledger" element={<ItemLedger />} />
             <Route path="accounting/collections" element={<CollectionReport />} />
+            <Route path="expenses" element={<Expenses />} />
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="settings" element={<SettingsPage />} />

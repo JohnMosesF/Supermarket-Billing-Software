@@ -7,10 +7,11 @@ export default function ProductSearch({ onAddProduct }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [allProducts, setAllProducts] = useState([]);
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
 
-  const searchProducts = useCallback(async (searchTerm) => {
+  const searchProducts = useCallback((searchTerm) => {
     if (!searchTerm.trim()) {
       setResults([]);
       setSelectedIndex(-1);
@@ -18,23 +19,31 @@ export default function ProductSearch({ onAddProduct }) {
     }
 
     setLoading(true);
-
-    try {
-      const response = await productAPI.searchProducts(searchTerm, 100);
-      const products = (response.data && (response.data.products || response.data)) || [];
-      setResults(products || []);
-      setSelectedIndex(-1);
-    } catch (error) {
-      setResults([]);
-      console.error('Product search failed:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    const products = productAPI.filterProducts(allProducts, searchTerm, 100);
+    setResults(products || []);
+    setSelectedIndex(-1);
+    setLoading(false);
+  }, [allProducts]);
 
   useEffect(() => {
     if (!inputRef.current) return;
     inputRef.current.focus();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    productAPI.listProducts(10000)
+      .then((res) => {
+        if (!cancelled) setAllProducts(res.data?.products || []);
+      })
+      .catch(() => {
+        if (!cancelled) setAllProducts([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

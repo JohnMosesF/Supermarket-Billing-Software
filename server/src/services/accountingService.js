@@ -7,6 +7,7 @@ import { SalesReturn } from '../models/SalesReturn.js';
 import { PurchaseReturn } from '../models/PurchaseReturn.js';
 import { CustomerReceipt } from '../models/CustomerReceipt.js';
 import { SupplierPayment } from '../models/SupplierPayment.js';
+import { Expense } from '../models/Expense.js';
 import { CustomerLedger } from '../models/CustomerLedger.js';
 import { SupplierLedger } from '../models/SupplierLedger.js';
 import { OutstandingSnapshot } from '../models/OutstandingSnapshot.js';
@@ -124,15 +125,21 @@ export async function reconcileSupplierAccounting(supplierId) {
 }
 
 export async function rebuildDayBook() {
-  const [sales, bills, salesReturns, purchases, purchaseReturns, receipts, payments] = await Promise.all([Sale.find({}).lean(), Bill.find({ status: { $ne: 'Cancelled' } }).lean(), SalesReturn.find({ status: 'Completed' }).lean(), Purchase.find({ active: true }).lean(), PurchaseReturn.find({ status: 'Completed' }).lean(), CustomerReceipt.find({ status: 'Posted' }).lean(), SupplierPayment.find({ status: 'Posted' }).lean()]);
+  const [sales, bills, salesReturns, purchases, purchaseReturns, receipts, payments, expenses] = await Promise.all([Sale.find({}).lean(), Bill.find({ status: { $ne: 'Cancelled' } }).lean(), SalesReturn.find({ status: 'Completed' }).lean(), Purchase.find({ active: true }).lean(), PurchaseReturn.find({ status: 'Completed' }).lean(), CustomerReceipt.find({ status: 'Posted' }).lean(), SupplierPayment.find({ status: 'Posted' }).lean(), Expense.find({ status: 'Posted' }).lean()]);
   const entries = [];
   sales.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'Sale', sourceKey: `Sale:${entry._id}`, transactionType: 'Sales', documentNo: invoiceNoOf(entry), narration: entry.customerName, cashIn: entry.paymentMethod === 'cash' ? entry.paidAmount : 0, cashOut: 0, amount: entry.total, createdBy: entry.cashier, transactionDate: dateOf(entry.invoiceAt, entry.createdAt) }));
-  bills.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'Bill', sourceKey: `Bill:${entry._id}`, transactionType: 'Sales', documentNo: entry.invoiceNo, narration: entry.customerName, cashIn: entry.paymentMethod === 'Cash' ? entry.paidAmount : 0, cashOut: 0, amount: entry.total, createdBy: entry.staff, transactionDate: dateOf(entry.invoiceAt, entry.createdAt) }));
+  bills.forEach((entry) => {
+    const cashPaid = entry.paymentDetails?.length
+      ? entry.paymentDetails.filter((payment) => payment.method === 'Cash' || payment.method === 'cash').reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
+      : entry.paymentMethod === 'Cash' ? entry.paidAmount : 0;
+    entries.push({ referenceId: entry._id, sourceModel: 'Bill', sourceKey: `Bill:${entry._id}`, transactionType: 'Sales', documentNo: entry.invoiceNo, narration: entry.customerName, cashIn: cashPaid, cashOut: 0, amount: entry.total, createdBy: entry.staff, transactionDate: dateOf(entry.invoiceAt, entry.createdAt) });
+  });
   salesReturns.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'SalesReturn', sourceKey: `SalesReturn:${entry._id}`, transactionType: 'Sales Return', documentNo: entry.returnNo, narration: entry.customerName, cashIn: 0, cashOut: entry.refundMethod === 'Cash' ? entry.refundAmount : 0, amount: entry.refundAmount, createdBy: entry.processedBy, transactionDate: dateOf(entry.returnDate, entry.createdAt) }));
   purchases.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'Purchase', sourceKey: `Purchase:${entry._id}`, transactionType: 'Purchase', documentNo: entry.invoiceNumber, cashIn: 0, cashOut: entry.paidAmount, amount: entry.total, createdBy: entry.user, transactionDate: dateOf(entry.purchaseDate, entry.createdAt) }));
   purchaseReturns.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'PurchaseReturn', sourceKey: `PurchaseReturn:${entry._id}`, transactionType: 'Purchase Return', documentNo: entry.returnNo, cashIn: entry.returnAmount, cashOut: 0, amount: entry.returnAmount, createdBy: entry.processedBy, transactionDate: dateOf(entry.returnDate, entry.createdAt) }));
   receipts.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'CustomerReceipt', sourceKey: `CustomerReceipt:${entry._id}`, transactionType: 'Receipt', documentNo: entry.receiptNo, cashIn: entry.paymentMethod === 'Cash' ? entry.amount : 0, cashOut: 0, amount: entry.amount, createdBy: entry.createdBy, transactionDate: dateOf(entry.receiptDate, entry.createdAt) }));
   payments.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'SupplierPayment', sourceKey: `SupplierPayment:${entry._id}`, transactionType: 'Supplier Payment', documentNo: entry.voucherNo, cashIn: 0, cashOut: entry.paymentMethod === 'Cash' ? entry.amount : 0, amount: entry.amount, createdBy: entry.createdBy, transactionDate: dateOf(entry.paymentDate, entry.createdAt) }));
+  expenses.forEach((entry) => entries.push({ referenceId: entry._id, sourceModel: 'Expense', sourceKey: `Expense:${entry._id}`, transactionType: 'Expense', documentNo: entry.expenseNo, narration: entry.expenseName, cashIn: 0, cashOut: entry.paymentMethod === 'Cash' ? entry.totalAmount : 0, amount: entry.totalAmount, createdBy: entry.createdBy, transactionDate: dateOf(entry.expenseDate, entry.createdAt) }));
   if (entries.length) {
     await DayBookEntry.bulkWrite(entries.map((entry) => ({ updateOne: { filter: { sourceKey: entry.sourceKey }, update: { $set: entry }, upsert: true } })));
     await DayBookEntry.deleteMany({ sourceKey: { $nin: entries.map((entry) => entry.sourceKey) } });

@@ -44,10 +44,19 @@ export function normalizeBillItem(item = {}) {
   const quantity = number(source.quantity, source.qty);
   const price = number(source.price, source.rate, source.sellingPrice, product.sellingPrice);
   const sellingPrice = number(source.sellingPrice, source.price, source.rate, product.sellingPrice);
-  const discount = number(source.discount);
+  const discountPercent = number(source.discountPercent, source.discountPct);
+  const grossAmount = quantity * price;
+  const discount = number(source.discount, discountPercent > 0 ? grossAmount * discountPercent / 100 : 0);
   const gstRate = number(source.gstRate, source.gst, source.taxRate, source.tax, product.gstRate, product.taxRate);
-  const taxableAmount = number(source.taxableAmount, Math.max(quantity * price - discount, 0));
-  const gstAmount = number(source.gstAmount, (taxableAmount * gstRate) / 100);
+  const gstInclusive = Boolean(value(source.gstInclusive, product.gstInclusive, false));
+  const taxableBase = Math.max(grossAmount - discount, 0);
+  const computedGst = gstInclusive && gstRate > 0
+    ? taxableBase - taxableBase / (1 + gstRate / 100)
+    : taxableBase * gstRate / 100;
+  const computedTaxable = gstInclusive ? taxableBase - computedGst : taxableBase;
+  const taxableAmount = number(source.taxableAmount, computedTaxable);
+  const gstAmount = number(source.gstAmount, computedGst);
+  const computedNet = gstInclusive ? taxableBase : taxableAmount + gstAmount;
 
   return {
     mongoId,
@@ -66,11 +75,15 @@ export function normalizeBillItem(item = {}) {
     purchasePrice: number(source.purchasePrice, product.purchasePrice),
     wholesalePrice: number(source.wholesalePrice, product.wholesalePrice),
     mrp: number(source.mrp, product.mrp),
+    priceMode: text(source.priceMode, source.pricingMode, 'retail') || 'retail',
+    discountMode: text(source.discountMode, discountPercent > 0 ? 'percent' : 'amount') || 'amount',
+    gstInclusive,
     discount,
+    discountPercent,
     gstRate,
     gstAmount,
     taxableAmount,
-    netAmount: number(source.netAmount, source.lineTotal, source.total, source.amount, taxableAmount + gstAmount),
+    netAmount: number(source.netAmount, source.lineTotal, source.total, source.amount, computedNet),
     stockAtSale: number(source.stockAtSale, source.stock, product.stockAtSale, product.stock),
     allowDecimalQty: Boolean(value(source.allowDecimalQty, product.allowDecimalQty, false)),
     metadata: source.metadata && typeof source.metadata === 'object' ? source.metadata : {}

@@ -94,7 +94,7 @@ export function Dashboard() {
   }, [chartMode, data, monthlySales]);
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-5rem)] bg-slate-100 p-4 text-slate-950 dark:bg-slate-950 dark:text-slate-100 sm:-m-6 sm:p-6">
+    <div className="-m-[var(--page-padding)] min-h-[calc(100vh-var(--header-height))] bg-slate-100 p-[var(--page-padding)] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <PageHeader title="Retail Dashboard" description="Sales performance, inventory risk, credit bills, and latest billing activity." />
         <div className="flex flex-wrap items-center gap-2">
@@ -153,7 +153,7 @@ export function Dashboard() {
               ))}
             </div>
           </div>
-          <div className="h-[360px]">
+          <div className="h-[clamp(240px,34vh,360px)]">
             <ResponsiveContainer width="100%" height="100%">
               {chartMode === 'monthly' ? (
                 <BarChart data={chartData}>
@@ -191,7 +191,7 @@ export function Dashboard() {
             </div>
             <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700">{data?.lowStock?.length || 0} alerts</span>
           </div>
-          <div className="max-h-[360px] overflow-auto">
+          <div className="max-h-[clamp(220px,34vh,360px)] overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white text-xs uppercase text-slate-500 dark:bg-slate-900">
                 <tr>

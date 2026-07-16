@@ -7,6 +7,12 @@ export function notFound(req, res, next) {
 }
 
 export function errorHandler(error, req, res, next) {
+  if (error?.code === 11000) {
+    const field = Object.keys(error.keyPattern || error.keyValue || {})[0] || 'record';
+    error.statusCode = 409;
+    error.message = `${field} already exists`;
+  }
+
   const statusCode = error.statusCode || 500;
   const payload = {
     message: error.message || 'Server error',

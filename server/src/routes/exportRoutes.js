@@ -8,3 +8,4 @@ exportRoutes.use(protect, requirePermission('reports'));
 exportRoutes.get('/:dataset.xlsx', exportData('xlsx'));
 exportRoutes.get('/:dataset.csv', exportData('csv'));
 exportRoutes.get('/:dataset.json', exportData('json'));
+exportRoutes.get('/:dataset.pdf', exportData('pdf'));

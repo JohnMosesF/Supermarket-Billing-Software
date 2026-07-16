@@ -4,11 +4,12 @@
  * 
  * SHORTCUTS:
  * - F1: New Bill
- * - F2: Search Products
- * - F3: Focus Customer Name
- * - F4: Hold Bill
- * - F5: Resume Hold Bill
- * - F6: Bill History
+ * - F2: Edit Selected Cart Item
+ * - F3: Hold Bill
+ * - F4: Resume Hold Bill
+ * - F5: Discount
+ * - F6: Payment
+ * - F7: Save Draft
  * - F8: Print Invoice
  * - Ctrl+P: Print Bill
  * - Ctrl+S: Save Bill
@@ -46,27 +47,32 @@ export default class KeyboardManager {
     }
     if (e.key === 'F2') {
       e.preventDefault();
-      this.actions.searchProducts?.();
+      this.actions.editSelectedItem?.();
       return;
     }
     if (e.key === 'F3') {
       e.preventDefault();
-      this.actions.focusCustomer?.();
+      this.actions.hold?.();
       return;
     }
     if (e.key === 'F4') {
       e.preventDefault();
-      this.actions.holdBill?.();
+      this.actions.resumeHoldBill?.();
       return;
     }
     if (e.key === 'F5') {
       e.preventDefault();
-      this.actions.resumeHoldBill?.();
+      this.actions.focusDiscount?.();
       return;
     }
     if (e.key === 'F6') {
       e.preventDefault();
-      this.actions.billHistory?.();
+      this.actions.focusPayment?.();
+      return;
+    }
+    if (e.key === 'F7') {
+      e.preventDefault();
+      this.actions.saveDraft?.();
       return;
     }
     if (e.key === 'F8') {
@@ -90,6 +96,11 @@ export default class KeyboardManager {
       if (e.key === 'h' || e.key === 'H') {
         e.preventDefault();
         this.actions.hold?.();
+        return;
+      }
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        this.actions.salesReturn?.();
         return;
       }
       if (e.key === 'f' || e.key === 'F') {
