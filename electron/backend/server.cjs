@@ -25799,11 +25799,11 @@ var require_sign = __commonJS({
   "../server/node_modules/math-intrinsics/sign.js"(exports2, module2) {
     "use strict";
     var $isNaN = require_isNaN();
-    module2.exports = function sign(number3) {
-      if ($isNaN(number3) || number3 === 0) {
-        return number3;
+    module2.exports = function sign(number4) {
+      if ($isNaN(number4) || number4 === 0) {
+        return number4;
       }
-      return number3 < 0 ? -1 : 1;
+      return number4 < 0 ? -1 : 1;
     };
   }
 });
@@ -26383,8 +26383,8 @@ var require_get_intrinsic = __commonJS({
         throw new $SyntaxError("invalid intrinsic syntax, expected opening `%`");
       }
       var result = [];
-      $replace(string, rePropName, function(match, number3, quote, subString) {
-        result[result.length] = quote ? $replace(subString, reEscapeChar, "$1") : number3 || match;
+      $replace(string, rePropName, function(match, number4, quote, subString) {
+        result[result.length] = quote ? $replace(subString, reEscapeChar, "$1") : number4 || match;
       });
       return result;
     };
@@ -38921,16 +38921,16 @@ var require_lodash8 = __commonJS({
           }
           return result2;
         }
-        function baseClamp(number3, lower, upper) {
-          if (number3 === number3) {
+        function baseClamp(number4, lower, upper) {
+          if (number4 === number4) {
             if (upper !== undefined2) {
-              number3 = number3 <= upper ? number3 : upper;
+              number4 = number4 <= upper ? number4 : upper;
             }
             if (lower !== undefined2) {
-              number3 = number3 >= lower ? number3 : lower;
+              number4 = number4 >= lower ? number4 : lower;
             }
           }
-          return number3;
+          return number4;
         }
         function baseClone(value, bitmask, customizer, key, object, stack) {
           var result2, isDeep = bitmask & CLONE_DEEP_FLAG, isFlat = bitmask & CLONE_FLAT_FLAG, isFull = bitmask & CLONE_SYMBOLS_FLAG;
@@ -39157,8 +39157,8 @@ var require_lodash8 = __commonJS({
         function baseHasIn(object, key) {
           return object != null && key in Object2(object);
         }
-        function baseInRange(number3, start2, end) {
-          return number3 >= nativeMin(start2, end) && number3 < nativeMax(start2, end);
+        function baseInRange(number4, start2, end) {
+          return number4 >= nativeMin(start2, end) && number4 < nativeMax(start2, end);
         }
         function baseIntersection(arrays, iteratee2, comparator) {
           var includes2 = comparator ? arrayIncludesWith : arrayIncludes, length = arrays[0].length, othLength = arrays.length, othIndex = othLength, caches = Array2(othLength), maxLength = Infinity, result2 = [];
@@ -40277,15 +40277,15 @@ var require_lodash8 = __commonJS({
         }
         function createRound(methodName) {
           var func = Math2[methodName];
-          return function(number3, precision) {
-            number3 = toNumber(number3);
+          return function(number4, precision) {
+            number4 = toNumber(number4);
             precision = precision == null ? 0 : nativeMin(toInteger(precision), 292);
-            if (precision && nativeIsFinite(number3)) {
-              var pair = (toString2(number3) + "e").split("e"), value = func(pair[0] + "e" + (+pair[1] + precision));
+            if (precision && nativeIsFinite(number4)) {
+              var pair = (toString2(number4) + "e").split("e"), value = func(pair[0] + "e" + (+pair[1] + precision));
               pair = (toString2(value) + "e").split("e");
               return +(pair[0] + "e" + (+pair[1] - precision));
             }
-            return func(number3);
+            return func(number4);
           };
         }
         var createSet = !(Set2 && 1 / setToArray(new Set2([, -0]))[1] == INFINITY) ? noop : function(values2) {
@@ -40899,8 +40899,8 @@ var require_lodash8 = __commonJS({
           if (string.charCodeAt(0) === 46) {
             result2.push("");
           }
-          string.replace(rePropName, function(match, number3, quote, subString) {
-            result2.push(quote ? subString.replace(reEscapeChar, "$1") : number3 || match);
+          string.replace(rePropName, function(match, number4, quote, subString) {
+            result2.push(quote ? subString.replace(reEscapeChar, "$1") : number4 || match);
           });
           return result2;
         });
@@ -42284,7 +42284,7 @@ var require_lodash8 = __commonJS({
         function valuesIn(object) {
           return object == null ? [] : baseValues(object, keysIn(object));
         }
-        function clamp(number3, lower, upper) {
+        function clamp(number4, lower, upper) {
           if (upper === undefined2) {
             upper = lower;
             lower = undefined2;
@@ -42297,9 +42297,9 @@ var require_lodash8 = __commonJS({
             lower = toNumber(lower);
             lower = lower === lower ? lower : 0;
           }
-          return baseClamp(toNumber(number3), lower, upper);
+          return baseClamp(toNumber(number4), lower, upper);
         }
-        function inRange(number3, start2, end) {
+        function inRange(number4, start2, end) {
           start2 = toFinite(start2);
           if (end === undefined2) {
             end = start2;
@@ -42307,8 +42307,8 @@ var require_lodash8 = __commonJS({
           } else {
             end = toFinite(end);
           }
-          number3 = toNumber(number3);
-          return baseInRange(number3, start2, end);
+          number4 = toNumber(number4);
+          return baseInRange(number4, start2, end);
         }
         function random(lower, upper, floating) {
           if (floating && typeof floating != "boolean" && isIterateeCall(lower, upper, floating)) {
@@ -46342,10 +46342,10 @@ var require_isIdentityCard = __commonJS({
         if (!DNI.test(sanitized)) {
           return false;
         }
-        var number3 = sanitized.slice(0, -1).replace(/[X,Y,Z]/g, function(char) {
+        var number4 = sanitized.slice(0, -1).replace(/[X,Y,Z]/g, function(char) {
           return charsValue[char];
         });
-        return sanitized.endsWith(controlDigits[number3 % 23]);
+        return sanitized.endsWith(controlDigits[number4 % 23]);
       },
       FI: function FI(str) {
         (0, _assertString.default)(str);
@@ -46631,15 +46631,15 @@ var require_isIdentityCard = __commonJS({
         };
         var sanitized = str.trim().toUpperCase();
         if (!/^[A-Z][0-9]{9}$/.test(sanitized)) return false;
-        return Array.from(sanitized).reduce(function(sum, number3, index) {
+        return Array.from(sanitized).reduce(function(sum, number4, index) {
           if (index === 0) {
-            var code = ALPHABET_CODES[number3];
+            var code = ALPHABET_CODES[number4];
             return code % 10 * 9 + Math.floor(code / 10);
           }
           if (index === 9) {
-            return (10 - sum % 10 - Number(number3)) % 10 === 0;
+            return (10 - sum % 10 - Number(number4)) % 10 === 0;
           }
-          return sum + Number(number3) * (9 - index);
+          return sum + Number(number4) * (9 - index);
         }, 0);
       },
       PK: function PK(str) {
@@ -51036,8 +51036,8 @@ var require_validators_impl = __commonJS({
       isDecimal(options) {
         return this.addStandardValidation(validator.isDecimal, options);
       }
-      isDivisibleBy(number3) {
-        return this.addStandardValidation(validator.isDivisibleBy, number3);
+      isDivisibleBy(number4) {
+        return this.addStandardValidation(validator.isDivisibleBy, number4);
       }
       isEAN() {
         return this.addStandardValidation(validator.isEAN);
@@ -70484,15 +70484,15 @@ var init_Int64 = __esm({
           throw new Error("Int64 buffers must be exactly 8 bytes");
         }
       }
-      static fromNumber(number3) {
-        if (number3 > 9223372036854776e3 || number3 < -9223372036854776e3) {
-          throw new Error(`${number3} is too large (or, if negative, too small) to represent as an Int64`);
+      static fromNumber(number4) {
+        if (number4 > 9223372036854776e3 || number4 < -9223372036854776e3) {
+          throw new Error(`${number4} is too large (or, if negative, too small) to represent as an Int64`);
         }
         const bytes = new Uint8Array(8);
-        for (let i6 = 7, remaining = Math.abs(Math.round(number3)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
+        for (let i6 = 7, remaining = Math.abs(Math.round(number4)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
           bytes[i6] = remaining;
         }
-        if (number3 < 0) {
+        if (number4 < 0) {
           negate(bytes);
         }
         return new _Int64(bytes);
@@ -75966,15 +75966,15 @@ var require_dist_cjs5 = __commonJS({
           throw new Error("Int64 buffers must be exactly 8 bytes");
         }
       }
-      static fromNumber(number3) {
-        if (number3 > 9223372036854776e3 || number3 < -9223372036854776e3) {
-          throw new Error(`${number3} is too large (or, if negative, too small) to represent as an Int64`);
+      static fromNumber(number4) {
+        if (number4 > 9223372036854776e3 || number4 < -9223372036854776e3) {
+          throw new Error(`${number4} is too large (or, if negative, too small) to represent as an Int64`);
         }
         const bytes = new Uint8Array(8);
-        for (let i6 = 7, remaining = Math.abs(Math.round(number3)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
+        for (let i6 = 7, remaining = Math.abs(Math.round(number4)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
           bytes[i6] = remaining;
         }
-        if (number3 < 0) {
+        if (number4 < 0) {
           negate2(bytes);
         }
         return new _Int64(bytes);
@@ -89152,8 +89152,8 @@ var require_common3 = __commonJS({
       }
       return firstZero;
     }
-    function numberToPaddedHex(number3) {
-      return number3.toString(16).padStart(2, "0");
+    function numberToPaddedHex(number4) {
+      return number4.toString(16).padStart(2, "0");
     }
     function stringToPaddedHex(numberString) {
       return numberToPaddedHex(parseInt(numberString, 10));
@@ -89887,12 +89887,12 @@ var require_ipv6 = __commonJS({
         throw new Error("Assertion failed.");
       }
     }
-    function addCommas(number3) {
+    function addCommas(number4) {
       const r6 = /(\d+)(\d{3})/;
-      while (r6.test(number3)) {
-        number3 = number3.replace(r6, "$1,$2");
+      while (r6.test(number4)) {
+        number4 = number4.replace(r6, "$1,$2");
       }
-      return number3;
+      return number4;
     }
     function spanLeadingZeroes4(n2) {
       n2 = n2.replace(/^(0{1,})([1-9]+)$/, '<span class="parse-error">$1</span>$2');
@@ -94144,13 +94144,13 @@ var require_url_state_machine = __commonJS({
               return failure;
             }
             while (infra.isASCIIDigit(input[pointer])) {
-              const number3 = parseInt(at(input, pointer));
+              const number4 = parseInt(at(input, pointer));
               if (ipv4Piece === null) {
-                ipv4Piece = number3;
+                ipv4Piece = number4;
               } else if (ipv4Piece === 0) {
                 return failure;
               } else {
-                ipv4Piece = ipv4Piece * 10 + number3;
+                ipv4Piece = ipv4Piece * 10 + number4;
               }
               if (ipv4Piece > 255) {
                 return failure;
@@ -108984,9 +108984,9 @@ var require_abstract_cursor = __commonJS({
         return this.documents?.length ?? 0;
       }
       /** Returns current buffered documents */
-      readBufferedDocuments(number3) {
+      readBufferedDocuments(number4) {
         const bufferedDocs = [];
-        const documentsToRead = Math.min(number3 ?? this.documents?.length ?? 0, this.documents?.length ?? 0);
+        const documentsToRead = Math.min(number4 ?? this.documents?.length ?? 0, this.documents?.length ?? 0);
         for (let count = 0; count < documentsToRead; count++) {
           const document2 = this.documents?.shift(this.deserializationOptions);
           if (document2 != null) {
@@ -147579,9 +147579,9 @@ var require_range3 = __commonJS({
       }
       expandRow(row) {
         if (row) {
-          const { dimensions, number: number3 } = row;
+          const { dimensions, number: number4 } = row;
           if (dimensions) {
-            this.expand(number3, dimensions.min, number3, dimensions.max);
+            this.expand(number4, dimensions.min, number4, dimensions.max);
           }
         }
       }
@@ -148724,9 +148724,9 @@ var require_row = __commonJS({
     var colCache = require_col_cache();
     var Cell = require_cell();
     var Row = class {
-      constructor(worksheet, number3) {
+      constructor(worksheet, number4) {
         this._worksheet = worksheet;
-        this._number = number3;
+        this._number = number4;
         this._cells = [];
         this.style = {};
         this.outlineLevel = 0;
@@ -149074,9 +149074,9 @@ var require_column = __commonJS({
     var colCache = require_col_cache();
     var DEFAULT_COLUMN_WIDTH = 9;
     var Column = class _Column {
-      constructor(worksheet, number3, defn) {
+      constructor(worksheet, number4, defn) {
         this._worksheet = worksheet;
-        this._number = number3;
+        this._number = number4;
         if (defn !== false) {
           this.defn = defn;
         }
@@ -178959,8 +178959,8 @@ var require_lodash15 = __commonJS({
       if (reLeadingDot.test(string)) {
         result.push("");
       }
-      string.replace(rePropName, function(match, number3, quote, string2) {
-        result.push(quote ? string2.replace(reEscapeChar, "$1") : number3 || match);
+      string.replace(rePropName, function(match, number4, quote, string2) {
+        result.push(quote ? string2.replace(reEscapeChar, "$1") : number4 || match);
       });
       return result;
     });
@@ -367886,7 +367886,7 @@ end`);
       }
     };
     var {
-      number: number3
+      number: number4
     } = PDFObject;
     var TextMixin = {
       initText() {
@@ -368228,14 +368228,14 @@ end`);
           this.page.fonts[this._font.id] = this._font.ref();
         }
         this.addContent("BT");
-        this.addContent(`1 0 0 1 ${number3(x)} ${number3(y)} Tm`);
-        this.addContent(`/${this._font.id} ${number3(this._fontSize)} Tf`);
+        this.addContent(`1 0 0 1 ${number4(x)} ${number4(y)} Tm`);
+        this.addContent(`/${this._font.id} ${number4(this._fontSize)} Tf`);
         const mode = options.fill && options.stroke ? 2 : options.stroke ? 1 : 0;
         if (mode) {
           this.addContent(`${mode} Tr`);
         }
         if (characterSpacing) {
-          this.addContent(`${number3(characterSpacing)} Tc`);
+          this.addContent(`${number4(characterSpacing)} Tc`);
         }
         if (horizontalScaling !== 100) {
           this.addContent(`${horizontalScaling} Tz`);
@@ -368270,7 +368270,7 @@ end`);
           if (last2 < cur) {
             const hex = encoded.slice(last2, cur).join("");
             const advance = positions[cur - 1].xAdvance - positions[cur - 1].advanceWidth;
-            commands6.push(`<${hex}> ${number3(-advance)}`);
+            commands6.push(`<${hex}> ${number4(-advance)}`);
           }
           return last2 = cur;
         };
@@ -368285,12 +368285,12 @@ end`);
           const pos = positions[i6];
           if (pos.xOffset || pos.yOffset) {
             flush2(i6);
-            this.addContent(`1 0 0 1 ${number3(x + pos.xOffset * scale)} ${number3(y + pos.yOffset * scale)} Tm`);
+            this.addContent(`1 0 0 1 ${number4(x + pos.xOffset * scale)} ${number4(y + pos.yOffset * scale)} Tm`);
             flush2(i6 + 1);
             hadOffset = true;
           } else {
             if (hadOffset) {
-              this.addContent(`1 0 0 1 ${number3(x)} ${number3(y)} Tm`);
+              this.addContent(`1 0 0 1 ${number4(x)} ${number4(y)} Tm`);
               hadOffset = false;
             }
             if (pos.xAdvance - pos.advanceWidth !== 0) {
@@ -380556,7 +380556,12 @@ var purchaseItemSchema = new import_mongoose5.default.Schema(
     costPrice: { type: Number, required: true, min: 0 },
     purchasePrice: { type: Number, min: 0 },
     gstRate: { type: Number, default: 0, min: 0 },
+    gstInclusive: { type: Boolean, default: false },
+    taxableAmount: { type: Number, default: 0, min: 0 },
     gstAmount: { type: Number, default: 0, min: 0 },
+    cgst: { type: Number, default: 0, min: 0 },
+    sgst: { type: Number, default: 0, min: 0 },
+    igst: { type: Number, default: 0, min: 0 },
     discountPercent: { type: Number, default: 0, min: 0, max: 100 },
     discountAmount: { type: Number, default: 0, min: 0 },
     mrp: { type: Number, default: 0, min: 0 },
@@ -382416,6 +382421,48 @@ function buildHoldSnapshot(body15, user) {
     }
   };
 }
+function buildHoldDocumentPayload(snapshot, user) {
+  const { cart, totals, payment, customer, invoice } = snapshot;
+  const payload = {
+    snapshot,
+    invoice: snapshot.invoice,
+    customer: snapshot.customer,
+    cart: snapshot.cart,
+    totals: snapshot.totals,
+    payment: snapshot.payment,
+    settings: snapshot.settings,
+    uiState: snapshot.uiState,
+    metadata: snapshot.metadata,
+    items: cart,
+    subtotal: totals.subtotal || 0,
+    taxTotal: totals.taxTotal || 0,
+    discount: totals.discount || 0,
+    discountPercent: totals.discountPercent || 0,
+    discountAmount: totals.discountAmount || 0,
+    total: totals.total || 0,
+    paymentMethod: payment.paymentMethod || payment.method || "Cash",
+    paymentDetails: payment.paymentDetails || [],
+    cashReceived: payment.cashReceived || 0,
+    changeReturn: payment.changeReturn || 0,
+    paidAmount: payment.paidAmount || payment.amountPaid || 0,
+    amountPaid: payment.amountPaid || payment.paidAmount || 0,
+    balanceAmount: payment.balanceAmount || payment.balanceDue || 0,
+    balanceDue: payment.balanceDue || payment.balanceAmount || 0,
+    outstanding: payment.outstanding || payment.balanceAmount || 0,
+    creditAmount: payment.creditAmount || 0,
+    customerName: customer.name || "Walk-in Customer",
+    customerMobile: customer.mobile || null,
+    invoiceNo: invoice.invoiceNo || invoice.invoiceNumber || null,
+    heldBy: user?._id
+  };
+  if (invoice.invoiceAt) {
+    const at = new Date(invoice.invoiceAt);
+    if (!isNaN(at.getTime())) payload.invoiceAt = at;
+  } else {
+    payload.invoiceAt = void 0;
+  }
+  return payload;
+}
 function isWholeNumber(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
 }
@@ -382948,48 +382995,25 @@ var getTodaysSales = asyncHandler(async (req, res) => {
 });
 var holdBill = asyncHandler(async (req, res) => {
   const snapshot = buildHoldSnapshot(req.body, req.user);
-  const { cart, totals, payment, customer, invoice } = snapshot;
+  const { cart } = snapshot;
   if (!cart || cart.length === 0) {
     throw new ApiError(400, "Held bill must contain at least one item");
   }
-  const payload = {
-    snapshot,
-    invoice: snapshot.invoice,
-    customer: snapshot.customer,
-    cart: snapshot.cart,
-    totals: snapshot.totals,
-    payment: snapshot.payment,
-    settings: snapshot.settings,
-    uiState: snapshot.uiState,
-    metadata: snapshot.metadata,
-    items: cart,
-    subtotal: totals.subtotal || 0,
-    taxTotal: totals.taxTotal || 0,
-    discount: totals.discount || 0,
-    discountPercent: totals.discountPercent || 0,
-    discountAmount: totals.discountAmount || 0,
-    total: totals.total || 0,
-    paymentMethod: payment.paymentMethod || payment.method || "Cash",
-    paymentDetails: payment.paymentDetails || [],
-    cashReceived: payment.cashReceived || 0,
-    changeReturn: payment.changeReturn || 0,
-    paidAmount: payment.paidAmount || payment.amountPaid || 0,
-    amountPaid: payment.amountPaid || payment.paidAmount || 0,
-    balanceAmount: payment.balanceAmount || payment.balanceDue || 0,
-    balanceDue: payment.balanceDue || payment.balanceAmount || 0,
-    outstanding: payment.outstanding || payment.balanceAmount || 0,
-    creditAmount: payment.creditAmount || 0,
-    customerName: customer.name || "Walk-in Customer",
-    customerMobile: customer.mobile || null,
-    invoiceNo: invoice.invoiceNo || invoice.invoiceNumber || null,
-    heldBy: req.user?._id
-  };
-  if (invoice.invoiceAt) {
-    const at = new Date(invoice.invoiceAt);
-    if (!isNaN(at.getTime())) payload.invoiceAt = at;
-  }
+  const payload = buildHoldDocumentPayload(snapshot, req.user);
   const heldBill = await HoldBill_default.create(payload);
   res.status(201).json({ heldBill, message: "Bill held successfully" });
+});
+var updateHeldBill = asyncHandler(async (req, res) => {
+  const existing = await HoldBill_default.findById(req.params.id);
+  if (!existing) throw new ApiError(404, "Held bill not found");
+  const snapshot = buildHoldSnapshot(req.body, req.user);
+  if (!snapshot.cart || snapshot.cart.length === 0) {
+    throw new ApiError(400, "Held bill must contain at least one item");
+  }
+  const payload = buildHoldDocumentPayload(snapshot, req.user);
+  Object.assign(existing, payload);
+  await existing.save();
+  res.json({ heldBill: existing, message: "Hold Bill Updated Successfully" });
 });
 var getHeldBills = asyncHandler(async (req, res) => {
   const filter = {};
@@ -383099,6 +383123,7 @@ billRoutes.delete("/deleted/:id", permanentlyDeleteDeletedBill);
 billRoutes.post("/hold", holdBill);
 billRoutes.get("/hold/all", getHeldBills);
 billRoutes.get("/hold/:id", resumeHeldBill);
+billRoutes.put("/hold/:id", updateHeldBill);
 billRoutes.delete("/hold/:id", deleteHeldBill);
 billRoutes.get("/:id", getBill);
 billRoutes.put("/:id", updateBill);
@@ -383170,6 +383195,7 @@ holdBillRoutes.use(protect);
 holdBillRoutes.post("/", holdBill);
 holdBillRoutes.get("/", getHeldBills);
 holdBillRoutes.get("/:id", resumeHeldBill);
+holdBillRoutes.put("/:id", updateHeldBill);
 holdBillRoutes.delete("/:id", deleteHeldBill);
 
 // ../server/src/routes/categoryRoutes.js
@@ -384992,6 +385018,7 @@ var purchaseRules = [
   (0, import_express_validator11.body)("items.*.purchasePrice").optional().isFloat({ min: 0 }),
   (0, import_express_validator11.body)("items.*.gstRate").optional().isFloat({ min: 0, max: 100 }),
   (0, import_express_validator11.body)("items.*.gst").optional().isFloat({ min: 0, max: 100 }),
+  (0, import_express_validator11.body)("items.*.gstInclusive").optional().isBoolean(),
   (0, import_express_validator11.body)("items.*.discountPercent").optional().isFloat({ min: 0, max: 100 }),
   (0, import_express_validator11.body)("items.*.discountAmount").optional().isFloat({ min: 0 }),
   (0, import_express_validator11.body)("paidAmount").optional().isFloat({ min: 0 })
@@ -385026,6 +385053,50 @@ async function getUnit(name) {
 function isWholeNumber3(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
 }
+function number3(value, fallback2 = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback2;
+}
+function money2(value) {
+  return Math.round(number3(value) * 100) / 100;
+}
+function hasExplicitDiscountAmount(item) {
+  return item.discountAmount !== "" && item.discountAmount !== void 0 && item.discountAmount !== null;
+}
+function calculatePurchaseLine(item, product = {}) {
+  const quantity = Math.max(number3(item.quantity), 0);
+  const freeQuantity = Math.max(number3(item.freeQuantity), 0);
+  const costPrice = Math.max(number3(item.purchasePrice ?? item.costPrice), 0);
+  const gstRate = Math.max(number3(item.gstRate ?? item.gst), 0);
+  const grossAmount = money2(quantity * costPrice);
+  const discountPercent = Math.max(number3(item.discountPercent), 0);
+  const percentDiscount = grossAmount * discountPercent / 100;
+  const discountAmount = money2(Math.min(hasExplicitDiscountAmount(item) ? number3(item.discountAmount) : percentDiscount, grossAmount));
+  const discountedAmount = money2(Math.max(grossAmount - discountAmount, 0));
+  const gstInclusive = Boolean(item.gstInclusive ?? product.gstInclusive ?? false);
+  const gstAmount = money2(gstInclusive && gstRate > 0 ? discountedAmount - discountedAmount / (1 + gstRate / 100) : discountedAmount * gstRate / 100);
+  const taxableAmount = money2(gstInclusive ? discountedAmount - gstAmount : discountedAmount);
+  const lineTotal = money2(gstInclusive ? discountedAmount : taxableAmount + gstAmount);
+  const cgst = money2(gstAmount / 2);
+  const sgst = money2(gstAmount - cgst);
+  return {
+    quantity,
+    freeQuantity,
+    costPrice,
+    gstRate,
+    gstInclusive,
+    grossAmount,
+    discountPercent,
+    discountAmount,
+    taxableAmount,
+    gstAmount,
+    cgst,
+    sgst,
+    igst: 0,
+    lineTotal,
+    netAmount: lineTotal
+  };
+}
 async function resolvePurchaseItems(rawItems, settings) {
   const items = [];
   for (const item of rawItems) {
@@ -385053,16 +385124,7 @@ async function resolvePurchaseItems(rawItems, settings) {
         active: true
       });
     }
-    const costPrice = Number(item.purchasePrice ?? item.costPrice ?? 0);
-    const gstRate = Number(item.gstRate ?? item.gst ?? 0);
-    const freeQuantity = Number(item.freeQuantity || 0);
-    const discountPercent = Number(item.discountPercent || 0);
-    const gross = quantity * costPrice;
-    const percentDiscount = gross * discountPercent / 100;
-    const discountAmount = Number(item.discountAmount ?? percentDiscount);
-    const taxableAmount = Math.max(gross - discountAmount, 0);
-    const gstAmount = taxableAmount * gstRate / 100;
-    const lineTotal = taxableAmount + gstAmount;
+    const line = calculatePurchaseLine({ ...item, quantity }, product);
     items.push({
       product: product._id,
       name: product.name,
@@ -385070,21 +385132,26 @@ async function resolvePurchaseItems(rawItems, settings) {
       barcode: product.barcode,
       batchNo: item.batchNo,
       expiryDate: item.expiryDate ? new Date(item.expiryDate) : void 0,
-      quantity,
-      freeQuantity,
+      quantity: line.quantity,
+      freeQuantity: line.freeQuantity,
       unit: unit.name,
-      costPrice,
-      purchasePrice: costPrice,
-      gstRate,
-      gstAmount,
-      discountPercent,
-      discountAmount,
+      costPrice: line.costPrice,
+      purchasePrice: line.costPrice,
+      gstRate: line.gstRate,
+      gstInclusive: line.gstInclusive,
+      taxableAmount: line.taxableAmount,
+      gstAmount: line.gstAmount,
+      cgst: line.cgst,
+      sgst: line.sgst,
+      igst: line.igst,
+      discountPercent: line.discountPercent,
+      discountAmount: line.discountAmount,
       mrp: Number(item.mrp || product.mrp || 0),
       wholesalePrice: Number(item.wholesalePrice || product.wholesalePrice || 0),
       retailPrice: Number(item.retailPrice ?? item.sellingPrice ?? product.retailPrice ?? product.sellingPrice ?? 0),
       sellingPrice: Number(item.sellingPrice || product.sellingPrice || 0),
-      netAmount: lineTotal,
-      lineTotal
+      netAmount: line.netAmount,
+      lineTotal: line.lineTotal
     });
   }
   return items;
@@ -385103,15 +385170,17 @@ async function recordSupplierPriceHistory(purchase) {
   if (entries.length) await SupplierPriceHistory.insertMany(entries);
 }
 function summarizePurchase(items, body15 = {}) {
-  const subTotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.costPrice || 0), 0);
-  const gstTotal = items.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0);
-  const itemDiscount = items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0);
-  const discount = Number(body15.discount ?? itemDiscount);
-  const freightCharges = Number(body15.freightCharges || 0);
-  const beforeRound = subTotal + gstTotal - discount + freightCharges;
-  const roundOff = body15.roundOff !== void 0 ? Number(body15.roundOff || 0) : 0;
-  const grandTotal = Math.max(beforeRound + roundOff, 0);
-  const amountPaid = Math.min(Number(body15.amountPaid ?? body15.paidAmount ?? 0), grandTotal);
+  const subTotal = money2(items.reduce((sum, item) => {
+    const taxable = item.taxableAmount ?? Number(item.quantity || 0) * Number(item.costPrice || item.purchasePrice || 0) - Number(item.discountAmount || 0);
+    return sum + Math.max(Number(taxable || 0), 0);
+  }, 0));
+  const gstTotal = money2(items.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0));
+  const discount = money2(items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0));
+  const lineTotal = money2(items.reduce((sum, item) => sum + Number(item.lineTotal ?? item.netAmount ?? 0), 0));
+  const freightCharges = money2(body15.freightCharges || 0);
+  const roundOff = body15.roundOff !== void 0 ? money2(body15.roundOff || 0) : 0;
+  const grandTotal = money2(Math.max(lineTotal + freightCharges + roundOff, 0));
+  const amountPaid = money2(Math.min(Number(body15.amountPaid ?? body15.paidAmount ?? 0), grandTotal));
   return {
     itemCount: items.length,
     totalQuantity: items.reduce((sum, item) => sum + Number(item.quantity || 0) + Number(item.freeQuantity || 0), 0),
@@ -386672,12 +386741,12 @@ var createSalesReturn = asyncHandler(async (req, res) => {
         refundAmount: Number(item.netAmount ?? taxable + gst) * quantity / soldQty
       });
     }
-    const number3 = returnNo("SR");
-    await applyStock(items, 1, { kind: "Sales Return", source: "sales_return", returnNo: number3, originalNo: bill.invoiceNo, referenceId: bill._id, billId: bill._id, userId: req.user._id });
+    const number4 = returnNo("SR");
+    await applyStock(items, 1, { kind: "Sales Return", source: "sales_return", returnNo: number4, originalNo: bill.invoiceNo, referenceId: bill._id, billId: bill._id, userId: req.user._id });
     stockApplied = true;
     const totals = items.reduce((sum, item) => ({ taxable: sum.taxable + item.taxableAmount, gst: sum.gst + item.gstAmount, discount: sum.discount + item.discount, refund: sum.refund + item.refundAmount }), { taxable: 0, gst: 0, discount: 0, refund: 0 });
     const salesReturn = await SalesReturn.create({
-      returnNo: number3,
+      returnNo: number4,
       originalBill: bill._id,
       originalInvoiceNo: bill.invoiceNo,
       customer: bill.customer,
@@ -386751,11 +386820,11 @@ var createPurchaseReturn = asyncHandler(async (req, res) => {
       const gstAmount = taxableAmount * Number(item.gstRate || 0) / 100;
       return { product: id, productName: item.name, unit: item.unit, quantity, costPrice: item.costPrice, gstRate: item.gstRate, taxableAmount, gstAmount, returnAmount: taxableAmount + gstAmount };
     });
-    const number3 = returnNo("PR");
-    await applyStock(items, -1, { kind: "Purchase Return", source: "purchase_return", returnNo: number3, originalNo: purchase.invoiceNumber, referenceId: purchase._id, supplier: purchase.supplier?._id || purchase.supplier, userId: req.user._id });
+    const number4 = returnNo("PR");
+    await applyStock(items, -1, { kind: "Purchase Return", source: "purchase_return", returnNo: number4, originalNo: purchase.invoiceNumber, referenceId: purchase._id, supplier: purchase.supplier?._id || purchase.supplier, userId: req.user._id });
     stockApplied = true;
     const totals = items.reduce((sum, item) => ({ taxable: sum.taxable + item.taxableAmount, gst: sum.gst + item.gstAmount, total: sum.total + item.returnAmount }), { taxable: 0, gst: 0, total: 0 });
-    const purchaseReturn = await PurchaseReturn.create({ returnNo: number3, originalPurchase: purchase._id, originalInvoiceNo: purchase.invoiceNumber, supplier: purchase.supplier?._id, supplierName: purchase.supplier?.name, items, taxableAmount: totals.taxable, gstAmount: totals.gst, returnAmount: totals.total, reason, processedBy: req.user._id });
+    const purchaseReturn = await PurchaseReturn.create({ returnNo: number4, originalPurchase: purchase._id, originalInvoiceNo: purchase.invoiceNumber, supplier: purchase.supplier?._id, supplierName: purchase.supplier?.name, items, taxableAmount: totals.taxable, gstAmount: totals.gst, returnAmount: totals.total, reason, processedBy: req.user._id });
     createdReturn = purchaseReturn;
     purchaseCreditApplied = Math.min(totals.total, Math.max(Number(purchase.total || 0) - Number(purchase.paidAmount || 0) - Number(purchase.returnCreditAmount || 0), 0));
     if (purchaseCreditApplied > 0) await Purchase.updateOne({ _id: purchase._id }, { $inc: { returnCreditAmount: purchaseCreditApplied } });

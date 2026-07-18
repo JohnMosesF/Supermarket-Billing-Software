@@ -9,4 +9,5 @@ holdBillRoutes.use(protect);
 holdBillRoutes.post('/', billController.holdBill);
 holdBillRoutes.get('/', billController.getHeldBills);
 holdBillRoutes.get('/:id', billController.resumeHeldBill);
+holdBillRoutes.put('/:id', billController.updateHeldBill);
 holdBillRoutes.delete('/:id', billController.deleteHeldBill);

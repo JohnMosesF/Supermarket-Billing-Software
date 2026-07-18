@@ -16,6 +16,7 @@ const blankRow = {
   unit: 'pcs',
   costPrice: 0,
   gstRate: 0,
+  gstInclusive: false,
   discountPercent: 0,
   discountAmount: 0,
   mrp: 0,
@@ -45,16 +46,82 @@ const blankProductForm = {
   stock: ''
 };
 
+function number(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function moneyRound(value) {
+  return Math.round(number(value) * 100) / 100;
+}
+
+function hasExplicitDiscountAmount(row) {
+  return row.discountAmount !== '' && row.discountAmount !== undefined && row.discountAmount !== null;
+}
+
+function calculatePurchaseLine(row) {
+  const quantity = Math.max(number(row.quantity), 0);
+  const freeQuantity = Math.max(number(row.freeQuantity), 0);
+  const costPrice = Math.max(number(row.costPrice), 0);
+  const gstRate = Math.max(number(row.gstRate), 0);
+  const grossAmount = moneyRound(quantity * costPrice);
+  const percentDiscount = grossAmount * Math.max(number(row.discountPercent), 0) / 100;
+  const discountAmount = moneyRound(Math.min(
+    hasExplicitDiscountAmount(row) ? number(row.discountAmount) : percentDiscount,
+    grossAmount
+  ));
+  const discountedAmount = moneyRound(Math.max(grossAmount - discountAmount, 0));
+  const gstInclusive = Boolean(row.gstInclusive);
+  const gstAmount = moneyRound(gstInclusive && gstRate > 0
+    ? discountedAmount - discountedAmount / (1 + gstRate / 100)
+    : discountedAmount * gstRate / 100);
+  const taxableAmount = moneyRound(gstInclusive ? discountedAmount - gstAmount : discountedAmount);
+  const lineTotal = moneyRound(gstInclusive ? discountedAmount : taxableAmount + gstAmount);
+  const cgst = moneyRound(gstAmount / 2);
+  const sgst = moneyRound(gstAmount - cgst);
+
+  return {
+    quantity,
+    freeQuantity,
+    costPrice,
+    gstRate,
+    gstInclusive,
+    grossAmount,
+    discountAmount,
+    taxableAmount,
+    gstAmount,
+    cgst,
+    sgst,
+    igst: 0,
+    lineTotal,
+    netAmount: lineTotal
+  };
+}
+
+function calculatePurchaseTotals(rows, form = {}) {
+  const lines = rows.map(calculatePurchaseLine);
+  const lineTotalSum = moneyRound(lines.reduce((sum, line) => sum + line.lineTotal, 0));
+  const freightCharges = moneyRound(form.freightCharges || 0);
+  const roundOff = moneyRound(form.roundOff || 0);
+  const grandTotal = moneyRound(Math.max(lineTotalSum + freightCharges + roundOff, 0));
+  const paidAmount = moneyRound(Math.min(number(form.paidAmount), grandTotal));
+
+  return {
+    lines,
+    items: rows.filter((row) => row.product).length,
+    quantity: lines.reduce((sum, line) => sum + line.quantity + line.freeQuantity, 0),
+    subTotal: moneyRound(lines.reduce((sum, line) => sum + line.taxableAmount, 0)),
+    gstTotal: moneyRound(lines.reduce((sum, line) => sum + line.gstAmount, 0)),
+    discount: moneyRound(lines.reduce((sum, line) => sum + line.discountAmount, 0)),
+    freightCharges,
+    roundOff,
+    total: grandTotal,
+    balance: moneyRound(Math.max(grandTotal - paidAmount, 0))
+  };
+}
+
 function lineTotal(row) {
-  const quantity = Number(row.quantity || 0);
-  const costPrice = Number(row.costPrice || 0);
-  const gstRate = Number(row.gstRate || 0);
-  const gross = quantity * costPrice;
-  const discount = row.discountAmount !== '' && row.discountAmount !== undefined
-    ? Number(row.discountAmount || 0)
-    : gross * Number(row.discountPercent || 0) / 100;
-  const taxable = Math.max(gross - discount, 0);
-  return taxable * (1 + gstRate / 100);
+  return calculatePurchaseLine(row).lineTotal;
 }
 
 function PrintButton({ onClick, title = 'Print' }) {
@@ -150,6 +217,7 @@ export function Purchases() {
       unit: product?.unit || 'pcs',
       costPrice: product?.purchasePrice || 0,
       gstRate: product?.taxRate || 0,
+      gstInclusive: Boolean(product?.gstInclusive),
       mrp: product?.mrp || 0,
       wholesalePrice: product?.wholesalePrice || 0,
       retailPrice: product?.retailPrice ?? product?.sellingPrice ?? 0,
@@ -338,28 +406,8 @@ export function Purchases() {
     }
   }
 
-  const purchaseSummary = useMemo(() => {
-    const subTotal = purchaseForm.rows.reduce((sum, row) => sum + Number(row.quantity || 0) * Number(row.costPrice || 0), 0);
-    const gstTotal = purchaseForm.rows.reduce((sum, row) => {
-      const gross = Number(row.quantity || 0) * Number(row.costPrice || 0);
-      const discount = row.discountAmount !== '' && row.discountAmount !== undefined ? Number(row.discountAmount || 0) : gross * Number(row.discountPercent || 0) / 100;
-      return Math.max(gross - discount, 0) * Number(row.gstRate || 0) / 100;
-    }, 0);
-    const rowDiscount = purchaseForm.rows.reduce((sum, row) => {
-      const gross = Number(row.quantity || 0) * Number(row.costPrice || 0);
-      return sum + (row.discountAmount !== '' && row.discountAmount !== undefined ? Number(row.discountAmount || 0) : gross * Number(row.discountPercent || 0) / 100);
-    }, 0);
-    const total = Math.max(subTotal + gstTotal - rowDiscount + Number(purchaseForm.freightCharges || 0) + Number(purchaseForm.roundOff || 0), 0);
-    return {
-      items: purchaseForm.rows.filter((row) => row.product).length,
-      quantity: purchaseForm.rows.reduce((sum, row) => sum + Number(row.quantity || 0) + Number(row.freeQuantity || 0), 0),
-      subTotal,
-      gstTotal,
-      discount: rowDiscount,
-      total
-    };
-  }, [purchaseForm.rows, purchaseForm.freightCharges, purchaseForm.roundOff]);
-  const purchaseOutstanding = Math.max(Number(purchaseSummary.total || 0) - Number(purchaseForm.paidAmount || 0), 0);
+  const purchaseSummary = useMemo(() => calculatePurchaseTotals(purchaseForm.rows, purchaseForm), [purchaseForm]);
+  const purchaseOutstanding = purchaseSummary.balance;
 
   const poSummary = useMemo(() => ({
     quantity: poForm.rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0),
@@ -367,24 +415,34 @@ export function Purchases() {
   }), [poForm.rows]);
 
   function itemPayload(rows) {
-    return rows.map((row) => ({
+    return rows.map((row) => {
+      const line = calculatePurchaseLine(row);
+      return {
       product: row.product,
-      quantity: Number(row.quantity || 0),
+      quantity: line.quantity,
       unit: row.unit || 'pcs',
       batchNo: row.batchNo || undefined,
       expiryDate: row.expiryDate || undefined,
-      costPrice: Number(row.costPrice || 0),
-      purchasePrice: Number(row.costPrice || 0),
-      freeQuantity: Number(row.freeQuantity || 0),
-      gstRate: Number(row.gstRate || 0),
-      gstAmount: lineTotal(row) - Math.max(Number(row.quantity || 0) * Number(row.costPrice || 0) - Number(row.discountAmount || 0), 0),
-      discountPercent: Number(row.discountPercent || 0),
-      discountAmount: Number(row.discountAmount || 0),
+      costPrice: line.costPrice,
+      purchasePrice: line.costPrice,
+      freeQuantity: line.freeQuantity,
+      gstRate: line.gstRate,
+      gstInclusive: line.gstInclusive,
+      taxableAmount: line.taxableAmount,
+      gstAmount: line.gstAmount,
+      cgst: line.cgst,
+      sgst: line.sgst,
+      igst: line.igst,
+      discountPercent: number(row.discountPercent),
+      discountAmount: line.discountAmount,
       mrp: Number(row.mrp || 0),
       wholesalePrice: Number(row.wholesalePrice || 0),
       retailPrice: Number(row.retailPrice || 0),
-      sellingPrice: Number(row.sellingPrice || 0)
-    }));
+      sellingPrice: Number(row.sellingPrice || 0),
+      netAmount: line.netAmount,
+      lineTotal: line.lineTotal
+      };
+    });
   }
 
   function resetPurchaseForm() {
@@ -407,6 +465,7 @@ export function Purchases() {
       freightCharges: Number(purchaseForm.freightCharges || 0),
       roundOff: Number(purchaseForm.roundOff || 0),
       paidAmount: Math.min(Number(purchaseForm.paidAmount || 0), purchaseSummary.total),
+      discount: purchaseSummary.discount,
       items: itemPayload(purchaseForm.rows)
     };
     if (editingPurchase) {
@@ -447,6 +506,7 @@ export function Purchases() {
         unit: item.unit || 'pcs',
         costPrice: item.costPrice || item.purchasePrice || 0,
         gstRate: item.gstRate || 0,
+        gstInclusive: Boolean(item.gstInclusive),
         discountPercent: item.discountPercent || 0,
         discountAmount: item.discountAmount || 0,
         mrp: item.mrp || 0,

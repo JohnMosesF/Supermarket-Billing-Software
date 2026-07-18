@@ -92,7 +92,7 @@ export function ResponsiveLayout({ children }) {
     '--button-x': `${Math.round(16 * metrics.densityScale)}px`,
     '--button-min-height': `${Math.round(36 * metrics.densityScale)}px`,
     '--table-cell-y': `${Math.round(12 * metrics.densityScale)}px`,
-    '--table-cell-x': `${Math.round(16 * metrics.densityScale)}px`,
+    '--table-cell-x': `${Math.round(6 * metrics.densityScale)}px`,
     '--pos-gap': `${Math.round(12 * metrics.densityScale)}px`,
     '--compact-80': `${Math.round(80 * metrics.densityScale)}px`,
     '--legacy-billing-offset': `${Math.round(230 * metrics.densityScale)}px`,

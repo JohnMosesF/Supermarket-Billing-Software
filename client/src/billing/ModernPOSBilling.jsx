@@ -35,6 +35,24 @@ const paymentAmount = (amountPaid, total, paymentMethod) => {
   return Number.isFinite(paid) && paid > 0 ? paid : Number(total || 0);
 };
 
+const padTimePart = (value) => String(value).padStart(2, '0');
+
+const currentInvoiceDateTime = () => {
+  const now = new Date();
+  return {
+    date: now.toISOString().slice(0, 10),
+    time: `${padTimePart(now.getHours())}:${padTimePart(now.getMinutes())}`
+  };
+};
+
+const stableStringify = (value) => JSON.stringify(value, (key, val) => {
+  if (!val || typeof val !== 'object' || Array.isArray(val)) return val;
+  return Object.keys(val).sort().reduce((acc, itemKey) => {
+    acc[itemKey] = val[itemKey];
+    return acc;
+  }, {});
+});
+
 const calculateCartLine = (item) => {
   const qty = Number(item.qty ?? item.quantity ?? 0);
   const rate = Number(item.rate ?? item.price ?? item.sellingPrice ?? 0);
@@ -180,16 +198,15 @@ export default function ModernPOSBilling() {
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   
   // Invoice date/time (editable)
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const defaultDate = now.toISOString().slice(0, 10);
-  const defaultTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const [invoiceDate, setInvoiceDate] = useState(defaultDate);
-  const [invoiceTime, setInvoiceTime] = useState(defaultTime);
+  const initialInvoiceDateTime = useMemo(() => currentInvoiceDateTime(), []);
+  const [invoiceDate, setInvoiceDate] = useState(initialInvoiceDateTime.date);
+  const [invoiceTime, setInvoiceTime] = useState(initialInvoiceDateTime.time);
   const [resumedHoldId, setResumedHoldId] = useState(null);
   const [heldSnapshot, setHeldSnapshot] = useState(null);
   const [holdSnapshotDirty, setHoldSnapshotDirty] = useState(false);
-  const [lastManualEdit, setLastManualEdit] = useState(0);
+  const [resumedHoldMeta, setResumedHoldMeta] = useState(null);
+  const [showDiscardHoldDialog, setShowDiscardHoldDialog] = useState(false);
+  const [invoiceTimestampEdited, setInvoiceTimestampEdited] = useState(false);
   const [settings, setSettings] = useState(null);
   const [isEditingBill, setIsEditingBill] = useState(false);
   const [editingBillId, setEditingBillId] = useState(null);
@@ -199,22 +216,20 @@ export default function ModernPOSBilling() {
   const [pendingAutoPrint, setPendingAutoPrint] = useState(false);
   const isReadOnly = invoiceMode === 'view';
 
-  // Live date/time update: tick every second unless user edited recently
   useEffect(() => {
     api.get('/settings', { silent: true }).then((res) => setSettings(res.data.settings)).catch(() => {});
+  }, []);
+
+  // Keep untouched new invoices near the system clock without overwriting manual edits.
+  useEffect(() => {
     const id = setInterval(() => {
-      if (invoiceMode !== 'new') return;
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const sysDate = now.toISOString().slice(0, 10);
-      const sysTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-      // if user edited within last 5 seconds, avoid overwriting immediate manual edits
-      if (Date.now() - lastManualEdit < 5000) return;
-      setInvoiceDate((d) => (d === sysDate ? d : sysDate));
-      setInvoiceTime((t) => (t === sysTime ? t : sysTime));
-    }, 1000);
+      if (invoiceMode !== 'new' || invoiceTimestampEdited) return;
+      const current = currentInvoiceDateTime();
+      setInvoiceDate((date) => (date === current.date ? date : current.date));
+      setInvoiceTime((time) => (time === current.time ? time : current.time));
+    }, 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [lastManualEdit, invoiceMode]);
+  }, [invoiceMode, invoiceTimestampEdited]);
   
 
   // Refs
@@ -236,6 +251,7 @@ export default function ModernPOSBilling() {
   const handlePrintRef = useRef(() => {});
   const handleNewBillRef = useRef(() => {});
   const handleResumeRef = useRef(() => {});
+  const holdBaselineRef = useRef('');
 
   /**
    * Initialize keyboard shortcuts
@@ -243,11 +259,6 @@ export default function ModernPOSBilling() {
   // KeyboardManager setup moved below after handler definitions to avoid TDZ
 
   // Listen for resume payload sent from main window (electron)
-  const hasCartItems = cart.some(
-    item => Number(item.qty || item.quantity || 0) > 0
-  );
-  const hasUnsavedChanges = hasCartItems && invoiceMode !== 'view';
-
   function getQueryParams() {
       const hash = window.location.hash;
 
@@ -258,10 +269,64 @@ export default function ModernPOSBilling() {
       return new URLSearchParams(window.location.search);
   }
 
-  useEffect(() => {
-    const params = getQueryParams();
-    const windowId = params.get('windowId');
+  const makeHoldFingerprintFromState = (state) => stableStringify({
+    invoiceDate: state.invoiceDate,
+    invoiceTime: state.invoiceTime,
+    customerName: String(state.customerName || '').trim(),
+    customerMobile: String(state.customerMobile || '').trim(),
+    paymentMethod: normalizePaymentMode(state.paymentMethod),
+    discountPercent: Number(state.discountPercent || 0),
+    discountAmount: Number(state.discountAmount || 0),
+    amountPaid: Number(state.amountPaid || 0),
+    cashReceived: String(state.cashReceived || ''),
+    splitPayments: (state.splitPayments || []).map((entry) => ({
+      method: normalizePaymentMode(entry.method),
+      amount: String(entry.amount || ''),
+      reference: String(entry.reference || '')
+    })),
+    cart: (state.cart || []).map((item) => ({
+      productId: String(item.mongoId || item._id || item.productId || ''),
+      productIdNumber: item.productIdNumber ?? item.productId,
+      productName: item.productName || item.name || '',
+      qty: Number(item.qty ?? item.quantity ?? 0),
+      price: Number(item.price ?? item.rate ?? item.sellingPrice ?? 0),
+      discount: Number(item.discount || 0),
+      discountPercent: Number(item.discountPercent || 0),
+      gst: Number(item.gst ?? item.gstRate ?? 0),
+      gstInclusive: Boolean(item.gstInclusive),
+      remarks: item.remarks || '',
+      batch: item.batch || '',
+      expiry: item.expiry || ''
+    }))
+  });
 
+  const makeHoldWorkingCopyFingerprint = () => makeHoldFingerprintFromState({
+    invoiceDate,
+    invoiceTime,
+    customerName,
+    customerMobile,
+    paymentMethod,
+    discountPercent,
+    discountAmount,
+    amountPaid,
+    cashReceived,
+    splitPayments,
+    cart
+  });
+
+  const resumedHoldHasUnsavedChanges = () => {
+    if (!resumedHoldId) return false;
+    return holdBaselineRef.current !== makeHoldWorkingCopyFingerprint();
+  };
+
+  const hasCartItems = cart.some(
+    item => Number(item.qty || item.quantity || 0) > 0
+  );
+  const hasUnsavedChanges = invoiceMode === 'hold'
+    ? resumedHoldHasUnsavedChanges()
+    : hasCartItems && invoiceMode !== 'view';
+
+  useEffect(() => {
     console.log("Window ID:", windowId);
 
     if (window.electronAPI?.sendBillingEvent && windowId) {
@@ -369,6 +434,7 @@ export default function ModernPOSBilling() {
 }, [customerName, allCustomers]);
 
   const selectCustomerSuggestion = (customer) => {
+      markHoldWorkingCopyChanged();
       setCustomerName(customer.name || '');
       setCustomerMobile(customer.mobile || '');
       setCustomerSuggestions([]);
@@ -397,7 +463,7 @@ export default function ModernPOSBilling() {
     }
   };
 
-  const normalizePaymentMode = (value) => {
+  function normalizePaymentMode(value) {
     const normalized = String(value || 'cash').trim().toLowerCase();
     if (normalized === 'upi') return 'upi';
     if (normalized === 'card') return 'card';
@@ -420,6 +486,41 @@ export default function ModernPOSBilling() {
       { method: 'upi', amount: '', reference: '' },
       { method: 'card', amount: '', reference: '' }
     ]);
+  }
+
+  const resetInvoiceTimestamp = () => {
+    const current = currentInvoiceDateTime();
+    setInvoiceDate(current.date);
+    setInvoiceTime(current.time);
+    setInvoiceTimestampEdited(false);
+  };
+
+  const resetBillingStateForNextInvoice = ({ showToast = false } = {}) => {
+    setCart([]);
+    setCustomerName('');
+    setCustomerMobile('');
+    setDiscountPercent(0);
+    setDiscountAmount(0);
+    resetPaymentState();
+    setSelectedIndex(-1);
+    setEditingCartIndex(null);
+    setResumedHoldId(null);
+    setHeldSnapshot(null);
+    setResumedHoldMeta(null);
+    holdBaselineRef.current = '';
+    setHoldSnapshotDirty(false);
+    setIsEditingBill(false);
+    setEditingBillId(null);
+    setEditingInvoiceNumber('');
+    setInvoiceMode('new');
+    setLoadedBill(null);
+    resetInvoiceTimestamp();
+    setTimeout(() => entryRef.current?.focusProductId(), 50);
+    if (showToast) toast('New bill started');
+  };
+
+  const markHoldWorkingCopyChanged = () => {
+    if (invoiceMode === 'hold') setHoldSnapshotDirty(true);
   };
 
   const normalizedSplitPayments = (splitPayments || [])
@@ -433,14 +534,17 @@ export default function ModernPOSBilling() {
   const splitPaidAmount = normalizedSplitPayments.reduce((sum, entry) => sum + entry.amount, 0);
 
   const updateSplitPayment = (index, patch) => {
+    markHoldWorkingCopyChanged();
     setSplitPayments((prev) => prev.map((entry, i) => i === index ? { ...entry, ...patch } : entry));
   };
 
   const addSplitPaymentRow = () => {
+    markHoldWorkingCopyChanged();
     setSplitPayments((prev) => [...prev, { method: 'cash', amount: '', reference: '' }]);
   };
 
   const removeSplitPaymentRow = (index) => {
+    markHoldWorkingCopyChanged();
     setSplitPayments((prev) => prev.length <= 1 ? prev : prev.filter((_, i) => i !== index));
   };
 
@@ -484,13 +588,40 @@ export default function ModernPOSBilling() {
         // Item exists with same price, update quantity
         const copy = [...prev];
         const current = copy[existing];
+        
         const nextQty = Number(current.qty ?? current.quantity ?? 0) + Number(item.qty ?? item.quantity ?? 0);
+        const availableStock = Number(current.stock ?? item.stock ?? 0);
+
+        if (
+          !item.allowNegativeStock &&
+          availableStock > 0 &&
+          nextQty > availableStock
+        ) {
+          toast.error(
+              `Only ${availableStock} ${current.unit || ""} available in stock`
+          );
+
+          return prev;
+        }
         copy[existing] = withCartLineTotals({
           ...current,
           qty: nextQty,
           quantity: nextQty
         });
         return copy;
+      }
+      const availableStock = Number(item.stock ?? 0);
+
+      if (
+          !item.allowNegativeStock &&
+          availableStock > 0 &&
+          Number(item.qty) > availableStock
+      ) {
+          toast.error(
+              `Only ${availableStock} ${item.unit || ""} available in stock`
+          );
+
+          return prev;
       }
 
       // New item (different product or different price)
@@ -546,20 +677,8 @@ export default function ModernPOSBilling() {
     entryRef.current?.focusProductId?.();
   };
 
-  const discardResumedHold = async () => {
-    if (!resumedHoldId) return;
-    try {
-      await holdBillAPI.deleteHeldBill(resumedHoldId);
-    } catch (error) {
-      console.error('Failed to discard resumed held bill', error);
-    } finally {
-      setResumedHoldId(null);
-      setHeldSnapshot(null);
-      setHoldSnapshotDirty(false);
-    }
-  };
-
   const duplicateItem = (index) => {
+    setHoldSnapshotDirty(true);
     setCart((prev) => {
       const source = prev[index];
       if (!source) return prev;
@@ -571,6 +690,7 @@ export default function ModernPOSBilling() {
   };
 
   const moveItem = (index, direction) => {
+    setHoldSnapshotDirty(true);
     setCart((prev) => {
       const nextIndex = index + direction;
       if (nextIndex < 0 || nextIndex >= prev.length) return prev;
@@ -591,7 +711,7 @@ export default function ModernPOSBilling() {
     setCart([]);
     setSelectedIndex(-1);
     setHeldSnapshot(null);
-    setHoldSnapshotDirty(false);
+    setHoldSnapshotDirty(Boolean(resumedHoldId));
     entryRef.current?.focusProductId();
   };
 
@@ -671,8 +791,8 @@ export default function ModernPOSBilling() {
         : normalizedPaymentMethod === 'split'
         ? normalizedSplitPayments
         : [{ method: normalizedPaymentMethod, amount: paidAmount, reference: '' }],
-      invoiceNo: editingInvoiceNumber || undefined,
-      invoiceNumber: editingInvoiceNumber || undefined,
+      invoiceNo: invoiceMode === 'hold' ? undefined : editingInvoiceNumber || undefined,
+      invoiceNumber: invoiceMode === 'hold' ? undefined : editingInvoiceNumber || undefined,
 
       customerName: customerName || 'Walk-in Customer',
       customerMobile: customerMobile || null,
@@ -701,6 +821,7 @@ export default function ModernPOSBilling() {
 
   const makeHoldPayload = () => {
     const payload = makeBillPayload();
+    const holdReferenceNo = resumedHoldMeta?.invoiceNo || resumedHoldMeta?.holdNo || editingInvoiceNumber || null;
     const snapshotTotals = {
       subtotal: payload.subtotal,
       taxTotal: payload.taxTotal,
@@ -736,8 +857,8 @@ export default function ModernPOSBilling() {
     };
     const snapshot = {
       invoice: {
-        invoiceNo: payload.invoiceNo || null,
-        invoiceNumber: payload.invoiceNumber || null,
+        invoiceNo: holdReferenceNo,
+        invoiceNumber: holdReferenceNo,
         invoiceAt: payload.invoiceAt,
         mode: invoiceMode
       },
@@ -760,11 +881,14 @@ export default function ModernPOSBilling() {
       metadata: {
         source: 'modern-pos',
         heldAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         windowId
       }
     };
     return {
       ...payload,
+      invoiceNo: holdReferenceNo,
+      invoiceNumber: holdReferenceNo,
       snapshot,
       invoice: snapshot.invoice,
       customer: snapshot.customer,
@@ -856,26 +980,15 @@ export default function ModernPOSBilling() {
           console.log('Deleted held bill after save:', resumedHoldId);
           setResumedHoldId(null);
           setHeldSnapshot(null);
+          setResumedHoldMeta(null);
+          holdBaselineRef.current = '';
           setHoldSnapshotDirty(false);
         } catch (e) {
           console.error('Failed to delete held bill after save', e);
         }
       }
       if(clearAfterSave) {
-        setCart([]);
-        setCustomerName('');
-        setCustomerMobile('');
-        setDiscountPercent(0);
-        setDiscountAmount(0);
-        resetPaymentState();
-        setSelectedIndex(-1);
-        setEditingCartIndex(null);
-        setHeldSnapshot(null);
-        setHoldSnapshotDirty(false);
-        setIsEditingBill(false);
-        setEditingBillId(null);
-        setEditingInvoiceNumber('');
-        entryRef.current?.focusProductId();
+        resetBillingStateForNextInvoice();
       }
       return response.data;
     } catch (err) {
@@ -901,26 +1014,17 @@ export default function ModernPOSBilling() {
         toast.error(validationError);
         return;
       }
-      console.log('Holding bill payload', payload);
-      
-      await holdBillAPI.holdBill(payload);
-      
-      toast.success('Bill held successfully');
-      
-      // Reset after successful hold
-      setCart([]);
-      setCustomerName('');
-      setCustomerMobile('');
-      setDiscountPercent(0);
-      setDiscountAmount(0);
-      resetPaymentState();
-      setSelectedIndex(-1);
-      setEditingCartIndex(null);
-      setResumedHoldId(null);
-      setHeldSnapshot(null);
-      setHoldSnapshotDirty(false);
-      
-      entryRef.current?.focusProductId();
+      console.log(resumedHoldId ? 'Updating held bill payload' : 'Holding bill payload', payload);
+
+      if (resumedHoldId) {
+        await holdBillAPI.updateHeldBill(resumedHoldId, payload);
+        toast.success('Hold Bill Updated Successfully');
+      } else {
+        await holdBillAPI.holdBill(payload);
+        toast.success('Bill held successfully');
+      }
+
+      resetBillingStateForNextInvoice();
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to hold bill');
@@ -938,7 +1042,8 @@ export default function ModernPOSBilling() {
 
     try {
       let saleToPrint;
-      if (invoiceMode === 'new') {
+      const savedDuringPrint = invoiceMode === 'new' || invoiceMode === 'hold';
+      if (savedDuringPrint) {
         const saved = await handleSave({ clearAfterSave: false });
         if (!saved) return;
         saleToPrint = saved.bill || saved.sale || saved;
@@ -960,6 +1065,9 @@ export default function ModernPOSBilling() {
 
       if (!html || html.trim().length < 50) {
         toast.error('Invoice preview is empty. Nothing was printed.');
+        if (savedDuringPrint) {
+          loadHistoricalInvoice(saleToPrint, 'view');
+        }
         return;
       }
 
@@ -996,8 +1104,11 @@ export default function ModernPOSBilling() {
             paperWidth: paperWidth || settings?.receiptWidth || settings?.thermalPaperWidth || '80mm',
             success: false,
             error: result?.error || 'Unknown printer error',
-            duplicateCopy: invoiceMode !== 'new'
+            duplicateCopy: !savedDuringPrint
           }).catch(() => {});
+          if (savedDuringPrint) {
+            loadHistoricalInvoice(saleToPrint, 'view');
+          }
           return;
       }
 
@@ -1006,10 +1117,10 @@ export default function ModernPOSBilling() {
         printer: settings?.printerName || 'default',
         paperWidth: paperWidth || settings?.receiptWidth || settings?.thermalPaperWidth || '80mm',
         success: true,
-        duplicateCopy: invoiceMode !== 'new'
+        duplicateCopy: !savedDuringPrint
       }).catch(() => {});
 
-      if (invoiceMode === 'new') handleNewBill();
+      if (savedDuringPrint) resetBillingStateForNextInvoice();
 
       toast.success('Invoice sent to printer');
     } catch (err) {
@@ -1026,26 +1137,27 @@ export default function ModernPOSBilling() {
       const confirmed = window.confirm('Clear current bill and start new?');
       if (!confirmed) return;
     }
-    if (resumedHoldId) await discardResumedHold();
-    
-    setCart([]);
-    setCustomerName('');
-    setCustomerMobile('');
-    setDiscountPercent(0);
-    setDiscountAmount(0);
-    resetPaymentState();
-    setSelectedIndex(-1);
-    setEditingCartIndex(null);
-    setResumedHoldId(null);
-    setHeldSnapshot(null);
-    setHoldSnapshotDirty(false);
-    setIsEditingBill(false);
-    setEditingBillId(null);
-    setEditingInvoiceNumber('');
-    setInvoiceMode('new');
-    setLoadedBill(null);
-    entryRef.current?.focusProductId();
-    toast('New bill started');
+    resetBillingStateForNextInvoice({ showToast: true });
+  };
+
+  const closeBillingWindow = () => {
+    if (window.electronAPI?.sendBillingEvent && windowId) {
+      window.electronAPI.sendBillingEvent(`billing-cart-state-${windowId}`, false);
+    }
+    window.close();
+  };
+
+  const handleCloseBill = () => {
+    if (invoiceMode === 'hold' && resumedHoldId && resumedHoldHasUnsavedChanges()) {
+      setShowDiscardHoldDialog(true);
+      return;
+    }
+    closeBillingWindow();
+  };
+
+  const confirmDiscardResumedHoldChanges = () => {
+    setShowDiscardHoldDialog(false);
+    closeBillingWindow();
   };
 
   const loadHistoricalInvoice = (billLike, mode = 'view') => {
@@ -1077,6 +1189,8 @@ export default function ModernPOSBilling() {
     setEditingBillId(bill._id || null);
     setEditingInvoiceNumber(bill.invoiceNo || bill.invoiceNumber || '');
     setResumedHoldId(null);
+    setResumedHoldMeta(null);
+    holdBaselineRef.current = '';
     setEditingCartIndex(null);
 
     if (bill.invoiceAt || bill.createdAt) {
@@ -1084,7 +1198,8 @@ export default function ModernPOSBilling() {
         const at = new Date(bill.invoiceAt || bill.createdAt);
         if (!isNaN(at.getTime())) {
           setInvoiceDate(at.toISOString().slice(0, 10));
-          setInvoiceTime(`${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`);
+          setInvoiceTime(`${padTimePart(at.getHours())}:${padTimePart(at.getMinutes())}`);
+          setInvoiceTimestampEdited(true);
         }
       } catch (e) {}
     }
@@ -1133,6 +1248,28 @@ export default function ModernPOSBilling() {
     const paymentDetails = payment.paymentDetails?.length ? payment.paymentDetails : payload.paymentDetails?.length ? payload.paymentDetails : [
       { method: restoredPaymentMethod, amount: Number(payment.paidAmount ?? payment.amountPaid ?? payload.paidAmount ?? payload.amountPaid ?? 0), reference: '' }
     ];
+    const restoredSplitPayments = (paymentDetails || []).map((entry) => ({
+      method: normalizePaymentMode(entry.method || entry.paymentMethod),
+      amount: entry.amount || '',
+      reference: entry.reference || ''
+    }));
+    let restoredDate = '';
+    let restoredTime = '';
+    const restoredInvoiceAt = snapshot.invoice?.invoiceAt || payload.invoiceAt;
+    if (restoredInvoiceAt) {
+      try {
+        const at = new Date(restoredInvoiceAt);
+        if (!isNaN(at.getTime())) {
+          restoredDate = at.toISOString().slice(0,10);
+          restoredTime = `${padTimePart(at.getHours())}:${padTimePart(at.getMinutes())}`;
+        }
+      } catch (e) {}
+    }
+    if (!restoredDate || !restoredTime) {
+      const current = currentInvoiceDateTime();
+      restoredDate = current.date;
+      restoredTime = current.time;
+    }
 
     setCart(restoredCart);
     setCustomerName(customer.name || payload.customerName || '');
@@ -1140,11 +1277,7 @@ export default function ModernPOSBilling() {
     setPaymentMethod(restoredPaymentMethod);
     setAmountPaid(Number(payment.paidAmount ?? payment.amountPaid ?? payload.paidAmount ?? payload.amountPaid ?? 0));
     setCashReceived(payment.cashReceived != null ? String(payment.cashReceived) : payload.cashReceived ? String(payload.cashReceived) : '');
-    setSplitPayments((paymentDetails || []).map((entry) => ({
-      method: normalizePaymentMode(entry.method || entry.paymentMethod),
-      amount: entry.amount || '',
-      reference: entry.reference || ''
-    })));
+    setSplitPayments(restoredSplitPayments);
     setDiscountPercent(
       Number(totals.subtotal || 0) > 0
         ? Number(totals.discountPercent || 0)
@@ -1153,24 +1286,34 @@ export default function ModernPOSBilling() {
     setDiscountAmount(Number(totals.discountAmount || 0));
     setResumedHoldId(payload._id || payload.id || null);
     setHeldSnapshot({ ...snapshot, customer, totals, payment });
+    setResumedHoldMeta({
+      holdNo: payload.invoiceNo || snapshot.invoice?.invoiceNo || payload.holdNo || payload._id || payload.id || '',
+      invoiceNo: payload.invoiceNo || snapshot.invoice?.invoiceNo || '',
+      createdAt: payload.createdAt || snapshot.metadata?.heldAt || payload.invoiceAt || null,
+      updatedAt: payload.updatedAt || snapshot.metadata?.updatedAt || snapshot.metadata?.heldAt || payload.createdAt || null
+    });
     setHoldSnapshotDirty(false);
     setInvoiceMode('hold');
     setLoadedBill(null);
     setIsEditingBill(false);
     setEditingBillId(null);
     setEditingInvoiceNumber(payload.invoiceNo || snapshot.invoice?.invoiceNo || '');
-
-    // restore invoice date/time if present
-    const restoredInvoiceAt = snapshot.invoice?.invoiceAt || payload.invoiceAt;
-    if (restoredInvoiceAt) {
-      try {
-        const at = new Date(restoredInvoiceAt);
-        if (!isNaN(at.getTime())) {
-          setInvoiceDate(at.toISOString().slice(0,10));
-          setInvoiceTime(`${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}`);
-        }
-      } catch (e) {}
-    }
+    setInvoiceDate(restoredDate);
+    setInvoiceTime(restoredTime);
+    setInvoiceTimestampEdited(true);
+    holdBaselineRef.current = makeHoldFingerprintFromState({
+      invoiceDate: restoredDate,
+      invoiceTime: restoredTime,
+      customerName: customer.name || payload.customerName || '',
+      customerMobile: customer.mobile || customer.phone || payload.customerMobile || '',
+      paymentMethod: restoredPaymentMethod,
+      discountPercent: Number(totals.subtotal || 0) > 0 ? Number(totals.discountPercent || 0) : 0,
+      discountAmount: Number(totals.discountAmount || 0),
+      amountPaid: Number(payment.paidAmount ?? payment.amountPaid ?? payload.paidAmount ?? payload.amountPaid ?? 0),
+      cashReceived: payment.cashReceived != null ? String(payment.cashReceived) : payload.cashReceived ? String(payload.cashReceived) : '',
+      splitPayments: restoredSplitPayments,
+      cart: restoredCart
+    });
 
     setShowHoldBillsModal(false);
     setSelectedIndex(-1);
@@ -1223,12 +1366,13 @@ export default function ModernPOSBilling() {
       resumeHoldBill: () => { if (invoiceMode === 'new') setShowHoldBillsModal(true); },
       deleteItem: () => { if (!isReadOnly) removeSelectedRef.current?.(); },
       save: () => { if (invoiceMode === 'new' || invoiceMode === 'hold') handleSaveRef.current?.(); else if (invoiceMode === 'edit') handleUpdateBill(); },
-      hold: () => { if (invoiceMode === 'new') handleHoldRef.current?.(); },
-      saveDraft: () => { if (invoiceMode === 'new') handleHoldRef.current?.(); },
+      hold: () => { if (invoiceMode === 'new' || invoiceMode === 'hold') handleHoldRef.current?.(); },
+      saveDraft: () => { if (invoiceMode === 'new' || invoiceMode === 'hold') handleHoldRef.current?.(); },
       salesReturn: () => { window.location.hash = '#/sales-returns'; },
       print: () => handlePrintRef.current?.(),
       printInvoice: () => handlePrintRef.current?.(),
-      clearRow: () => editingCartIndex != null ? cancelCartEdit() : entryRef.current?.focusProductId(),
+      clearRow: () => invoiceMode === 'hold' ? handleCloseBill() : editingCartIndex != null ? cancelCartEdit() : entryRef.current?.focusProductId(),
+      closeBill: () => handleCloseBill(),
       selectNext: () => setSelectedIndex(i => Math.min(Math.max(0, i + 1), Math.max(0, latestCartLenRef.current - 1))),
       selectPrev: () => setSelectedIndex(i => Math.max(0, i - 1))
     };
@@ -1250,6 +1394,7 @@ export default function ModernPOSBilling() {
         print: (...args) => actionsRef.current.print?.(...args),
         printInvoice: (...args) => actionsRef.current.printInvoice?.(...args),
         clearRow: (...args) => actionsRef.current.clearRow?.(...args),
+        closeBill: (...args) => actionsRef.current.closeBill?.(...args),
         selectNext: (...args) => actionsRef.current.selectNext?.(...args),
         selectPrev: (...args) => actionsRef.current.selectPrev?.(...args)
       });
@@ -1259,8 +1404,9 @@ export default function ModernPOSBilling() {
 
     return () => {
       kmRef.current?.stop();
+      kmRef.current = null;
     };
-  }, [cart.length, selectedIndex, editingCartIndex, customerName, customerMobile, paymentMethod, discountPercent, discountAmount, invoiceMode]);
+  }, [cart, selectedIndex, editingCartIndex, customerName, customerMobile, paymentMethod, discountPercent, discountAmount, amountPaid, cashReceived, splitPayments, invoiceDate, invoiceTime, invoiceMode, resumedHoldId]);
 
   const computedTotals = useMemo(() => {
     const lines = cart.map(calculateCartLine);
@@ -1302,6 +1448,16 @@ export default function ModernPOSBilling() {
       : 'border-slate-200 bg-slate-50 text-slate-700';
   const itemCount = cart.length;
   const quantity = cart.reduce((sum, it) => sum + parseFloat(it.qty || 0), 0);
+  const holdBannerText = resumedHoldMeta
+    ? (
+      <span className="flex flex-col leading-tight">
+        <span>RESUMED HOLD BILL</span>
+        <span>Hold No : {resumedHoldMeta.holdNo || resumedHoldId}</span>
+        <span>Created : {dateTime(resumedHoldMeta.createdAt)}</span>
+        <span>Last Updated : {dateTime(resumedHoldMeta.updatedAt)}</span>
+      </span>
+    )
+    : 'Resumed Hold Bill';
   const liveInvoiceSale = {
     invoiceNumber: 'AUTO',
     invoiceAt: `${invoiceDate}T${invoiceTime}`,
@@ -1327,17 +1483,17 @@ export default function ModernPOSBilling() {
             <h1 className="text-lg font-bold leading-tight sm:text-xl">POS Billing System</h1>
             <p className="text-xs leading-tight text-blue-100 sm:text-sm">Keyboard-First Modern Interface</p>
             <div className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${invoiceMode === 'view' ? 'bg-cyan-500' : invoiceMode === 'edit' || invoiceMode === 'hold' ? 'bg-amber-500' : 'bg-emerald-500'}`}>
-              {invoiceMode === 'view' ? `Viewing Invoice ${editingInvoiceNumber}` : invoiceMode === 'edit' ? `Editing Invoice ${editingInvoiceNumber}` : invoiceMode === 'hold' ? 'Resumed Hold Bill' : 'New Invoice'}
+              {invoiceMode === 'view' ? `Viewing Invoice ${editingInvoiceNumber}` : invoiceMode === 'edit' ? `Editing Invoice ${editingInvoiceNumber}` : invoiceMode === 'hold' ? holdBannerText : 'New Invoice'}
             </div>
           </div>
           <div className="flex flex-1 flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm">
             <div className="flex shrink-0 items-center gap-2">
               <label className="text-xs font-medium text-blue-100">Date:</label>
-              <input disabled={invoiceMode !== 'new'} type="date" value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setLastManualEdit(Date.now()); }} className="rounded px-2 py-1 text-sm text-black disabled:opacity-70" />
+              <input disabled={isReadOnly} type="date" value={invoiceDate} onChange={(e) => { setInvoiceDate(e.target.value); setInvoiceTimestampEdited(true); markHoldWorkingCopyChanged(); }} className="rounded px-2 py-1 text-sm text-black disabled:opacity-70" />
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <label className="text-xs font-medium text-blue-100">Time:</label>
-              <input disabled={invoiceMode !== 'new'} type="time" value={invoiceTime} onChange={(e) => { setInvoiceTime(e.target.value); setLastManualEdit(Date.now()); }} className="rounded px-2 py-1 text-sm text-black disabled:opacity-70" />
+              <input disabled={isReadOnly} type="time" value={invoiceTime} onChange={(e) => { setInvoiceTime(e.target.value); setInvoiceTimestampEdited(true); markHoldWorkingCopyChanged(); }} className="rounded px-2 py-1 text-sm text-black disabled:opacity-70" />
             </div>
             <div className="min-w-[150px] shrink-0 text-right">
               <div className="text-2xl font-bold leading-none sm:text-3xl">{currency(displayedTotal)}</div>
@@ -1370,6 +1526,7 @@ export default function ModernPOSBilling() {
                 readOnly={isReadOnly}
                 onRemove={(i) => {
                   if (isReadOnly) return;
+                  setHoldSnapshotDirty(true);
                   setCart((p) => p.filter((_, idx) => idx !== i));
                   setSelectedIndex(-1);
                   setEditingCartIndex(null);
@@ -1389,9 +1546,9 @@ export default function ModernPOSBilling() {
 
         <button
           onClick={handleHold}
-          className={`${invoiceMode !== 'new' ? 'hidden' : ''} flex-1 bg-yellow-500 text-white py-2.5 rounded-lg font-semibold`}
+          className={`${invoiceMode !== 'new' && invoiceMode !== 'hold' ? 'hidden' : ''} flex-1 bg-yellow-500 text-white py-2.5 rounded-lg font-semibold`}
         >
-        ⏸Hold
+        {invoiceMode === 'hold' ? 'Update Existing Hold Bill' : 'Create New Hold Bill'}
         </button>
 
         {invoiceMode === 'view' && <button onClick={() => { setInvoiceMode('edit'); setIsEditingBill(true); }} className="flex-1 bg-amber-500 text-white py-2.5 rounded-lg font-semibold">Edit</button>}
@@ -1403,9 +1560,7 @@ export default function ModernPOSBilling() {
           🖨Print
         </button>
         
-        {invoiceMode !== 'new' && <button onClick={async () => { if (handleHold) window.close(); }} className=" flex-1 bg-yellow-500 text-white py-2.5 rounded-lg font-semibold">⏸Hold</button>}
-
-        {invoiceMode !== 'new' && <button onClick={async () => { if (resumedHoldId) await discardResumedHold(); window.close(); }} className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-semibold">Close</button>}
+        {invoiceMode !== 'new' && <button onClick={handleCloseBill} className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-semibold">Close</button>}
       </div>
           
         </div>
@@ -1445,6 +1600,7 @@ export default function ModernPOSBilling() {
                       onChange={(e) => {
                           const value = e.target.value;
 
+                          markHoldWorkingCopyChanged();
                           setCustomerName(value);
                           setShowCustomerDropdown(true);
 
@@ -1532,7 +1688,7 @@ export default function ModernPOSBilling() {
                     type="tel"
                     placeholder="Customer mobile (optional)"
                     value={customerMobile}
-                    onChange={(e) => setCustomerMobile(e.target.value)}
+                    onChange={(e) => { markHoldWorkingCopyChanged(); setCustomerMobile(e.target.value); }}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                   </div>
@@ -1544,6 +1700,7 @@ export default function ModernPOSBilling() {
                     value={paymentMethod}
                     onChange={(e) => {
                       const nextMethod = e.target.value;
+                      markHoldWorkingCopyChanged();
                       setPaymentMethod(nextMethod);
                       if (normalizePaymentMode(nextMethod) !== 'cash') setCashReceived('');
                     }}
@@ -1570,7 +1727,7 @@ export default function ModernPOSBilling() {
                     max="100"
                     step="0.5"
                     value={discountPercent}
-                    onChange={(e) => setDiscountPercent(Number(e.target.value))}
+                    onChange={(e) => { markHoldWorkingCopyChanged(); setDiscountPercent(Number(e.target.value)); }}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1582,7 +1739,7 @@ export default function ModernPOSBilling() {
                     min="0"
                     step="0.01"
                     value={discountAmount}
-                    onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)))}
+                    onChange={(e) => { markHoldWorkingCopyChanged(); setDiscountAmount(Math.max(0, Number(e.target.value))); }}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1632,7 +1789,7 @@ export default function ModernPOSBilling() {
                   min="0"
                   step="0.01"
                   value={isCashPayment ? displayedTotal.toFixed(2) : amountPaid}
-                  onChange={(e) => setAmountPaid(Math.max(0, Number(e.target.value)))}
+                  onChange={(e) => { markHoldWorkingCopyChanged(); setAmountPaid(Math.max(0, Number(e.target.value))); }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && isCashPayment) {
                       e.preventDefault();
@@ -1657,6 +1814,7 @@ export default function ModernPOSBilling() {
                     value={cashReceived}
                     onChange={(e) => {
                       const value = e.target.value;
+                      markHoldWorkingCopyChanged();
                       setCashReceived(value === '' ? '' : String(Math.max(0, Number(value))));
                     }}
                     onKeyDown={(e) => {
@@ -1731,6 +1889,21 @@ export default function ModernPOSBilling() {
           </div>
         </div>
       )}
+
+      {showDiscardHoldDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-bold text-slate-900">Discard Changes?</h2>
+            <p className="mt-2 text-sm text-slate-600">You have unsaved changes to this held bill.</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={confirmDiscardResumedHoldChanges} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white">Yes - Close Without Saving</button>
+              <button type="button" onClick={() => setShowDiscardHoldDialog(false)} className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white">No - Continue Editing</button>
+              <button type="button" onClick={() => setShowDiscardHoldDialog(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hold Bills modal */}
       <HoldBillsModal
         isOpen={showHoldBillsModal}

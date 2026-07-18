@@ -434,12 +434,6 @@ const highlightMatch = (text, query) => {
     const amount = gstInclusive ? afterDiscount - gstAmount : afterDiscount;
     const netAmount = gstInclusive ? afterDiscount : afterDiscount + gstAmount;
 
-    // Validate stock before adding
-    if (!allowNegativeStock && stock != null && quantity > parseFloat(stock)) {
-      toast.error('Quantity exceeds available stock');
-      return;
-    }
-
     const cartItem = {
       _id: mongoId,
 

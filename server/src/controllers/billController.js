@@ -233,6 +233,51 @@ function buildHoldSnapshot(body, user) {
   };
 }
 
+function buildHoldDocumentPayload(snapshot, user) {
+  const { cart, totals, payment, customer, invoice } = snapshot;
+  const payload = {
+    snapshot,
+    invoice: snapshot.invoice,
+    customer: snapshot.customer,
+    cart: snapshot.cart,
+    totals: snapshot.totals,
+    payment: snapshot.payment,
+    settings: snapshot.settings,
+    uiState: snapshot.uiState,
+    metadata: snapshot.metadata,
+    items: cart,
+    subtotal: totals.subtotal || 0,
+    taxTotal: totals.taxTotal || 0,
+    discount: totals.discount || 0,
+    discountPercent: totals.discountPercent || 0,
+    discountAmount: totals.discountAmount || 0,
+    total: totals.total || 0,
+    paymentMethod: payment.paymentMethod || payment.method || 'Cash',
+    paymentDetails: payment.paymentDetails || [],
+    cashReceived: payment.cashReceived || 0,
+    changeReturn: payment.changeReturn || 0,
+    paidAmount: payment.paidAmount || payment.amountPaid || 0,
+    amountPaid: payment.amountPaid || payment.paidAmount || 0,
+    balanceAmount: payment.balanceAmount || payment.balanceDue || 0,
+    balanceDue: payment.balanceDue || payment.balanceAmount || 0,
+    outstanding: payment.outstanding || payment.balanceAmount || 0,
+    creditAmount: payment.creditAmount || 0,
+    customerName: customer.name || 'Walk-in Customer',
+    customerMobile: customer.mobile || null,
+    invoiceNo: invoice.invoiceNo || invoice.invoiceNumber || null,
+    heldBy: user?._id
+  };
+
+  if (invoice.invoiceAt) {
+    const at = new Date(invoice.invoiceAt);
+    if (!isNaN(at.getTime())) payload.invoiceAt = at;
+  } else {
+    payload.invoiceAt = undefined;
+  }
+
+  return payload;
+}
+
 function isWholeNumber(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
 }
@@ -863,54 +908,34 @@ export const getTodaysSales = asyncHandler(async (req, res) => {
 // Hold bill
 export const holdBill = asyncHandler(async (req, res) => {
   const snapshot = buildHoldSnapshot(req.body, req.user);
-  const { cart, totals, payment, customer, invoice } = snapshot;
+  const { cart } = snapshot;
 
   if (!cart || cart.length === 0) {
     throw new ApiError(400, 'Held bill must contain at least one item');
   }
 
-  const payload = {
-    snapshot,
-    invoice: snapshot.invoice,
-    customer: snapshot.customer,
-    cart: snapshot.cart,
-    totals: snapshot.totals,
-    payment: snapshot.payment,
-    settings: snapshot.settings,
-    uiState: snapshot.uiState,
-    metadata: snapshot.metadata,
-    items: cart,
-    subtotal: totals.subtotal || 0,
-    taxTotal: totals.taxTotal || 0,
-    discount: totals.discount || 0,
-    discountPercent: totals.discountPercent || 0,
-    discountAmount: totals.discountAmount || 0,
-    total: totals.total || 0,
-    paymentMethod: payment.paymentMethod || payment.method || 'Cash',
-    paymentDetails: payment.paymentDetails || [],
-    cashReceived: payment.cashReceived || 0,
-    changeReturn: payment.changeReturn || 0,
-    paidAmount: payment.paidAmount || payment.amountPaid || 0,
-    amountPaid: payment.amountPaid || payment.paidAmount || 0,
-    balanceAmount: payment.balanceAmount || payment.balanceDue || 0,
-    balanceDue: payment.balanceDue || payment.balanceAmount || 0,
-    outstanding: payment.outstanding || payment.balanceAmount || 0,
-    creditAmount: payment.creditAmount || 0,
-    customerName: customer.name || 'Walk-in Customer',
-    customerMobile: customer.mobile || null,
-    invoiceNo: invoice.invoiceNo || invoice.invoiceNumber || null,
-    heldBy: req.user?._id
-  };
-
-  // include invoice date/time if provided
-  if (invoice.invoiceAt) {
-    const at = new Date(invoice.invoiceAt);
-    if (!isNaN(at.getTime())) payload.invoiceAt = at;
-  }
+  const payload = buildHoldDocumentPayload(snapshot, req.user);
 
   const heldBill = await HoldBill.create(payload);
 
   res.status(201).json({ heldBill, message: 'Bill held successfully' });
+});
+
+// Update held bill
+export const updateHeldBill = asyncHandler(async (req, res) => {
+  const existing = await HoldBill.findById(req.params.id);
+  if (!existing) throw new ApiError(404, 'Held bill not found');
+
+  const snapshot = buildHoldSnapshot(req.body, req.user);
+  if (!snapshot.cart || snapshot.cart.length === 0) {
+    throw new ApiError(400, 'Held bill must contain at least one item');
+  }
+
+  const payload = buildHoldDocumentPayload(snapshot, req.user);
+  Object.assign(existing, payload);
+  await existing.save();
+
+  res.json({ heldBill: existing, message: 'Hold Bill Updated Successfully' });
 });
 
 // Get held bills

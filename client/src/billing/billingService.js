@@ -204,6 +204,9 @@ export const holdBillAPI = {
   // Save held bill
   holdBill: (data) => api.post('/bills/hold', data),
 
+  // Update existing held bill
+  updateHeldBill: (heldBillId, data) => api.put(`/bills/hold/${heldBillId}`, data),
+
   // Get held bills
   getHeldBills: (params = {}) => api.get('/bills/hold/all', { params }),
 

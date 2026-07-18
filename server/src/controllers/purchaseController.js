@@ -22,6 +22,7 @@ export const purchaseRules = [
   body('items.*.purchasePrice').optional().isFloat({ min: 0 }),
   body('items.*.gstRate').optional().isFloat({ min: 0, max: 100 }),
   body('items.*.gst').optional().isFloat({ min: 0, max: 100 }),
+  body('items.*.gstInclusive').optional().isBoolean(),
   body('items.*.discountPercent').optional().isFloat({ min: 0, max: 100 }),
   body('items.*.discountAmount').optional().isFloat({ min: 0 }),
   body('paidAmount').optional().isFloat({ min: 0 })
@@ -60,6 +61,57 @@ function isWholeNumber(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
 }
 
+function number(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function money(value) {
+  return Math.round(number(value) * 100) / 100;
+}
+
+function hasExplicitDiscountAmount(item) {
+  return item.discountAmount !== '' && item.discountAmount !== undefined && item.discountAmount !== null;
+}
+
+function calculatePurchaseLine(item, product = {}) {
+  const quantity = Math.max(number(item.quantity), 0);
+  const freeQuantity = Math.max(number(item.freeQuantity), 0);
+  const costPrice = Math.max(number(item.purchasePrice ?? item.costPrice), 0);
+  const gstRate = Math.max(number(item.gstRate ?? item.gst), 0);
+  const grossAmount = money(quantity * costPrice);
+  const discountPercent = Math.max(number(item.discountPercent), 0);
+  const percentDiscount = grossAmount * discountPercent / 100;
+  const discountAmount = money(Math.min(hasExplicitDiscountAmount(item) ? number(item.discountAmount) : percentDiscount, grossAmount));
+  const discountedAmount = money(Math.max(grossAmount - discountAmount, 0));
+  const gstInclusive = Boolean(item.gstInclusive ?? product.gstInclusive ?? false);
+  const gstAmount = money(gstInclusive && gstRate > 0
+    ? discountedAmount - discountedAmount / (1 + gstRate / 100)
+    : discountedAmount * gstRate / 100);
+  const taxableAmount = money(gstInclusive ? discountedAmount - gstAmount : discountedAmount);
+  const lineTotal = money(gstInclusive ? discountedAmount : taxableAmount + gstAmount);
+  const cgst = money(gstAmount / 2);
+  const sgst = money(gstAmount - cgst);
+
+  return {
+    quantity,
+    freeQuantity,
+    costPrice,
+    gstRate,
+    gstInclusive,
+    grossAmount,
+    discountPercent,
+    discountAmount,
+    taxableAmount,
+    gstAmount,
+    cgst,
+    sgst,
+    igst: 0,
+    lineTotal,
+    netAmount: lineTotal
+  };
+}
+
 async function resolvePurchaseItems(rawItems, settings) {
   const items = [];
 
@@ -90,16 +142,7 @@ async function resolvePurchaseItems(rawItems, settings) {
       });
     }
 
-    const costPrice = Number(item.purchasePrice ?? item.costPrice ?? 0);
-    const gstRate = Number(item.gstRate ?? item.gst ?? 0);
-    const freeQuantity = Number(item.freeQuantity || 0);
-    const discountPercent = Number(item.discountPercent || 0);
-    const gross = quantity * costPrice;
-    const percentDiscount = gross * discountPercent / 100;
-    const discountAmount = Number(item.discountAmount ?? percentDiscount);
-    const taxableAmount = Math.max(gross - discountAmount, 0);
-    const gstAmount = taxableAmount * gstRate / 100;
-    const lineTotal = taxableAmount + gstAmount;
+    const line = calculatePurchaseLine({ ...item, quantity }, product);
     items.push({
       product: product._id,
       name: product.name,
@@ -107,21 +150,26 @@ async function resolvePurchaseItems(rawItems, settings) {
       barcode: product.barcode,
       batchNo: item.batchNo,
       expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
-      quantity,
-      freeQuantity,
+      quantity: line.quantity,
+      freeQuantity: line.freeQuantity,
       unit: unit.name,
-      costPrice,
-      purchasePrice: costPrice,
-      gstRate,
-      gstAmount,
-      discountPercent,
-      discountAmount,
+      costPrice: line.costPrice,
+      purchasePrice: line.costPrice,
+      gstRate: line.gstRate,
+      gstInclusive: line.gstInclusive,
+      taxableAmount: line.taxableAmount,
+      gstAmount: line.gstAmount,
+      cgst: line.cgst,
+      sgst: line.sgst,
+      igst: line.igst,
+      discountPercent: line.discountPercent,
+      discountAmount: line.discountAmount,
       mrp: Number(item.mrp || product.mrp || 0),
       wholesalePrice: Number(item.wholesalePrice || product.wholesalePrice || 0),
       retailPrice: Number(item.retailPrice ?? item.sellingPrice ?? product.retailPrice ?? product.sellingPrice ?? 0),
       sellingPrice: Number(item.sellingPrice || product.sellingPrice || 0),
-      netAmount: lineTotal,
-      lineTotal
+      netAmount: line.netAmount,
+      lineTotal: line.lineTotal
     });
   }
 
@@ -143,15 +191,17 @@ async function recordSupplierPriceHistory(purchase) {
 }
 
 function summarizePurchase(items, body = {}) {
-  const subTotal = items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.costPrice || 0)), 0);
-  const gstTotal = items.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0);
-  const itemDiscount = items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0);
-  const discount = Number(body.discount ?? itemDiscount);
-  const freightCharges = Number(body.freightCharges || 0);
-  const beforeRound = subTotal + gstTotal - discount + freightCharges;
-  const roundOff = body.roundOff !== undefined ? Number(body.roundOff || 0) : 0;
-  const grandTotal = Math.max(beforeRound + roundOff, 0);
-  const amountPaid = Math.min(Number(body.amountPaid ?? body.paidAmount ?? 0), grandTotal);
+  const subTotal = money(items.reduce((sum, item) => {
+    const taxable = item.taxableAmount ?? (Number(item.quantity || 0) * Number(item.costPrice || item.purchasePrice || 0) - Number(item.discountAmount || 0));
+    return sum + Math.max(Number(taxable || 0), 0);
+  }, 0));
+  const gstTotal = money(items.reduce((sum, item) => sum + Number(item.gstAmount || 0), 0));
+  const discount = money(items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0));
+  const lineTotal = money(items.reduce((sum, item) => sum + Number(item.lineTotal ?? item.netAmount ?? 0), 0));
+  const freightCharges = money(body.freightCharges || 0);
+  const roundOff = body.roundOff !== undefined ? money(body.roundOff || 0) : 0;
+  const grandTotal = money(Math.max(lineTotal + freightCharges + roundOff, 0));
+  const amountPaid = money(Math.min(Number(body.amountPaid ?? body.paidAmount ?? 0), grandTotal));
   return {
     itemCount: items.length,
     totalQuantity: items.reduce((sum, item) => sum + Number(item.quantity || 0) + Number(item.freeQuantity || 0), 0),

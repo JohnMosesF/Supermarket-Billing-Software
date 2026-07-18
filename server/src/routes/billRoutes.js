@@ -21,6 +21,7 @@ billRoutes.delete('/deleted/:id', billController.permanentlyDeleteDeletedBill);
 billRoutes.post('/hold', billController.holdBill);
 billRoutes.get('/hold/all', billController.getHeldBills);
 billRoutes.get('/hold/:id', billController.resumeHeldBill);
+billRoutes.put('/hold/:id', billController.updateHeldBill);
 billRoutes.delete('/hold/:id', billController.deleteHeldBill);
 
 // Dynamic bill routes must come after /hold and /deleted routes.

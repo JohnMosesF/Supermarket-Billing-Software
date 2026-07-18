@@ -225,6 +225,52 @@ function footerLines(invoice, settings) {
   ]);
 }
 
+function getQrValue(settings = {}) {
+  return String(
+    settings.qrCodeValue ||
+    settings.qrValue ||
+    settings.paymentQrValue ||
+    settings.paymentQr ||
+    settings.qrCode ||
+    ''
+  ).trim();
+}
+
+function getQrImage(settings = {}) {
+  return String(
+    settings.qrCodeImage ||
+    settings.qrImage ||
+    settings.paymentQrImage ||
+    settings.paymentQrUrl ||
+    settings.qrCodeUrl ||
+    ''
+  ).trim();
+}
+
+function getUpiQrValue(settings = {}) {
+  const upiId = String(settings.upiId || '').trim();
+  if (!settings.upiQr || !upiId) return '';
+  const payeeName = String(settings.upiName || settings.storeName || '').trim();
+  const params = new URLSearchParams({ pa: upiId });
+  if (payeeName) params.set('pn', payeeName);
+  return `upi://pay?${params.toString()}`;
+}
+
+function qrSection(settings = {}) {
+  const qrEnabled = Boolean(settings.enableQRCode || settings.showQRCode);
+  if (!qrEnabled) return '';
+
+  const image = getQrImage(settings);
+  const value = getQrValue(settings) || getUpiQrValue(settings);
+  if (!image && !value) return '';
+
+  if (image) {
+    return `<div class="qr-section"><img class="qr-image" src="${escapeHtml(image)}" alt="Payment QR" /></div>`;
+  }
+
+  return `<div class="qr-section"><div class="qr-value">${escapeHtml(value)}</div></div>`;
+}
+
 function taxSummaryRows(invoice, settings) {
   const byRate = new Map();
   for (const item of invoice.items) {
@@ -300,7 +346,7 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
   const splitPaymentRows = invoice.paymentDetails.length > 1
     ? `${dividerMarkup(settings)}<div class="section-title">PAYMENT SPLIT</div>${invoice.paymentDetails.map((entry) => infoRow(String(entry.method).toUpperCase(), money(entry.amount, settings.currencySymbol))).join('')}`
     : '';
-  const qrPlaceholder = rawSettings.showQrPlaceholder === false ? '' : '<div class="qr-placeholder">QR</div>';
+  const paymentQr = qrSection(rawSettings);
 
   return `<div class="receipt receipt-${escapeHtml(settings.receiptWidth.replace('mm', ''))}">
     <header class="receipt-header ${settings.centerHeader ? 'center' : ''}">
@@ -346,7 +392,7 @@ export function makeReceiptBodyHtml(sale = {}, rawSettings = {}) {
     ${amountWords}
     ${splitPaymentRows}
     ${taxSummary}
-    ${qrPlaceholder}
+    ${paymentQr}
 
     ${footer.length || rawSettings.signatureLine ? dividerMarkup(settings) : ''}
     <footer class="receipt-footer">
@@ -408,7 +454,9 @@ export function makeReceiptCss(rawSettings = {}, options = {}) {
     .tax-summary th, .tax-summary td { padding: 0.75mm 0; text-align: left; }
     .tax-summary .num, .tax-summary th.num { text-align: right; }
     .amount-words { margin: 1.5mm 0; font-size: ${Math.max(settings.fontSize - 1, 8)}px; overflow-wrap: anywhere; }
-    .qr-placeholder { width: 18mm; height: 18mm; border: 1px dashed #000; margin: 2mm auto; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: ${Math.max(settings.fontSize - 2, 8)}px; }
+    .qr-section { margin: 2mm 0; text-align: center; break-inside: avoid; }
+    .qr-image { width: 18mm; height: 18mm; object-fit: contain; }
+    .qr-value { overflow-wrap: anywhere; font-size: ${Math.max(settings.fontSize - 2, 8)}px; }
     .receipt-footer { text-align: center; break-inside: avoid; }
     .receipt-footer div { margin: 1mm 0; overflow-wrap: anywhere; }
     .signature { margin-top: 8mm !important; padding-top: 1mm; border-top: 1px solid #000; text-align: right; }
