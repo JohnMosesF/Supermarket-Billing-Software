@@ -792,13 +792,6 @@ const highlightMatch = (text, query) => {
         </div>
       )}
 
-      {/* Quick help */}
-      <div className="text-xs text-gray-500 px-2">
-        <span className="mr-3">• Enter/Tab: Next field</span>
-        <span className="mr-3">• Shift+Tab: Previous field</span>
-        <span className="mr-3">• +/-: Adjust qty</span>
-        <span>• ESC: Clear</span>
-      </div>
     </div>
   );
 });

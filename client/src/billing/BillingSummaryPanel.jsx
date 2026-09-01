@@ -10,6 +10,7 @@ export default function BillingSummaryPanel({
   subtotal = 0,
   taxTotal = 0,
   discount = 0,
+  roundOff = 0,
   total = 0,
   invoiceAt = null,
   onSave = () => {},
@@ -27,9 +28,10 @@ export default function BillingSummaryPanel({
       subtotal: subtotal || 0,
       totalGst: taxTotal || 0,
       discountAmt: discount || 0,
+      roundOffAmt: roundOff || 0,
       billAmount: billAmount || 0
     };
-  }, [cart, subtotal, taxTotal, discount, total]);
+  }, [cart, subtotal, taxTotal, discount, roundOff, total]);
 
   return (
     <div className="space-y-3">
@@ -66,6 +68,12 @@ export default function BillingSummaryPanel({
             <span className="font-semibold tabular-nums text-right">-{currency(summary.discountAmt)}</span>
           </div>
         )}
+        <div className="flex justify-between">
+          <span>Round Off:</span>
+          <span className={`font-semibold tabular-nums text-right ${summary.roundOffAmt > 0 ? 'text-green-700' : summary.roundOffAmt < 0 ? 'text-red-700' : 'text-slate-700'}`}>
+            {summary.roundOffAmt > 0 ? `+${currency(summary.roundOffAmt)}` : currency(summary.roundOffAmt)}
+          </span>
+        </div>
         <div className="flex justify-between border-t bg-blue-50 p-3 text-xl font-bold rounded">
           <span>Grand Total:</span>
           <span className="text-right tabular-nums text-blue-700">{currency(summary.billAmount)}</span>

@@ -1,11 +1,13 @@
 import express from 'express';
 import {
   cancelPurchaseOrder,
+  cancelPurchaseOrderRules,
   convertPurchaseOrder,
   createPurchaseOrder,
   getPurchaseOrder,
   idRule,
   listPurchaseOrders,
+  printPurchaseOrder,
   purchaseOrderListRules,
   purchaseOrderRules,
   receivePurchaseOrder,
@@ -26,4 +28,5 @@ purchaseOrderRoutes.route('/:id')
   .put(idRule, purchaseOrderRules, validate, updatePurchaseOrder);
 purchaseOrderRoutes.post('/:id/receive', idRule, receivePurchaseOrderRules, validate, receivePurchaseOrder);
 purchaseOrderRoutes.post('/:id/convert', idRule, validate, convertPurchaseOrder);
-purchaseOrderRoutes.post('/:id/cancel', idRule, validate, cancelPurchaseOrder);
+purchaseOrderRoutes.post('/:id/cancel', idRule, cancelPurchaseOrderRules, validate, cancelPurchaseOrder);
+purchaseOrderRoutes.post('/:id/print', idRule, validate, printPurchaseOrder);

@@ -1,4 +1,4 @@
-import { CheckCircle2, Download, Edit2, FileText, Plus, Printer, RotateCcw, Search, Trash2, Upload, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Edit2, FileText, Plus, Printer, RefreshCw, RotateCcw, Search, Trash2, Upload, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { api } from '../api/http.js';
@@ -22,6 +22,22 @@ const blankExpense = {
   gstInclusive: false,
   status: 'Posted'
 };
+
+const initialFilters = { search: '', from: '', to: '', category: '', vendor: '', user: '', paymentMethod: '', status: '' };
+
+function moduleError(error, fallback) {
+  const status = error.response?.status;
+  return {
+    status,
+    message: status === 403 ? 'Access denied. You do not have permission to view expenses.' : fallback
+  };
+}
+
+function safeDateTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : dateTime(date);
+}
 
 function printHtml(html) {
   const win = window.open('about:blank', '_blank');
@@ -62,29 +78,73 @@ export function Expenses() {
   const [expenseForm, setExpenseForm] = useState(blankExpense);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [filters, setFilters] = useState({ search: '', from: today(), to: today(), category: '', vendor: '', user: '', paymentMethod: '', status: '' });
+  const [filters, setFilters] = useState(initialFilters);
+  const [categorySearch, setCategorySearch] = useState('');
   const [attachment, setAttachment] = useState(null);
+  const [loading, setLoading] = useState({ categories: true, expenses: true, ledger: true, summary: true });
+  const [loadErrors, setLoadErrors] = useState({ categories: null, expenses: null, ledger: null, summary: null });
 
   async function loadCategories() {
-    const { data } = await api.get('/expenses/categories', { params: { status: 'all', search: filters.categorySearch || '' } });
-    setCategories(data.categories || []);
+    setLoading((state) => ({ ...state, categories: true }));
+    setLoadErrors((state) => ({ ...state, categories: null }));
+    try {
+      const { data } = await api.get('/expenses/categories', { params: { status: 'all', search: categorySearch } });
+      setCategories(Array.isArray(data?.categories) ? data.categories : []);
+    } catch (error) {
+      console.error('Unable to load expense categories', error);
+      setCategories([]);
+      setLoadErrors((state) => ({ ...state, categories: moduleError(error, 'Unable to load expense categories.') }));
+    } finally {
+      setLoading((state) => ({ ...state, categories: false }));
+    }
   }
 
   async function loadExpenses() {
     const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
-    const { data } = await api.get('/expenses', { params });
-    setExpenses(data.expenses || []);
+    setLoading((state) => ({ ...state, expenses: true }));
+    setLoadErrors((state) => ({ ...state, expenses: null }));
+    try {
+      const { data } = await api.get('/expenses', { params });
+      setExpenses(Array.isArray(data?.expenses) ? data.expenses : []);
+    } catch (error) {
+      console.error('Unable to load expenses', error);
+      setExpenses([]);
+      setLoadErrors((state) => ({ ...state, expenses: moduleError(error, 'Unable to load expenses.') }));
+    } finally {
+      setLoading((state) => ({ ...state, expenses: false }));
+    }
   }
 
   async function loadLedger() {
     const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
-    const { data } = await api.get('/expenses/ledger', { params });
-    setLedger(data.entries || []);
+    setLoading((state) => ({ ...state, ledger: true }));
+    setLoadErrors((state) => ({ ...state, ledger: null }));
+    try {
+      const { data } = await api.get('/expenses/ledger', { params });
+      setLedger(Array.isArray(data?.entries) ? data.entries : []);
+    } catch (error) {
+      console.error('Unable to load expense ledger', error);
+      setLedger([]);
+      setLoadErrors((state) => ({ ...state, ledger: moduleError(error, 'Unable to load expense ledger.') }));
+    } finally {
+      setLoading((state) => ({ ...state, ledger: false }));
+    }
   }
 
   async function loadSummary() {
-    const { data } = await api.get('/expenses/summary');
-    setSummary(data);
+    const params = Object.fromEntries(Object.entries({ from: filters.from, to: filters.to }).filter(([, value]) => value));
+    setLoading((state) => ({ ...state, summary: true }));
+    setLoadErrors((state) => ({ ...state, summary: null }));
+    try {
+      const { data } = await api.get('/expenses/summary', { params });
+      setSummary(data || null);
+    } catch (error) {
+      console.error('Unable to load expense summary', error);
+      setSummary(null);
+      setLoadErrors((state) => ({ ...state, summary: moduleError(error, 'Unable to load expense summary.') }));
+    } finally {
+      setLoading((state) => ({ ...state, summary: false }));
+    }
   }
 
   async function loadSuppliers() {
@@ -92,10 +152,30 @@ export function Expenses() {
     setSuppliers(data.suppliers || []);
   }
 
-  useEffect(() => { loadCategories(); loadSuppliers(); }, []);
+  useEffect(() => {
+    const timer = setTimeout(loadCategories, 250);
+    return () => clearTimeout(timer);
+  }, [categorySearch]);
+  useEffect(() => { loadSuppliers(); }, []);
   useEffect(() => { loadExpenses(); loadLedger(); loadSummary(); }, [filters]);
 
+  async function refreshAll() {
+    await Promise.all([loadCategories(), loadSuppliers(), loadExpenses(), loadLedger(), loadSummary()]);
+  }
+
   const totalAmount = useMemo(() => Number(expenseForm.amount || 0) + Number(expenseForm.gstAmount || 0), [expenseForm.amount, expenseForm.gstAmount]);
+  const accessDenied = Object.values(loadErrors).some((error) => error?.status === 403);
+  const summaryCategories = Array.isArray(summary?.topExpenseCategories) ? summary.topExpenseCategories : [];
+
+  function ErrorState({ error, onRetry }) {
+    if (!error) return null;
+    return (
+      <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200">
+        <p className="font-semibold">{error.message}</p>
+        {error.status !== 403 ? <button className="btn-muted mt-3" type="button" onClick={onRetry}>Retry</button> : null}
+      </div>
+    );
+  }
 
   async function saveCategory(event) {
     event.preventDefault();
@@ -112,6 +192,17 @@ export function Expenses() {
       loadCategories();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save category');
+    }
+  }
+
+  async function deleteCategory(category) {
+    if (!window.confirm(`Delete ${category.name}?`)) return;
+    try {
+      await api.delete(`/expenses/categories/${category._id}`);
+      toast.success('Expense category deleted');
+      await loadCategories();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete category');
     }
   }
 
@@ -140,9 +231,10 @@ export function Expenses() {
   }
 
   function editExpense(expense) {
+    const expenseDate = new Date(expense.expenseDate);
     setEditingExpense(expense);
     setExpenseForm({
-      expenseDate: new Date(expense.expenseDate).toISOString().slice(0, 10),
+      expenseDate: Number.isNaN(expenseDate.getTime()) ? today() : expenseDate.toISOString().slice(0, 10),
       category: expense.category?._id || expense.category,
       expenseName: expense.expenseName || '',
       description: expense.description || '',
@@ -232,7 +324,8 @@ export function Expenses() {
 
   return (
     <div>
-      <PageHeader title="Expense Management" description="Manage expense categories, vouchers, ledger, attachments, and accounting integration." />
+      <PageHeader title="Expense Management" description="Manage expense categories, vouchers, ledger, attachments, and accounting integration." actions={<button className="btn-muted" onClick={refreshAll} disabled={Object.values(loading).some(Boolean)}><RefreshCw size={16} /> {Object.values(loading).some(Boolean) ? 'Refreshing...' : 'Refresh'}</button>} />
+      {accessDenied ? <ErrorState error={{ status: 403, message: 'Access denied. You do not have permission to view expenses.' }} /> : null}
       <div className="mb-4 flex flex-wrap gap-2">
         {[
           ['expenses', 'Expense Entry'],
@@ -248,9 +341,10 @@ export function Expenses() {
         <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
           <form className="panel space-y-3 p-5" onSubmit={saveExpense}>
             <h2 className="font-semibold">{editingExpense ? 'Edit Expense' : 'Create Expense'}</h2>
+            <ErrorState error={loadErrors.categories} onRetry={loadCategories} />
             <input className="input" type="date" value={expenseForm.expenseDate} onChange={(e) => setExpenseForm({ ...expenseForm, expenseDate: e.target.value })} />
             <select className="input" value={expenseForm.category} onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })} required>
-              <option value="">Select category</option>
+              <option value="">{loading.categories ? 'Loading categories...' : 'Select category'}</option>
               {categories.filter((entry) => entry.active !== false).map((entry) => <option key={entry._id} value={entry._id}>{entry.name}</option>)}
             </select>
             <input className="input" placeholder="Expense name" value={expenseForm.expenseName} onChange={(e) => setExpenseForm({ ...expenseForm, expenseName: e.target.value })} required />
@@ -291,7 +385,7 @@ export function Expenses() {
           <div className="scroll-panel">
             <div className="grid gap-2 border-b border-slate-100 p-4 md:grid-cols-6 dark:border-slate-800">
               <div className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 dark:border-slate-700"><Search size={16} className="text-slate-400" /><input className="w-full bg-transparent py-2 text-sm outline-none" placeholder="Search expenses" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
-              <select className="input" onChange={(e) => setFilters({ ...filters, ...presetRange(e.target.value) })} defaultValue="today"><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="thisWeek">This Week</option><option value="lastWeek">Last Week</option><option value="thisMonth">This Month</option><option value="lastMonth">Last Month</option><option value="financialYear">Financial Year</option></select>
+              <select className="input" onChange={(e) => setFilters(e.target.value ? { ...filters, ...presetRange(e.target.value) } : { ...filters, from: '', to: '' })} defaultValue=""><option value="">All dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="thisWeek">This Week</option><option value="lastWeek">Last Week</option><option value="thisMonth">This Month</option><option value="lastMonth">Last Month</option><option value="financialYear">Financial Year</option></select>
               <input className="input" type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
               <input className="input" type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
               <select className="input" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}><option value="">All categories</option>{categories.map((entry) => <option key={entry._id} value={entry._id}>{entry.name}</option>)}</select>
@@ -303,15 +397,20 @@ export function Expenses() {
                 {['csv', 'xlsx', 'pdf'].map((format) => <button key={format} className="btn-muted" type="button" onClick={() => exportDataset('expense-list', format)}><Download size={14} />List {format.toUpperCase()}</button>)}
               </div>
             </div>
+            <ErrorState error={loadErrors.expenses} onRetry={loadExpenses} />
             <div className="table-shell">
               <table className="w-full table-sticky">
                 <thead><tr><th className="table-th">Voucher</th><th className="table-th">Date</th><th className="table-th">Category</th><th className="table-th">Expense</th><th className="table-th">Total</th><th className="table-th">Method</th><th className="table-th">Status</th><th className="table-th"></th></tr></thead>
                 <tbody>
-                  {expenses.map((expense) => (
+                  {loading.expenses ? (
+                    <tr><td className="table-td py-10 text-center text-slate-500" colSpan={8}>Loading expenses...</td></tr>
+                  ) : !loadErrors.expenses && expenses.length === 0 ? (
+                    <tr><td className="table-td py-10 text-center text-slate-500" colSpan={8}>No expenses found.</td></tr>
+                  ) : expenses.map((expense) => (
                     <tr key={expense._id}>
                       <td className="table-td font-semibold">{expense.expenseNo}</td>
-                      <td className="table-td">{dateTime(expense.expenseDate)}</td>
-                      <td className="table-td">{expense.category?.name || expense.categoryName}</td>
+                      <td className="table-td">{safeDateTime(expense.expenseDate)}</td>
+                      <td className="table-td">{expense.category?.name || expense.categoryName || '-'}</td>
                       <td className="table-td">{expense.expenseName}<div className="text-xs text-slate-500">{expense.vendor || expense.referenceNumber || ''}</div></td>
                       <td className="table-td font-semibold">{currency(expense.totalAmount)}</td>
                       <td className="table-td">{expense.paymentMethod}</td>
@@ -349,7 +448,9 @@ export function Expenses() {
             <div className="flex gap-2"><button className="btn-primary flex-1"><Plus size={16} />Save</button><button type="button" className="btn-muted" onClick={() => api.post('/expenses/categories/seed').then(() => { toast.success('Defaults ready'); loadCategories(); })}>Defaults</button></div>
           </form>
           <div className="panel overflow-x-auto p-5">
-            <table className="w-full"><thead><tr><th className="table-th">Name</th><th className="table-th">Code</th><th className="table-th">Description</th><th className="table-th">Status</th><th className="table-th"></th></tr></thead><tbody>{categories.map((category) => <tr key={category._id}><td className="table-td font-semibold">{category.name}</td><td className="table-td">{category.code}</td><td className="table-td">{category.description || '-'}</td><td className="table-td">{category.active === false ? 'Inactive' : 'Active'}</td><td className="table-td text-right"><button className="btn-muted h-8 w-8 p-0" onClick={() => editCategory(category)}><Edit2 size={14} /></button></td></tr>)}</tbody></table>
+            <div className="mb-3 flex items-center gap-2 rounded-lg border border-slate-200 px-3 dark:border-slate-700"><Search size={16} className="text-slate-400" /><input className="w-full bg-transparent py-2 text-sm outline-none" placeholder="Search categories" value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} /></div>
+            <ErrorState error={loadErrors.categories} onRetry={loadCategories} />
+            <table className="w-full"><thead><tr><th className="table-th">Name</th><th className="table-th">Code</th><th className="table-th">Description</th><th className="table-th">Status</th><th className="table-th"></th></tr></thead><tbody>{loading.categories ? <tr><td className="table-td py-10 text-center text-slate-500" colSpan={5}>Loading expense categories...</td></tr> : !loadErrors.categories && categories.length === 0 ? <tr><td className="table-td py-10 text-center text-slate-500" colSpan={5}>No expense categories found.</td></tr> : categories.map((category) => <tr key={category._id}><td className="table-td font-semibold">{category.name}</td><td className="table-td">{category.code}</td><td className="table-td">{category.description || '-'}</td><td className="table-td">{category.active === false ? 'Inactive' : 'Active'}</td><td className="table-td text-right"><div className="flex justify-end gap-2"><button className="btn-muted h-8 w-8 p-0" onClick={() => editCategory(category)} title="Edit"><Edit2 size={14} /></button><button className="btn-muted h-8 w-8 p-0" onClick={() => deleteCategory(category)} title="Delete"><Trash2 size={14} /></button></div></td></tr>)}</tbody></table>
           </div>
         </div>
       )}
@@ -357,20 +458,24 @@ export function Expenses() {
       {tab === 'ledger' && (
         <div className="panel overflow-x-auto p-5">
           <div className="mb-3 flex flex-wrap gap-2">{['csv', 'xlsx', 'pdf'].map((format) => <button key={format} className="btn-muted" onClick={() => exportDataset('expense-ledger', format)}><Download size={14} />Ledger {format.toUpperCase()}</button>)}</div>
-          <table className="w-full"><thead><tr><th className="table-th">Date</th><th className="table-th">Voucher</th><th className="table-th">Category</th><th className="table-th">Expense</th><th className="table-th">Debit</th><th className="table-th">Credit</th><th className="table-th">Balance</th><th className="table-th">Method</th><th className="table-th">Remarks</th></tr></thead><tbody>{ledger.map((entry) => <tr key={entry._id}><td className="table-td">{dateTime(entry.transactionDate)}</td><td className="table-td">{entry.voucherNo}</td><td className="table-td">{entry.category?.name || '-'}</td><td className="table-td">{entry.expenseName}</td><td className="table-td">{currency(entry.debit)}</td><td className="table-td">{currency(entry.credit)}</td><td className="table-td font-semibold">{currency(entry.balance)}</td><td className="table-td">{entry.paymentMethod}</td><td className="table-td">{entry.remarks || '-'}</td></tr>)}</tbody></table>
+          <ErrorState error={loadErrors.ledger} onRetry={loadLedger} />
+          <table className="w-full"><thead><tr><th className="table-th">Date</th><th className="table-th">Voucher</th><th className="table-th">Category</th><th className="table-th">Expense</th><th className="table-th">Debit</th><th className="table-th">Credit</th><th className="table-th">Balance</th><th className="table-th">Method</th><th className="table-th">Remarks</th></tr></thead><tbody>{loading.ledger ? <tr><td className="table-td py-10 text-center text-slate-500" colSpan={9}>Loading expense ledger...</td></tr> : !loadErrors.ledger && ledger.length === 0 ? <tr><td className="table-td py-10 text-center text-slate-500" colSpan={9}>No expense ledger entries found.</td></tr> : ledger.map((entry) => <tr key={entry._id}><td className="table-td">{safeDateTime(entry.transactionDate)}</td><td className="table-td">{entry.voucherNo}</td><td className="table-td">{entry.category?.name || '-'}</td><td className="table-td">{entry.expenseName}</td><td className="table-td">{currency(entry.debit)}</td><td className="table-td">{currency(entry.credit)}</td><td className="table-td font-semibold">{currency(entry.balance)}</td><td className="table-td">{entry.paymentMethod}</td><td className="table-td">{entry.remarks || '-'}</td></tr>)}</tbody></table>
         </div>
       )}
 
-      {tab === 'summary' && summary && (
+      {tab === 'summary' && (
         <div className="space-y-5">
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className="panel p-4"><small>Total Expense</small><b className="block text-xl">{currency(summary.totalExpense)}</b></div>
-            <div className="panel p-4"><small>Today</small><b className="block text-xl">{currency(summary.todaysExpense)}</b></div>
-            <div className="panel p-4"><small>This Month</small><b className="block text-xl">{currency(summary.monthlyExpense)}</b></div>
-            <div className="panel p-4"><small>Average Daily</small><b className="block text-xl">{currency(summary.averageDailyExpense)}</b></div>
-          </div>
-          <div className="panel p-5"><h2 className="mb-3 font-semibold">Top Categories</h2>{summary.topExpenseCategories.map((entry) => <div key={entry.category} className="flex justify-between border-b py-2 text-sm"><span>{entry.category}</span><b>{currency(entry.amount)}</b></div>)}</div>
-          <div className="flex flex-wrap gap-2">{['csv', 'xlsx', 'pdf'].map((format) => <button key={format} className="btn-muted" onClick={() => exportDataset('expense-summary', format)}><Download size={14} />Summary {format.toUpperCase()}</button>)}{['csv', 'xlsx', 'pdf'].map((format) => <button key={`cat-${format}`} className="btn-muted" onClick={() => exportDataset('expense-category-summary', format)}><Download size={14} />Category {format.toUpperCase()}</button>)}</div>
+          <ErrorState error={loadErrors.summary} onRetry={loadSummary} />
+          {loading.summary ? <div className="panel p-5 text-sm text-slate-500">Loading expense summary...</div> : !loadErrors.summary && summary ? <>
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className="panel p-4"><small>Total Expense</small><b className="block text-xl">{currency(summary.totalExpense)}</b></div>
+              <div className="panel p-4"><small>Today</small><b className="block text-xl">{currency(summary.todaysExpense)}</b></div>
+              <div className="panel p-4"><small>This Month</small><b className="block text-xl">{currency(summary.monthlyExpense)}</b></div>
+              <div className="panel p-4"><small>Average Daily</small><b className="block text-xl">{currency(summary.averageDailyExpense)}</b></div>
+            </div>
+            <div className="panel p-5"><h2 className="mb-3 font-semibold">Top Categories</h2>{summaryCategories.length === 0 ? <p className="text-sm text-slate-500">No expense summary found.</p> : summaryCategories.map((entry) => <div key={entry.category} className="flex justify-between border-b py-2 text-sm"><span>{entry.category}</span><b>{currency(entry.amount)}</b></div>)}</div>
+            <div className="flex flex-wrap gap-2">{['csv', 'xlsx', 'pdf'].map((format) => <button key={format} className="btn-muted" onClick={() => exportDataset('expense-summary', format)}><Download size={14} />Summary {format.toUpperCase()}</button>)}{['csv', 'xlsx', 'pdf'].map((format) => <button key={`cat-${format}`} className="btn-muted" onClick={() => exportDataset('expense-category-summary', format)}><Download size={14} />Category {format.toUpperCase()}</button>)}</div>
+          </> : null}
         </div>
       )}
     </div>

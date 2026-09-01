@@ -25799,11 +25799,11 @@ var require_sign = __commonJS({
   "../server/node_modules/math-intrinsics/sign.js"(exports2, module2) {
     "use strict";
     var $isNaN = require_isNaN();
-    module2.exports = function sign(number4) {
-      if ($isNaN(number4) || number4 === 0) {
-        return number4;
+    module2.exports = function sign(number5) {
+      if ($isNaN(number5) || number5 === 0) {
+        return number5;
       }
-      return number4 < 0 ? -1 : 1;
+      return number5 < 0 ? -1 : 1;
     };
   }
 });
@@ -26383,8 +26383,8 @@ var require_get_intrinsic = __commonJS({
         throw new $SyntaxError("invalid intrinsic syntax, expected opening `%`");
       }
       var result = [];
-      $replace(string, rePropName, function(match, number4, quote, subString) {
-        result[result.length] = quote ? $replace(subString, reEscapeChar, "$1") : number4 || match;
+      $replace(string, rePropName, function(match, number5, quote, subString) {
+        result[result.length] = quote ? $replace(subString, reEscapeChar, "$1") : number5 || match;
       });
       return result;
     };
@@ -38921,16 +38921,16 @@ var require_lodash8 = __commonJS({
           }
           return result2;
         }
-        function baseClamp(number4, lower, upper) {
-          if (number4 === number4) {
+        function baseClamp(number5, lower, upper) {
+          if (number5 === number5) {
             if (upper !== undefined2) {
-              number4 = number4 <= upper ? number4 : upper;
+              number5 = number5 <= upper ? number5 : upper;
             }
             if (lower !== undefined2) {
-              number4 = number4 >= lower ? number4 : lower;
+              number5 = number5 >= lower ? number5 : lower;
             }
           }
-          return number4;
+          return number5;
         }
         function baseClone(value, bitmask, customizer, key, object, stack) {
           var result2, isDeep = bitmask & CLONE_DEEP_FLAG, isFlat = bitmask & CLONE_FLAT_FLAG, isFull = bitmask & CLONE_SYMBOLS_FLAG;
@@ -39157,8 +39157,8 @@ var require_lodash8 = __commonJS({
         function baseHasIn(object, key) {
           return object != null && key in Object2(object);
         }
-        function baseInRange(number4, start2, end) {
-          return number4 >= nativeMin(start2, end) && number4 < nativeMax(start2, end);
+        function baseInRange(number5, start2, end) {
+          return number5 >= nativeMin(start2, end) && number5 < nativeMax(start2, end);
         }
         function baseIntersection(arrays, iteratee2, comparator) {
           var includes2 = comparator ? arrayIncludesWith : arrayIncludes, length = arrays[0].length, othLength = arrays.length, othIndex = othLength, caches = Array2(othLength), maxLength = Infinity, result2 = [];
@@ -40277,15 +40277,15 @@ var require_lodash8 = __commonJS({
         }
         function createRound(methodName) {
           var func = Math2[methodName];
-          return function(number4, precision) {
-            number4 = toNumber(number4);
+          return function(number5, precision) {
+            number5 = toNumber(number5);
             precision = precision == null ? 0 : nativeMin(toInteger(precision), 292);
-            if (precision && nativeIsFinite(number4)) {
-              var pair = (toString2(number4) + "e").split("e"), value = func(pair[0] + "e" + (+pair[1] + precision));
+            if (precision && nativeIsFinite(number5)) {
+              var pair = (toString2(number5) + "e").split("e"), value = func(pair[0] + "e" + (+pair[1] + precision));
               pair = (toString2(value) + "e").split("e");
               return +(pair[0] + "e" + (+pair[1] - precision));
             }
-            return func(number4);
+            return func(number5);
           };
         }
         var createSet = !(Set2 && 1 / setToArray(new Set2([, -0]))[1] == INFINITY) ? noop : function(values2) {
@@ -40899,8 +40899,8 @@ var require_lodash8 = __commonJS({
           if (string.charCodeAt(0) === 46) {
             result2.push("");
           }
-          string.replace(rePropName, function(match, number4, quote, subString) {
-            result2.push(quote ? subString.replace(reEscapeChar, "$1") : number4 || match);
+          string.replace(rePropName, function(match, number5, quote, subString) {
+            result2.push(quote ? subString.replace(reEscapeChar, "$1") : number5 || match);
           });
           return result2;
         });
@@ -42284,7 +42284,7 @@ var require_lodash8 = __commonJS({
         function valuesIn(object) {
           return object == null ? [] : baseValues(object, keysIn(object));
         }
-        function clamp(number4, lower, upper) {
+        function clamp(number5, lower, upper) {
           if (upper === undefined2) {
             upper = lower;
             lower = undefined2;
@@ -42297,9 +42297,9 @@ var require_lodash8 = __commonJS({
             lower = toNumber(lower);
             lower = lower === lower ? lower : 0;
           }
-          return baseClamp(toNumber(number4), lower, upper);
+          return baseClamp(toNumber(number5), lower, upper);
         }
-        function inRange(number4, start2, end) {
+        function inRange(number5, start2, end) {
           start2 = toFinite(start2);
           if (end === undefined2) {
             end = start2;
@@ -42307,8 +42307,8 @@ var require_lodash8 = __commonJS({
           } else {
             end = toFinite(end);
           }
-          number4 = toNumber(number4);
-          return baseInRange(number4, start2, end);
+          number5 = toNumber(number5);
+          return baseInRange(number5, start2, end);
         }
         function random(lower, upper, floating) {
           if (floating && typeof floating != "boolean" && isIterateeCall(lower, upper, floating)) {
@@ -46342,10 +46342,10 @@ var require_isIdentityCard = __commonJS({
         if (!DNI.test(sanitized)) {
           return false;
         }
-        var number4 = sanitized.slice(0, -1).replace(/[X,Y,Z]/g, function(char) {
+        var number5 = sanitized.slice(0, -1).replace(/[X,Y,Z]/g, function(char) {
           return charsValue[char];
         });
-        return sanitized.endsWith(controlDigits[number4 % 23]);
+        return sanitized.endsWith(controlDigits[number5 % 23]);
       },
       FI: function FI(str) {
         (0, _assertString.default)(str);
@@ -46631,15 +46631,15 @@ var require_isIdentityCard = __commonJS({
         };
         var sanitized = str.trim().toUpperCase();
         if (!/^[A-Z][0-9]{9}$/.test(sanitized)) return false;
-        return Array.from(sanitized).reduce(function(sum, number4, index) {
+        return Array.from(sanitized).reduce(function(sum, number5, index) {
           if (index === 0) {
-            var code = ALPHABET_CODES[number4];
+            var code = ALPHABET_CODES[number5];
             return code % 10 * 9 + Math.floor(code / 10);
           }
           if (index === 9) {
-            return (10 - sum % 10 - Number(number4)) % 10 === 0;
+            return (10 - sum % 10 - Number(number5)) % 10 === 0;
           }
-          return sum + Number(number4) * (9 - index);
+          return sum + Number(number5) * (9 - index);
         }, 0);
       },
       PK: function PK(str) {
@@ -51036,8 +51036,8 @@ var require_validators_impl = __commonJS({
       isDecimal(options) {
         return this.addStandardValidation(validator.isDecimal, options);
       }
-      isDivisibleBy(number4) {
-        return this.addStandardValidation(validator.isDivisibleBy, number4);
+      isDivisibleBy(number5) {
+        return this.addStandardValidation(validator.isDivisibleBy, number5);
       }
       isEAN() {
         return this.addStandardValidation(validator.isEAN);
@@ -70484,15 +70484,15 @@ var init_Int64 = __esm({
           throw new Error("Int64 buffers must be exactly 8 bytes");
         }
       }
-      static fromNumber(number4) {
-        if (number4 > 9223372036854776e3 || number4 < -9223372036854776e3) {
-          throw new Error(`${number4} is too large (or, if negative, too small) to represent as an Int64`);
+      static fromNumber(number5) {
+        if (number5 > 9223372036854776e3 || number5 < -9223372036854776e3) {
+          throw new Error(`${number5} is too large (or, if negative, too small) to represent as an Int64`);
         }
         const bytes = new Uint8Array(8);
-        for (let i6 = 7, remaining = Math.abs(Math.round(number4)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
+        for (let i6 = 7, remaining = Math.abs(Math.round(number5)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
           bytes[i6] = remaining;
         }
-        if (number4 < 0) {
+        if (number5 < 0) {
           negate(bytes);
         }
         return new _Int64(bytes);
@@ -75966,15 +75966,15 @@ var require_dist_cjs5 = __commonJS({
           throw new Error("Int64 buffers must be exactly 8 bytes");
         }
       }
-      static fromNumber(number4) {
-        if (number4 > 9223372036854776e3 || number4 < -9223372036854776e3) {
-          throw new Error(`${number4} is too large (or, if negative, too small) to represent as an Int64`);
+      static fromNumber(number5) {
+        if (number5 > 9223372036854776e3 || number5 < -9223372036854776e3) {
+          throw new Error(`${number5} is too large (or, if negative, too small) to represent as an Int64`);
         }
         const bytes = new Uint8Array(8);
-        for (let i6 = 7, remaining = Math.abs(Math.round(number4)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
+        for (let i6 = 7, remaining = Math.abs(Math.round(number5)); i6 > -1 && remaining > 0; i6--, remaining /= 256) {
           bytes[i6] = remaining;
         }
-        if (number4 < 0) {
+        if (number5 < 0) {
           negate2(bytes);
         }
         return new _Int64(bytes);
@@ -89152,8 +89152,8 @@ var require_common3 = __commonJS({
       }
       return firstZero;
     }
-    function numberToPaddedHex(number4) {
-      return number4.toString(16).padStart(2, "0");
+    function numberToPaddedHex(number5) {
+      return number5.toString(16).padStart(2, "0");
     }
     function stringToPaddedHex(numberString) {
       return numberToPaddedHex(parseInt(numberString, 10));
@@ -89887,12 +89887,12 @@ var require_ipv6 = __commonJS({
         throw new Error("Assertion failed.");
       }
     }
-    function addCommas(number4) {
+    function addCommas(number5) {
       const r6 = /(\d+)(\d{3})/;
-      while (r6.test(number4)) {
-        number4 = number4.replace(r6, "$1,$2");
+      while (r6.test(number5)) {
+        number5 = number5.replace(r6, "$1,$2");
       }
-      return number4;
+      return number5;
     }
     function spanLeadingZeroes4(n2) {
       n2 = n2.replace(/^(0{1,})([1-9]+)$/, '<span class="parse-error">$1</span>$2');
@@ -94144,13 +94144,13 @@ var require_url_state_machine = __commonJS({
               return failure;
             }
             while (infra.isASCIIDigit(input[pointer])) {
-              const number4 = parseInt(at(input, pointer));
+              const number5 = parseInt(at(input, pointer));
               if (ipv4Piece === null) {
-                ipv4Piece = number4;
+                ipv4Piece = number5;
               } else if (ipv4Piece === 0) {
                 return failure;
               } else {
-                ipv4Piece = ipv4Piece * 10 + number4;
+                ipv4Piece = ipv4Piece * 10 + number5;
               }
               if (ipv4Piece > 255) {
                 return failure;
@@ -108984,9 +108984,9 @@ var require_abstract_cursor = __commonJS({
         return this.documents?.length ?? 0;
       }
       /** Returns current buffered documents */
-      readBufferedDocuments(number4) {
+      readBufferedDocuments(number5) {
         const bufferedDocs = [];
-        const documentsToRead = Math.min(number4 ?? this.documents?.length ?? 0, this.documents?.length ?? 0);
+        const documentsToRead = Math.min(number5 ?? this.documents?.length ?? 0, this.documents?.length ?? 0);
         for (let count = 0; count < documentsToRead; count++) {
           const document2 = this.documents?.shift(this.deserializationOptions);
           if (document2 != null) {
@@ -147579,9 +147579,9 @@ var require_range3 = __commonJS({
       }
       expandRow(row) {
         if (row) {
-          const { dimensions, number: number4 } = row;
+          const { dimensions, number: number5 } = row;
           if (dimensions) {
-            this.expand(number4, dimensions.min, number4, dimensions.max);
+            this.expand(number5, dimensions.min, number5, dimensions.max);
           }
         }
       }
@@ -148724,9 +148724,9 @@ var require_row = __commonJS({
     var colCache = require_col_cache();
     var Cell = require_cell();
     var Row = class {
-      constructor(worksheet, number4) {
+      constructor(worksheet, number5) {
         this._worksheet = worksheet;
-        this._number = number4;
+        this._number = number5;
         this._cells = [];
         this.style = {};
         this.outlineLevel = 0;
@@ -149074,9 +149074,9 @@ var require_column = __commonJS({
     var colCache = require_col_cache();
     var DEFAULT_COLUMN_WIDTH = 9;
     var Column = class _Column {
-      constructor(worksheet, number4, defn) {
+      constructor(worksheet, number5, defn) {
         this._worksheet = worksheet;
-        this._number = number4;
+        this._number = number5;
         if (defn !== false) {
           this.defn = defn;
         }
@@ -178959,8 +178959,8 @@ var require_lodash15 = __commonJS({
       if (reLeadingDot.test(string)) {
         result.push("");
       }
-      string.replace(rePropName, function(match, number4, quote, string2) {
-        result.push(quote ? string2.replace(reEscapeChar, "$1") : number4 || match);
+      string.replace(rePropName, function(match, number5, quote, string2) {
+        result.push(quote ? string2.replace(reEscapeChar, "$1") : number5 || match);
       });
       return result;
     });
@@ -367886,7 +367886,7 @@ end`);
       }
     };
     var {
-      number: number4
+      number: number5
     } = PDFObject;
     var TextMixin = {
       initText() {
@@ -368228,14 +368228,14 @@ end`);
           this.page.fonts[this._font.id] = this._font.ref();
         }
         this.addContent("BT");
-        this.addContent(`1 0 0 1 ${number4(x)} ${number4(y)} Tm`);
-        this.addContent(`/${this._font.id} ${number4(this._fontSize)} Tf`);
+        this.addContent(`1 0 0 1 ${number5(x)} ${number5(y)} Tm`);
+        this.addContent(`/${this._font.id} ${number5(this._fontSize)} Tf`);
         const mode = options.fill && options.stroke ? 2 : options.stroke ? 1 : 0;
         if (mode) {
           this.addContent(`${mode} Tr`);
         }
         if (characterSpacing) {
-          this.addContent(`${number4(characterSpacing)} Tc`);
+          this.addContent(`${number5(characterSpacing)} Tc`);
         }
         if (horizontalScaling !== 100) {
           this.addContent(`${horizontalScaling} Tz`);
@@ -368270,7 +368270,7 @@ end`);
           if (last2 < cur) {
             const hex = encoded.slice(last2, cur).join("");
             const advance = positions[cur - 1].xAdvance - positions[cur - 1].advanceWidth;
-            commands6.push(`<${hex}> ${number4(-advance)}`);
+            commands6.push(`<${hex}> ${number5(-advance)}`);
           }
           return last2 = cur;
         };
@@ -368285,12 +368285,12 @@ end`);
           const pos = positions[i6];
           if (pos.xOffset || pos.yOffset) {
             flush2(i6);
-            this.addContent(`1 0 0 1 ${number4(x + pos.xOffset * scale)} ${number4(y + pos.yOffset * scale)} Tm`);
+            this.addContent(`1 0 0 1 ${number5(x + pos.xOffset * scale)} ${number5(y + pos.yOffset * scale)} Tm`);
             flush2(i6 + 1);
             hadOffset = true;
           } else {
             if (hadOffset) {
-              this.addContent(`1 0 0 1 ${number4(x)} ${number4(y)} Tm`);
+              this.addContent(`1 0 0 1 ${number5(x)} ${number5(y)} Tm`);
               hadOffset = false;
             }
             if (pos.xAdvance - pos.advanceWidth !== 0) {
@@ -378356,6 +378356,21 @@ var env2 = {
 };
 
 // ../server/src/middleware/errorHandler.js
+var duplicateFieldLabels = {
+  barcode: "Barcode",
+  customerId: "Customer ID",
+  email: "Email",
+  gstNumber: "GST number",
+  mobile: "Mobile number",
+  productId: "Product ID",
+  receiptNo: "Receipt number",
+  sku: "SKU",
+  username: "Username"
+};
+function duplicateMessage(field) {
+  const label = duplicateFieldLabels[field] || field;
+  return `${label} already exists.`;
+}
 function notFound(req, res, next) {
   const error = new Error(`Route not found: ${req.originalUrl}`);
   error.statusCode = 404;
@@ -378365,7 +378380,18 @@ function errorHandler(error, req, res, next) {
   if (error?.code === 11e3) {
     const field = Object.keys(error.keyPattern || error.keyValue || {})[0] || "record";
     error.statusCode = 409;
-    error.message = `${field} already exists`;
+    error.message = duplicateMessage(field);
+    error.details = [{ path: field, msg: error.message, value: error.keyValue?.[field] }];
+  }
+  if (error?.name === "ValidationError" && error.errors) {
+    const details = Object.entries(error.errors).map(([field, entry]) => ({
+      path: field,
+      msg: entry.message,
+      value: entry.value
+    }));
+    error.statusCode = 422;
+    error.message = details.map((entry) => entry.msg).join("\n") || "Validation failed";
+    error.details = details;
   }
   const statusCode = error.statusCode || 500;
   const payload = {
@@ -380322,10 +380348,35 @@ var changePassword = asyncHandler(async (req, res) => {
 
 // ../server/src/middleware/validate.js
 var import_express_validator2 = __toESM(require_lib4(), 1);
+var fieldLabels = {
+  adjustedQuantity: "Adjusted quantity",
+  adjustmentType: "Adjustment type",
+  alternatePhone: "Alternate phone",
+  creditLimit: "Credit limit",
+  customerId: "Customer ID",
+  email: "Email",
+  gstNumber: "GST number",
+  mobile: "Mobile number",
+  name: "Customer name",
+  openingBalance: "Opening balance",
+  panNumber: "PAN number",
+  product: "Product",
+  quantity: "Quantity",
+  reason: "Reason"
+};
+function readableMessage(error) {
+  if (error.msg && error.msg !== "Invalid value") return error.msg;
+  const label = fieldLabels[error.path || error.param] || error.path || error.param || "Value";
+  return `${label} is invalid.`;
+}
 function validate(req, res, next) {
   const errors = (0, import_express_validator2.validationResult)(req);
   if (!errors.isEmpty()) {
-    return next(new ApiError(422, "Validation failed", errors.array()));
+    const details = errors.array().map((error) => ({
+      ...error,
+      msg: readableMessage(error)
+    }));
+    return next(new ApiError(422, details.map((error) => error.msg).join("\n"), details));
   }
   next();
 }
@@ -380424,6 +380475,7 @@ var billSchema = new import_mongoose3.default.Schema(
     discount: { type: Number, required: true, min: 0, default: 0 },
     discountPercent: { type: Number, min: 0, default: 0 },
     discountAmount: { type: Number, min: 0, default: 0 },
+    roundOff: { type: Number, required: true, default: 0 },
     notes: { type: String, trim: true },
     total: { type: Number, required: true, min: 0 },
     paidAmount: { type: Number, required: true, min: 0, default: 0 },
@@ -380590,6 +380642,7 @@ var purchaseSchema = new import_mongoose5.default.Schema(
     discount: { type: Number, default: 0 },
     freightCharges: { type: Number, default: 0 },
     roundOff: { type: Number, default: 0 },
+    roundOffMode: { type: String, enum: ["auto", "manual"], default: "auto" },
     grandTotal: { type: Number, default: 0 },
     total: { type: Number, required: true },
     paidAmount: { type: Number, default: 0 },
@@ -381677,40 +381730,92 @@ var purchaseOrderItemSchema = new import_mongoose20.default.Schema(
   {
     product: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "Product", required: true },
     name: String,
+    sku: String,
+    barcode: String,
+    pid: String,
     quantity: { type: Number, required: true, min: 1e-3 },
+    freeQuantity: { type: Number, default: 0, min: 0 },
     receivedQuantity: { type: Number, default: 0, min: 0 },
+    receivedFreeQuantity: { type: Number, default: 0, min: 0 },
     convertedQuantity: { type: Number, default: 0, min: 0 },
+    convertedFreeQuantity: { type: Number, default: 0, min: 0 },
     unit: { type: String, default: "pcs" },
     costPrice: { type: Number, required: true, min: 0 },
+    purchasePrice: { type: Number, default: 0, min: 0 },
     gstRate: { type: Number, default: 0, min: 0 },
+    gstInclusive: { type: Boolean, default: false },
+    taxableAmount: { type: Number, default: 0, min: 0 },
+    gstAmount: { type: Number, default: 0, min: 0 },
+    cgst: { type: Number, default: 0, min: 0 },
+    sgst: { type: Number, default: 0, min: 0 },
+    igst: { type: Number, default: 0, min: 0 },
+    discountPercent: { type: Number, default: 0, min: 0, max: 100 },
+    discountAmount: { type: Number, default: 0, min: 0 },
     mrp: { type: Number, default: 0, min: 0 },
+    wholesalePrice: { type: Number, default: 0, min: 0 },
+    retailPrice: { type: Number, default: 0, min: 0 },
     sellingPrice: { type: Number, default: 0, min: 0 },
+    netAmount: { type: Number, default: 0, min: 0 },
     lineTotal: { type: Number, required: true }
   },
   { _id: false }
 );
+var purchaseOrderReceiptSchema = new import_mongoose20.default.Schema(
+  {
+    receiptNo: String,
+    receivedAt: { type: Date, default: Date.now },
+    receivedBy: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "User" },
+    notes: String,
+    items: [{
+      product: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "Product", required: true },
+      name: String,
+      quantity: { type: Number, required: true, min: 1e-3 },
+      freeQuantity: { type: Number, default: 0, min: 0 },
+      unit: String
+    }]
+  },
+  { _id: true }
+);
 var purchaseOrderSchema = new import_mongoose20.default.Schema(
   {
     poNumber: { type: String, required: true, unique: true, index: true },
+    referenceNumber: { type: String, trim: true },
     supplier: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "Supplier", required: true },
     orderDate: { type: Date, default: Date.now },
     expectedDate: Date,
     status: {
       type: String,
-      enum: ["draft", "pending", "partially_received", "completed", "cancelled"],
+      enum: ["draft", "ordered", "pending", "partially_received", "completed", "cancelled"],
       default: "draft",
       index: true
     },
     items: [purchaseOrderItemSchema],
+    itemCount: { type: Number, default: 0 },
+    totalQuantity: { type: Number, default: 0 },
+    receivedQuantity: { type: Number, default: 0 },
+    subTotal: { type: Number, default: 0 },
+    taxableAmount: { type: Number, default: 0 },
+    gstTotal: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    roundOff: { type: Number, default: 0 },
+    roundOffMode: { type: String, enum: ["auto", "manual"], default: "auto" },
+    grandTotal: { type: Number, default: 0 },
     total: { type: Number, required: true },
     notes: String,
+    receivingHistory: [purchaseOrderReceiptSchema],
+    convertedAt: Date,
+    convertedBy: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "User" },
+    cancelledAt: Date,
+    cancelledBy: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "User" },
+    cancellationReason: String,
     user: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "User" },
     purchase: { type: import_mongoose20.default.Schema.Types.ObjectId, ref: "Purchase" },
     active: { type: Boolean, default: true }
   },
   { timestamps: true }
 );
-purchaseOrderSchema.index({ poNumber: "text", notes: "text" });
+purchaseOrderSchema.index({ poNumber: "text", notes: "text", referenceNumber: "text" });
+purchaseOrderSchema.index({ supplier: 1, createdAt: -1 });
 var PurchaseOrder = import_mongoose20.default.model("PurchaseOrder", purchaseOrderSchema);
 
 // ../server/src/models/Setting.js
@@ -381921,7 +382026,7 @@ var draftBillSchema = new import_mongoose23.default.Schema(
       {
         productId: { type: import_mongoose23.default.Schema.Types.ObjectId, ref: "Product" },
         productName: { type: String, trim: true },
-        quantity: { type: Number, min: 1, default: 1 },
+        quantity: { type: Number, min: 1e-3, default: 1 },
         price: { type: Number, min: 0, default: 0 },
         total: { type: Number, min: 0, default: 0 }
       }
@@ -381996,7 +382101,7 @@ var holdBillSchema = new import_mongoose26.default.Schema(
         category: { type: String, trim: true },
         hsnCode: { type: String, trim: true },
         unit: { type: String, default: "pcs", trim: true },
-        quantity: { type: Number, min: 1, default: 1 },
+        quantity: { type: Number, min: 1e-3, default: 1 },
         qty: { type: Number, min: 0, default: 0 },
         freeQuantity: { type: Number, min: 0, default: 0 },
         price: { type: Number, min: 0, default: 0 },
@@ -382276,6 +382381,23 @@ var money = (value, fallback2 = 0) => {
   const parsed = Number(value ?? fallback2);
   return Number.isFinite(parsed) ? parsed : Number(fallback2 || 0);
 };
+function validatePaymentForBill({ paymentMethod, total, paidAmount, cashReceived }) {
+  if (paidAmount < 0) {
+    throw new ApiError(400, "Amount paid cannot be negative");
+  }
+  if (paidAmount - total > 0.01) {
+    throw new ApiError(400, "Amount paid cannot exceed bill total");
+  }
+  if (paymentMethod === "Cash" && cashReceived + 0.01 < paidAmount) {
+    throw new ApiError(400, "Cash received cannot be less than amount paid");
+  }
+  if (paymentMethod === "Credit" && paidAmount - total > 0.01) {
+    throw new ApiError(400, "Amount paid cannot exceed bill total for credit sales");
+  }
+}
+function changeReturnForPayment(paymentMethod, cashReceived, paidAmount) {
+  return paymentMethod === "Cash" ? Math.max(cashReceived - paidAmount, 0) : 0;
+}
 function clonePlain(value, fallback2) {
   if (value === void 0 || value === null) return fallback2;
   try {
@@ -382485,11 +382607,15 @@ async function validateBillItemsForSale(items, stockCredits = []) {
     if (!product) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
     const unit = await getUnitRule(product.unit || it.unit);
     it.unit = unit.name;
-    if (!unit.allowDecimal && !isWholeNumber(it.quantity)) {
+    const quantity = Number(it.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new ApiError(400, `${product.name} quantity must be greater than zero`);
+    }
+    if (!Boolean(product.allowDecimalQty || unit.allowDecimal) && !isWholeNumber(quantity)) {
       throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
     }
     const available = Number(product.stock || 0) + (creditsByProduct.get(String(it.productId)) || 0);
-    if (!allowNegativeStock && available < it.quantity) {
+    if (!allowNegativeStock && available + 1e-7 < quantity) {
       throw new ApiError(400, "Insufficient stock available.");
     }
   }
@@ -382609,7 +382735,7 @@ async function recalculateCustomerBillingTotals(customerId) {
   await customer.save();
 }
 var createBill = asyncHandler(async (req, res) => {
-  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, discountAmount, total, customerMobile, customerName, customerAddress, notes } = req.body;
+  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, discountAmount, roundOff, total, customerMobile, customerName, customerAddress, notes } = req.body;
   const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
   if (!items || items.length === 0) {
     throw new ApiError(400, "Bill must have at least one item");
@@ -382641,7 +382767,7 @@ var createBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
       productName: it.productName || it.name || "",
-      quantity: it.quantity || it.qty || 1e-3,
+      quantity: it.quantity ?? it.qty ?? 0,
       unit: it.unit || "pcs",
       price: it.price || it.sellingPrice || it.rate || 0,
       gst: it.gst || it.taxRate || it.tax || 0,
@@ -382665,12 +382791,8 @@ var createBill = asyncHandler(async (req, res) => {
   const billTotal = Number(total || 0);
   const paymentDetails = normalizePaymentDetails(req.body, billTotal, paymentMethod);
   const paidAmount = paymentDetails.length ? paymentDetails.reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : paymentMethod === "Credit" ? requestPaidAmount(req.body, 0) : requestPaidAmount(req.body, billTotal);
-  if (paidAmount < 0) {
-    throw new ApiError(400, "Amount paid cannot be negative");
-  }
-  if (paymentMethod === "Credit" && paidAmount > billTotal) {
-    throw new ApiError(400, "Amount paid cannot exceed bill total for credit sales");
-  }
+  const cashReceived = paymentMethod === "Cash" ? money(req.body.cashReceived, paidAmount) : 0;
+  validatePaymentForBill({ paymentMethod, total: billTotal, paidAmount, cashReceived });
   const dueAmount = Math.max(billTotal - paidAmount, 0);
   const paymentStatus = paymentStatusFromAmounts(billTotal, paidAmount);
   const customer = await resolveBillCustomer({
@@ -382691,6 +382813,7 @@ var createBill = asyncHandler(async (req, res) => {
     discount: discount || 0,
     discountPercent: discountPercent || 0,
     discountAmount: discountAmount || 0,
+    roundOff: money(roundOff, 0),
     total: billTotal,
     paidAmount,
     balanceAmount: dueAmount,
@@ -382698,8 +382821,8 @@ var createBill = asyncHandler(async (req, res) => {
     paymentStatus,
     paymentMethod,
     paymentDetails,
-    cashReceived: Number(req.body.cashReceived || 0),
-    changeReturn: Math.max(Number(req.body.cashReceived || 0) - billTotal, 0),
+    cashReceived,
+    changeReturn: changeReturnForPayment(paymentMethod, cashReceived, paidAmount),
     customerMobile: customerMobile || null,
     customerName: customerName || "Walk-in Customer",
     customerAddress: customerAddress || "",
@@ -382772,6 +382895,7 @@ var updateBill = asyncHandler(async (req, res) => {
     subtotal,
     taxTotal,
     discount,
+    roundOff,
     total,
     customerName,
     customerMobile,
@@ -382802,7 +382926,7 @@ var updateBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
       productName: it.productName || it.name || "",
-      quantity: it.quantity || it.qty || 1e-3,
+      quantity: it.quantity ?? it.qty ?? 0,
       unit: it.unit || "pcs",
       price: it.price || it.sellingPrice || it.rate || 0,
       gst: it.gst || it.taxRate || it.tax || 0,
@@ -382845,7 +382969,8 @@ var updateBill = asyncHandler(async (req, res) => {
   bill.discount = discount != null ? discount : bill.discount;
   bill.discountPercent = discountPercent != null ? discountPercent : bill.discountPercent;
   bill.discountAmount = discountAmount != null ? discountAmount : bill.discountAmount;
-  bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount;
+  bill.roundOff = roundOff != null ? roundOff : bill.roundOff;
+  bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount + bill.roundOff;
   bill.customer = customer?._id || void 0;
   bill.customerName = customerName || "Walk-in Customer";
   bill.customerMobile = customerMobile || void 0;
@@ -382853,8 +382978,14 @@ var updateBill = asyncHandler(async (req, res) => {
   bill.paymentMethod = normalizedPaymentMethod;
   bill.paymentDetails = normalizePaymentDetails(req.body, bill.total, bill.paymentMethod);
   bill.paidAmount = bill.paymentDetails.length ? bill.paymentDetails.reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : requestPaidAmount(req.body, bill.paymentMethod === "Credit" ? bill.paidAmount ?? 0 : bill.total);
-  bill.cashReceived = Number(req.body.cashReceived || 0);
-  bill.changeReturn = Math.max(bill.cashReceived - bill.total, 0);
+  bill.cashReceived = bill.paymentMethod === "Cash" ? money(req.body.cashReceived, bill.paidAmount) : 0;
+  validatePaymentForBill({
+    paymentMethod: bill.paymentMethod,
+    total: bill.total,
+    paidAmount: bill.paidAmount,
+    cashReceived: bill.cashReceived
+  });
+  bill.changeReturn = changeReturnForPayment(bill.paymentMethod, bill.cashReceived, bill.paidAmount);
   const balanceAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
   bill.dueAmount = balanceAmount;
   bill.balanceAmount = balanceAmount;
@@ -383246,14 +383377,14 @@ var import_express9 = __toESM(require_express2(), 1);
 // ../server/src/controllers/customerController.js
 var import_express_validator7 = __toESM(require_lib4(), 1);
 var customerRules = [
-  (0, import_express_validator7.body)("name").trim().notEmpty(),
-  (0, import_express_validator7.body)("mobile").trim().notEmpty().matches(/^[0-9+\-\s]{7,15}$/),
-  (0, import_express_validator7.body)("alternatePhone").optional({ checkFalsy: true }).matches(/^[0-9+\-\s]{7,15}$/),
-  (0, import_express_validator7.body)("email").optional({ checkFalsy: true }).isEmail().normalizeEmail(),
-  (0, import_express_validator7.body)("gstNumber").optional({ checkFalsy: true }).matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i),
-  (0, import_express_validator7.body)("panNumber").optional({ checkFalsy: true }).matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i),
-  (0, import_express_validator7.body)("openingBalance").optional().isFloat({ min: 0 }),
-  (0, import_express_validator7.body)("creditLimit").optional().isFloat({ min: 0 })
+  (0, import_express_validator7.body)("name").trim().notEmpty().withMessage("Customer name is required."),
+  (0, import_express_validator7.body)("mobile").trim().notEmpty().withMessage("Mobile number is required.").bail().matches(/^[0-9+\-\s]{7,15}$/).withMessage("Mobile number is invalid."),
+  (0, import_express_validator7.body)("alternatePhone").optional({ checkFalsy: true }).trim().matches(/^[0-9+\-\s]{7,15}$/).withMessage("Alternate phone is invalid."),
+  (0, import_express_validator7.body)("email").optional({ checkFalsy: true }).trim().isEmail().withMessage("Email is invalid.").normalizeEmail(),
+  (0, import_express_validator7.body)("gstNumber").optional({ checkFalsy: true }).trim().matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i).withMessage("GST number is invalid."),
+  (0, import_express_validator7.body)("panNumber").optional({ checkFalsy: true }).trim().matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i).withMessage("PAN number is invalid."),
+  (0, import_express_validator7.body)("openingBalance").optional().isFloat({ min: 0 }).withMessage("Opening balance must be zero or greater."),
+  (0, import_express_validator7.body)("creditLimit").optional().isFloat({ min: 0 }).withMessage("Credit limit must be zero or greater.")
 ];
 var collectionRules = [
   (0, import_express_validator7.body)("amount").isFloat({ min: 0.01 }),
@@ -383275,9 +383406,43 @@ var listCustomers = asyncHandler(async (req, res) => {
   ]);
   res.json({ customers, total, page, pages: Math.ceil(total / limit) });
 });
+var duplicateCustomerFields = [
+  ["customerId", "Customer ID already exists."],
+  ["mobile", "Mobile number already exists."],
+  ["gstNumber", "GST number already exists."],
+  ["email", "Email already exists."]
+];
+function normalizeCustomerPayload(payload) {
+  const normalized = { ...payload };
+  for (const field of ["customerId", "name", "mobile", "alternatePhone", "email", "gstNumber", "panNumber", "address", "city", "state", "pincode", "remarks", "notes"]) {
+    if (typeof normalized[field] === "string") normalized[field] = normalized[field].trim();
+  }
+  if (normalized.email) normalized.email = normalized.email.toLowerCase();
+  if (normalized.gstNumber) normalized.gstNumber = normalized.gstNumber.toUpperCase();
+  if (normalized.panNumber) normalized.panNumber = normalized.panNumber.toUpperCase();
+  return normalized;
+}
+async function ensureCustomerIsUnique(payload, currentId = null) {
+  const checks = duplicateCustomerFields.filter(([field]) => payload[field]).map(([field, message]) => ({
+    field,
+    message,
+    query: { [field]: payload[field], ...currentId ? { _id: { $ne: currentId } } : {} }
+  }));
+  const details = [];
+  for (const check of checks) {
+    if (await Customer.exists(check.query)) {
+      details.push({ path: check.field, msg: check.message, value: payload[check.field] });
+    }
+  }
+  if (details.length) {
+    throw new ApiError(409, details.map((detail) => detail.msg).join("\n"), details);
+  }
+}
 var createCustomer = asyncHandler(async (req, res) => {
-  const nextId = req.body.customerId || `CUST-${String(await Customer.countDocuments() + 1).padStart(5, "0")}`;
-  const customer = await Customer.create({ ...req.body, customerId: nextId });
+  const payload = normalizeCustomerPayload(req.body);
+  const nextId = payload.customerId || `CUST-${String(await Customer.countDocuments() + 1).padStart(5, "0")}`;
+  await ensureCustomerIsUnique({ ...payload, customerId: nextId });
+  const customer = await Customer.create({ ...payload, customerId: nextId });
   res.status(201).json({ customer });
 });
 var getCustomer = asyncHandler(async (req, res) => {
@@ -383286,7 +383451,9 @@ var getCustomer = asyncHandler(async (req, res) => {
   res.json({ customer });
 });
 var updateCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+  const payload = normalizeCustomerPayload(req.body);
+  await ensureCustomerIsUnique(payload, req.params.id);
+  const customer = await Customer.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
   if (!customer) throw new ApiError(404, "Customer not found");
   res.json({ customer });
 });
@@ -384282,14 +384449,22 @@ async function recordAdjustmentMovement({
 
 // ../server/src/controllers/inventoryController.js
 var adjustmentRules = [
-  (0, import_express_validator9.body)("product").isMongoId(),
-  (0, import_express_validator9.body)("quantity").optional().isNumeric(),
-  (0, import_express_validator9.body)("adjustedQuantity").optional().isFloat({ min: 1e-3 }),
-  (0, import_express_validator9.body)("adjustmentType").optional().isIn(["Increase", "Decrease", "Damage", "Expired", "Lost", "Opening Correction"]),
-  (0, import_express_validator9.body)("reason").trim().notEmpty()
+  (0, import_express_validator9.body)("product").isMongoId().withMessage("Product is required."),
+  (0, import_express_validator9.body)("quantity").optional({ checkFalsy: true }).trim().custom((value) => {
+    const quantity = Number(value);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Quantity must be a positive number.");
+    return true;
+  }),
+  (0, import_express_validator9.body)("adjustedQuantity").optional({ checkFalsy: true }).trim().custom((value) => {
+    const quantity = Number(value);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Adjusted quantity must be a positive number.");
+    return true;
+  }),
+  (0, import_express_validator9.body)("adjustmentType").optional().isIn(["Increase", "Decrease", "Damage", "Expired", "Lost", "Opening Correction"]).withMessage("Adjustment type is invalid."),
+  (0, import_express_validator9.body)("reason").trim().notEmpty().withMessage("Reason is required.")
 ];
 function isWholeNumber2(value) {
-  return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
+  return Number.isInteger(value);
 }
 var listInventoryLogs = asyncHandler(async (req, res) => {
   const filter = {};
@@ -384302,12 +384477,19 @@ var adjustStock = asyncHandler(async (req, res) => {
   if (!product) throw new ApiError(404, "Product not found");
   await ensureDefaultUnits();
   const unit = await Unit.findOne({ name: product.unit || "pcs", active: true }).lean();
-  const quantity = parseFloat(req.body.quantity);
+  const rawQuantity = String(req.body.adjustedQuantity ?? req.body.quantity ?? "").trim();
+  const quantity = Number(rawQuantity);
+  if (!Number.isFinite(quantity)) {
+    throw new ApiError(400, "Adjusted quantity must be a valid number.", [{ path: "adjustedQuantity", msg: "Adjusted quantity must be a valid number.", value: req.body.adjustedQuantity ?? req.body.quantity }]);
+  }
+  if (quantity <= 0) {
+    throw new ApiError(400, "Adjusted quantity must be greater than zero.", [{ path: "adjustedQuantity", msg: "Adjusted quantity must be greater than zero.", value: quantity }]);
+  }
   if (unit && !unit.allowDecimal && !isWholeNumber2(quantity)) {
-    throw new ApiError(400, `${product.unit || "pcs"} accepts whole number quantities only`);
+    throw new ApiError(400, `${product.unit || "pcs"} accepts whole number quantities only`, [{ path: "adjustedQuantity", msg: `${product.unit || "pcs"} accepts whole number quantities only`, value: quantity }]);
   }
   const adjustmentType = req.body.adjustmentType || (quantity < 0 ? "Decrease" : "Increase");
-  const adjustedQuantity = Math.abs(Number(req.body.adjustedQuantity ?? quantity));
+  const adjustedQuantity = Math.abs(quantity);
   const adjustment = await StockAdjustment.create({
     product: product._id,
     adjustmentType,
@@ -384821,12 +385003,38 @@ var searchProducts = asyncHandler(async (req, res) => {
   if (cached) {
     return res.json({ products: cached });
   }
+  const projection = {
+    productId: 1,
+    name: 1,
+    localName: 1,
+    sku: 1,
+    barcode: 1,
+    purchasePrice: 1,
+    sellingPrice: 1,
+    retailPrice: 1,
+    wholesalePrice: 1,
+    mrp: 1,
+    stock: 1,
+    taxRate: 1,
+    category: 1,
+    allowDecimalQty: 1,
+    unit: 1,
+    gstInclusive: 1,
+    hsnCode: 1
+  };
   const numericQuery = /^[0-9]+$/.test(query4);
   const prefixRegex = new RegExp(`^${escapeRegex(query4)}`, "i");
+  const containsRegex = new RegExp(escapeRegex(query4), "i");
   const productIdExpr = numericQuery ? {
     $regexMatch: {
       input: { $toString: "$productId" },
       regex: `^${escapeRegex(query4)}`
+    }
+  } : null;
+  const containsProductIdExpr = numericQuery ? {
+    $regexMatch: {
+      input: { $toString: "$productId" },
+      regex: escapeRegex(query4)
     }
   } : null;
   const prefixResults = await Product.find({
@@ -384838,40 +385046,47 @@ var searchProducts = asyncHandler(async (req, res) => {
       { barcode: prefixRegex },
       ...productIdExpr ? [{ $expr: productIdExpr }] : []
     ]
-  }, {
-    productId: 1,
-    name: 1,
-    localName: 1,
-    sku: 1,
-    barcode: 1,
-    sellingPrice: 1,
-    stock: 1,
-    taxRate: 1,
-    category: 1,
-    allowDecimalQty: 1,
-    unit: 1
-  }).sort({ name: 1 }).limit(limit).lean();
-  if (prefixResults && prefixResults.length > 0) {
-    const payload = prefixResults.map((product) => ({
-      _id: product._id,
-      productId: product.productId,
-      productName: product.name,
-      name: product.name,
-      localName: product.localName || "",
-      sku: product.sku,
-      barcode: product.barcode,
-      sellingPrice: product.sellingPrice,
-      stock: product.stock,
-      taxRate: product.taxRate || 0,
-      tax: product.taxRate || 0,
-      available: product.stock > 0,
-      allowDecimalQty: product.allowDecimalQty || false,
-      unit: product.unit || "pcs"
-    }));
-    setCache(cacheKey, payload, 1e4);
-    return res.json({ products: payload });
+  }, projection).sort({ name: 1 }).limit(limit).lean();
+  let products = prefixResults || [];
+  if (products.length < limit) {
+    const prefixIds = new Set(products.map((product) => String(product._id)));
+    const containsResults = await Product.find({
+      active: true,
+      _id: { $nin: [...prefixIds] },
+      $or: [
+        { name: containsRegex },
+        { localName: containsRegex },
+        { sku: containsRegex },
+        { barcode: containsRegex },
+        ...containsProductIdExpr ? [{ $expr: containsProductIdExpr }] : []
+      ]
+    }, projection).sort({ name: 1 }).limit(limit - products.length).lean();
+    products = [...products, ...containsResults];
   }
-  res.json({ products: [] });
+  const payload = products.map((product) => ({
+    _id: product._id,
+    productId: product.productId,
+    productName: product.name,
+    name: product.name,
+    localName: product.localName || "",
+    sku: product.sku,
+    barcode: product.barcode,
+    purchasePrice: product.purchasePrice || 0,
+    sellingPrice: product.sellingPrice,
+    retailPrice: product.retailPrice ?? product.sellingPrice,
+    wholesalePrice: product.wholesalePrice || 0,
+    mrp: product.mrp || 0,
+    stock: product.stock,
+    taxRate: product.taxRate || 0,
+    tax: product.taxRate || 0,
+    available: product.stock > 0,
+    allowDecimalQty: product.allowDecimalQty || false,
+    unit: product.unit || "pcs",
+    gstInclusive: Boolean(product.gstInclusive),
+    hsnCode: product.hsnCode || ""
+  }));
+  setCache(cacheKey, payload, 1e4);
+  res.json({ products: payload });
 });
 var searchByProductId = asyncHandler(async (req, res) => {
   const productId = Number(req.params.productId);
@@ -384884,12 +385099,18 @@ var searchByProductId = asyncHandler(async (req, res) => {
     localName: 1,
     sku: 1,
     barcode: 1,
+    purchasePrice: 1,
     sellingPrice: 1,
+    retailPrice: 1,
+    wholesalePrice: 1,
+    mrp: 1,
     stock: 1,
     taxRate: 1,
     category: 1,
     allowDecimalQty: 1,
-    unit: 1
+    unit: 1,
+    gstInclusive: 1,
+    hsnCode: 1
   }).lean();
   if (!product) {
     return res.status(404).json({ message: "Product not found" });
@@ -384902,13 +385123,19 @@ var searchByProductId = asyncHandler(async (req, res) => {
     localName: product.localName || "",
     sku: product.sku,
     barcode: product.barcode,
+    purchasePrice: product.purchasePrice || 0,
     sellingPrice: product.sellingPrice,
+    retailPrice: product.retailPrice ?? product.sellingPrice,
+    wholesalePrice: product.wholesalePrice || 0,
+    mrp: product.mrp || 0,
     stock: product.stock,
     taxRate: product.taxRate || 0,
     tax: product.taxRate || 0,
     available: product.stock > 0,
     allowDecimalQty: product.allowDecimalQty || false,
-    unit: product.unit || "pcs"
+    unit: product.unit || "pcs",
+    gstInclusive: Boolean(product.gstInclusive),
+    hsnCode: product.hsnCode || ""
   };
   res.json({ product: payload });
 });
@@ -385021,6 +385248,8 @@ var purchaseRules = [
   (0, import_express_validator11.body)("items.*.gstInclusive").optional().isBoolean(),
   (0, import_express_validator11.body)("items.*.discountPercent").optional().isFloat({ min: 0, max: 100 }),
   (0, import_express_validator11.body)("items.*.discountAmount").optional().isFloat({ min: 0 }),
+  (0, import_express_validator11.body)("roundOff").optional().isFloat(),
+  (0, import_express_validator11.body)("roundOffMode").optional().isIn(["auto", "manual"]),
   (0, import_express_validator11.body)("paidAmount").optional().isFloat({ min: 0 })
 ];
 var listPurchases = asyncHandler(async (req, res) => {
@@ -385029,9 +385258,21 @@ var listPurchases = asyncHandler(async (req, res) => {
   const search = String(req.query.search || req.query.q || "").trim();
   if (search) {
     const regex2 = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    filter.$or = [{ purchaseNo: regex2 }, { invoiceNumber: regex2 }, { supplierInvoice: regex2 }, { remarks: regex2 }];
+    const matchingSuppliers = await Supplier.find({
+      $or: [{ supplierId: regex2 }, { name: regex2 }, { mobile: regex2 }, { gstNumber: regex2 }, { panNumber: regex2 }]
+    }).select("_id").lean();
+    filter.$or = [
+      { purchaseNo: regex2 },
+      { invoiceNumber: regex2 },
+      { supplierInvoice: regex2 },
+      { remarks: regex2 },
+      ...matchingSuppliers.length ? [{ supplier: { $in: matchingSuppliers.map((supplier) => supplier._id) } }] : []
+    ];
   }
   if (req.query.supplier) filter.supplier = req.query.supplier;
+  if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
+  if (req.query.status === "cancelled") filter.active = false;
+  if (req.query.status === "active") filter.active = true;
   if (req.query.from || req.query.to) {
     filter.purchaseDate = {};
     if (req.query.from) filter.purchaseDate.$gte = new Date(req.query.from);
@@ -385059,6 +385300,14 @@ function number3(value, fallback2 = 0) {
 }
 function money2(value) {
   return Math.round(number3(value) * 100) / 100;
+}
+function automaticRoundOff(value) {
+  const total = money2(value);
+  return money2(Math.round(total) - total);
+}
+function roundOffModeForSource(source) {
+  if (source?.roundOffMode === "manual" || source?.roundOffMode === "auto") return source.roundOffMode;
+  return money2(source?.roundOff || 0) !== 0 ? "manual" : "auto";
 }
 function hasExplicitDiscountAmount(item) {
   return item.discountAmount !== "" && item.discountAmount !== void 0 && item.discountAmount !== null;
@@ -385178,8 +385427,10 @@ function summarizePurchase(items, body15 = {}) {
   const discount = money2(items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0));
   const lineTotal = money2(items.reduce((sum, item) => sum + Number(item.lineTotal ?? item.netAmount ?? 0), 0));
   const freightCharges = money2(body15.freightCharges || 0);
-  const roundOff = body15.roundOff !== void 0 ? money2(body15.roundOff || 0) : 0;
-  const grandTotal = money2(Math.max(lineTotal + freightCharges + roundOff, 0));
+  const preRoundTotal = money2(lineTotal + freightCharges);
+  const roundOffMode = roundOffModeForSource(body15);
+  const roundOff = roundOffMode === "manual" ? money2(body15.roundOff || 0) : automaticRoundOff(preRoundTotal);
+  const grandTotal = money2(Math.max(preRoundTotal + roundOff, 0));
   const amountPaid = money2(Math.min(Number(body15.amountPaid ?? body15.paidAmount ?? 0), grandTotal));
   return {
     itemCount: items.length,
@@ -385189,6 +385440,7 @@ function summarizePurchase(items, body15 = {}) {
     discount,
     freightCharges,
     roundOff,
+    roundOffMode,
     grandTotal,
     total: grandTotal,
     paidAmount: amountPaid,
@@ -385246,6 +385498,16 @@ async function recalculateSupplier(supplierId) {
 }
 var createPurchase = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings();
+  let sourcePurchaseOrder = null;
+  if (req.body.sourcePurchaseOrder) {
+    sourcePurchaseOrder = await PurchaseOrder.findById(req.body.sourcePurchaseOrder);
+    if (!sourcePurchaseOrder) throw new ApiError(404, "Purchase order not found");
+    if (sourcePurchaseOrder.status === "cancelled") throw new ApiError(400, "Cancelled Purchase Orders cannot be converted");
+    if (sourcePurchaseOrder.status === "draft") throw new ApiError(400, "Draft Purchase Orders must be ordered before conversion");
+    if (sourcePurchaseOrder.purchase || sourcePurchaseOrder.convertedAt || await Purchase.exists({ sourcePurchaseOrder: sourcePurchaseOrder._id, active: true })) {
+      throw new ApiError(409, "Purchase Order has already been converted");
+    }
+  }
   const items = await resolvePurchaseItems(req.body.items || [], settings);
   const summary = summarizePurchase(items, req.body);
   const purchaseNo = String(req.body.purchaseNo || "").trim() || (settings.autoGeneratePurchaseNumber ? await nextPurchaseNumber() : void 0);
@@ -385271,10 +385533,27 @@ var createPurchase = asyncHandler(async (req, res) => {
   });
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
   await recordSupplierPriceHistory(purchase);
+  if (sourcePurchaseOrder) {
+    sourcePurchaseOrder.items.forEach((item) => {
+      const purchased = items.find((row) => String(row.product) === String(item.product));
+      if (purchased) {
+        item.convertedQuantity = Number(item.convertedQuantity || 0) + Number(purchased.quantity || 0);
+        item.convertedFreeQuantity = Number(item.convertedFreeQuantity || 0) + Number(purchased.freeQuantity || 0);
+      }
+    });
+    sourcePurchaseOrder.purchase = purchase._id;
+    sourcePurchaseOrder.convertedAt = /* @__PURE__ */ new Date();
+    sourcePurchaseOrder.convertedBy = req.user?._id;
+    sourcePurchaseOrder.status = "completed";
+    await sourcePurchaseOrder.save();
+  }
   await recalculateSupplier(purchase.supplier);
   await reconcileSupplierAccounting(purchase.supplier);
   await rebuildDayBook();
   await logAudit(req, { action: "Purchase Created", module: "Purchases", newValue: purchase.toObject() });
+  if (sourcePurchaseOrder) {
+    await logAudit(req, { action: "Purchase Order Converted to Purchase", module: "Purchase Orders", newValue: { poNumber: sourcePurchaseOrder.poNumber, purchase: purchase._id } });
+  }
   res.status(201).json({ purchase });
 });
 var getPurchase = asyncHandler(async (req, res) => {
@@ -385388,7 +385667,6 @@ var getSupplierPriceHistory = asyncHandler(async (req, res) => {
 });
 async function createPurchaseFromPurchaseOrder({ purchaseOrder, items, invoiceNumber, userId, notes }) {
   const settings = await getInventorySettings();
-  const total = items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
   const purchase = await Purchase.create({
     purchaseNo: settings.autoGeneratePurchaseNumber ? await nextPurchaseNumber() : void 0,
     supplier: purchaseOrder.supplier,
@@ -385396,8 +385674,7 @@ async function createPurchaseFromPurchaseOrder({ purchaseOrder, items, invoiceNu
     supplierInvoice: invoiceNumber,
     purchaseDate: /* @__PURE__ */ new Date(),
     items,
-    ...summarizePurchase(items, { paidAmount: 0 }),
-    total,
+    ...summarizePurchase(items, { paidAmount: 0, roundOff: purchaseOrder.roundOff, roundOffMode: roundOffModeForSource(purchaseOrder) }),
     paidAmount: 0,
     sourcePurchaseOrder: purchaseOrder._id,
     user: userId,
@@ -385424,28 +385701,73 @@ var import_express15 = __toESM(require_express2(), 1);
 
 // ../server/src/controllers/purchaseOrderController.js
 var import_express_validator12 = __toESM(require_lib4(), 1);
-var statuses = ["draft", "pending", "partially_received", "completed", "cancelled"];
+var statuses = ["draft", "ordered", "pending", "partially_received", "completed", "cancelled"];
+var editableStatuses = ["draft", "ordered"];
+var receivableStatuses = ["ordered", "pending", "partially_received"];
 var purchaseOrderRules = [
   (0, import_express_validator12.body)("supplier").isMongoId(),
   (0, import_express_validator12.body)("status").optional().isIn(statuses),
+  (0, import_express_validator12.body)("referenceNumber").optional({ nullable: true, checkFalsy: true }).isString().trim(),
+  (0, import_express_validator12.body)("orderDate").optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  (0, import_express_validator12.body)("expectedDate").optional({ nullable: true, checkFalsy: true }).isISO8601(),
   (0, import_express_validator12.body)("items").isArray({ min: 1 }),
   (0, import_express_validator12.body)("items.*.product").isMongoId(),
   (0, import_express_validator12.body)("items.*.quantity").isFloat({ min: 1e-3 }),
-  (0, import_express_validator12.body)("items.*.costPrice").isFloat({ min: 0 }),
-  (0, import_express_validator12.body)("items.*.gstRate").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("items.*.freeQuantity").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("items.*.costPrice").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("items.*.purchasePrice").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("items.*.gstRate").optional().isFloat({ min: 0, max: 100 }),
+  (0, import_express_validator12.body)("items.*.gstInclusive").optional().isBoolean(),
+  (0, import_express_validator12.body)("items.*.discountPercent").optional().isFloat({ min: 0, max: 100 }),
+  (0, import_express_validator12.body)("items.*.discountAmount").optional().isFloat({ min: 0 }),
   (0, import_express_validator12.body)("items.*.mrp").optional().isFloat({ min: 0 }),
-  (0, import_express_validator12.body)("items.*.sellingPrice").optional().isFloat({ min: 0 })
+  (0, import_express_validator12.body)("items.*.wholesalePrice").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("items.*.retailPrice").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("items.*.sellingPrice").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("roundOff").optional().isFloat(),
+  (0, import_express_validator12.body)("roundOffMode").optional().isIn(["auto", "manual"])
 ];
 var purchaseOrderListRules = [
   (0, import_express_validator12.query)("status").optional().isIn(statuses),
-  (0, import_express_validator12.query)("supplier").optional().isMongoId()
+  (0, import_express_validator12.query)("supplier").optional().isMongoId(),
+  (0, import_express_validator12.query)("from").optional({ nullable: true, checkFalsy: true }).isISO8601(),
+  (0, import_express_validator12.query)("to").optional({ nullable: true, checkFalsy: true }).isISO8601()
 ];
 var receivePurchaseOrderRules = [
   (0, import_express_validator12.body)("items").isArray({ min: 1 }),
   (0, import_express_validator12.body)("items.*.product").isMongoId(),
-  (0, import_express_validator12.body)("items.*.receivedQuantity").isFloat({ min: 1e-3 })
+  (0, import_express_validator12.body)("items.*.receivedQuantity").isFloat({ min: 1e-3 }),
+  (0, import_express_validator12.body)("items.*.freeQuantity").optional().isFloat({ min: 0 }),
+  (0, import_express_validator12.body)("notes").optional({ nullable: true, checkFalsy: true }).isString().trim()
+];
+var cancelPurchaseOrderRules = [
+  (0, import_express_validator12.body)("reason").trim().notEmpty().withMessage("Cancellation reason is required")
 ];
 var idRule = [(0, import_express_validator12.param)("id").isMongoId()];
+function number4(value, fallback2 = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback2;
+}
+function money3(value) {
+  return Math.round(number4(value) * 100) / 100;
+}
+function automaticRoundOff2(value) {
+  const total = money3(value);
+  return money3(Math.round(total) - total);
+}
+function roundOffModeFor(body15) {
+  if (body15?.roundOffMode === "manual" || body15?.roundOffMode === "auto") return body15.roundOffMode;
+  return money3(body15?.roundOff || 0) !== 0 ? "manual" : "auto";
+}
+function isWholeNumber4(value) {
+  return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
+}
+function hasExplicitDiscountAmount2(item) {
+  return item.discountAmount !== "" && item.discountAmount !== void 0 && item.discountAmount !== null;
+}
+function normalizeStatus(status) {
+  return status === "pending" ? "ordered" : status;
+}
 async function nextPoNumber() {
   const now = /* @__PURE__ */ new Date();
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
@@ -385456,124 +385778,294 @@ async function nextPoNumber() {
   const count = await PurchaseOrder.countDocuments({ createdAt: { $gte: start2, $lt: end } });
   return `PO-${datePart}-${String(count + 1).padStart(4, "0")}`;
 }
+async function getUnit2(name) {
+  await ensureDefaultUnits();
+  const unit = await Unit.findOne({ name: String(name || "pcs").trim().toLowerCase(), active: true }).lean();
+  if (!unit) throw new ApiError(400, `Invalid unit: ${name}`);
+  return unit;
+}
+function calculatePurchaseLine2(item, product = {}) {
+  const quantity = Math.max(number4(item.quantity), 0);
+  const freeQuantity = Math.max(number4(item.freeQuantity), 0);
+  const costPrice = Math.max(number4(item.purchasePrice ?? item.costPrice), 0);
+  const gstRate = Math.max(number4(item.gstRate ?? item.gst ?? product.taxRate), 0);
+  const grossAmount = money3(quantity * costPrice);
+  const discountPercent = Math.max(number4(item.discountPercent), 0);
+  const percentDiscount = grossAmount * discountPercent / 100;
+  const discountAmount = money3(Math.min(hasExplicitDiscountAmount2(item) ? number4(item.discountAmount) : percentDiscount, grossAmount));
+  const discountedAmount = money3(Math.max(grossAmount - discountAmount, 0));
+  const gstInclusive = Boolean(item.gstInclusive ?? product.gstInclusive ?? false);
+  const gstAmount = money3(gstInclusive && gstRate > 0 ? discountedAmount - discountedAmount / (1 + gstRate / 100) : discountedAmount * gstRate / 100);
+  const taxableAmount = money3(gstInclusive ? discountedAmount - gstAmount : discountedAmount);
+  const lineTotal = money3(gstInclusive ? discountedAmount : taxableAmount + gstAmount);
+  const cgst = money3(gstAmount / 2);
+  const sgst = money3(gstAmount - cgst);
+  return { quantity, freeQuantity, costPrice, gstRate, gstInclusive, grossAmount, discountPercent, discountAmount, taxableAmount, gstAmount, cgst, sgst, igst: 0, lineTotal, netAmount: lineTotal };
+}
 async function resolveItems(rawItems) {
+  const merged = /* @__PURE__ */ new Map();
+  for (const raw of rawItems || []) {
+    const key = String(raw.product || "");
+    if (!key) continue;
+    const current = merged.get(key);
+    if (current) {
+      current.quantity = number4(current.quantity) + number4(raw.quantity);
+      current.freeQuantity = number4(current.freeQuantity) + number4(raw.freeQuantity);
+    } else {
+      merged.set(key, { ...raw });
+    }
+  }
   const items = [];
-  for (const row of rawItems) {
+  for (const row of merged.values()) {
     const product = await Product.findById(row.product).lean();
-    if (!product) throw new ApiError(404, "Product not found");
-    const quantity = Number(row.quantity || 0);
-    const costPrice = Number(row.costPrice || 0);
-    const gstRate = Number(row.gstRate ?? product.taxRate ?? 0);
+    if (!product || product.active === false) throw new ApiError(400, "Product is required and must be active");
+    const supplierUnit = await getUnit2(row.unit || product.unit || "pcs");
+    const quantity = number4(row.quantity);
+    const freeQuantity = number4(row.freeQuantity);
+    if (quantity <= 0) throw new ApiError(400, `Quantity must be greater than zero for ${product.name}`);
+    if (freeQuantity < 0) throw new ApiError(400, `Free quantity cannot be negative for ${product.name}`);
+    if (!supplierUnit.allowDecimal && !isWholeNumber4(quantity)) throw new ApiError(400, `Quantity for ${supplierUnit.name} must be a whole number`);
+    if (!supplierUnit.allowDecimal && !isWholeNumber4(freeQuantity)) throw new ApiError(400, `Free quantity for ${supplierUnit.name} must be a whole number`);
+    const line = calculatePurchaseLine2({ ...row, quantity, freeQuantity }, product);
     items.push({
       product: product._id,
       name: product.name,
-      quantity,
-      receivedQuantity: Number(row.receivedQuantity || 0),
-      convertedQuantity: Number(row.convertedQuantity || 0),
-      unit: row.unit || product.unit || "pcs",
-      costPrice,
-      gstRate,
-      mrp: Number(row.mrp || product.mrp || 0),
-      sellingPrice: Number(row.sellingPrice || product.sellingPrice || 0),
-      lineTotal: quantity * costPrice * (1 + gstRate / 100)
+      sku: product.sku,
+      barcode: product.barcode,
+      pid: product.productId ? String(product.productId) : "",
+      quantity: line.quantity,
+      freeQuantity: line.freeQuantity,
+      receivedQuantity: number4(row.receivedQuantity),
+      receivedFreeQuantity: number4(row.receivedFreeQuantity),
+      convertedQuantity: number4(row.convertedQuantity),
+      convertedFreeQuantity: number4(row.convertedFreeQuantity),
+      unit: supplierUnit.name,
+      costPrice: line.costPrice,
+      purchasePrice: line.costPrice,
+      gstRate: line.gstRate,
+      gstInclusive: line.gstInclusive,
+      taxableAmount: line.taxableAmount,
+      gstAmount: line.gstAmount,
+      cgst: line.cgst,
+      sgst: line.sgst,
+      igst: line.igst,
+      discountPercent: line.discountPercent,
+      discountAmount: line.discountAmount,
+      mrp: number4(row.mrp || product.mrp),
+      wholesalePrice: number4(row.wholesalePrice || product.wholesalePrice),
+      retailPrice: number4(row.retailPrice ?? row.sellingPrice ?? product.retailPrice ?? product.sellingPrice),
+      sellingPrice: number4(row.sellingPrice || product.sellingPrice),
+      netAmount: line.netAmount,
+      lineTotal: line.lineTotal
     });
   }
+  if (!items.length) throw new ApiError(400, "At least one product is required");
   return items;
 }
-function statusFor(order) {
-  if (order.status === "cancelled" || order.status === "draft") return order.status;
-  const items = order.items || [];
-  const ordered = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const received = items.reduce((sum, item) => sum + Number(item.receivedQuantity || 0), 0);
-  const converted = items.reduce((sum, item) => sum + Number(item.convertedQuantity || 0), 0);
-  if (ordered > 0 && converted >= ordered) return "completed";
-  if (received > 0 || converted > 0) return "partially_received";
-  return "pending";
+function summarize(items, body15 = {}) {
+  const lineTotal = money3(items.reduce((sum, item) => sum + number4(item.lineTotal), 0));
+  const roundOffMode = roundOffModeFor(body15);
+  const roundOff = roundOffMode === "manual" ? money3(body15.roundOff) : automaticRoundOff2(lineTotal);
+  const grandTotal = money3(Math.max(lineTotal + roundOff, 0));
+  return {
+    itemCount: items.length,
+    totalQuantity: items.reduce((sum, item) => sum + number4(item.quantity) + number4(item.freeQuantity), 0),
+    receivedQuantity: items.reduce((sum, item) => sum + number4(item.receivedQuantity), 0),
+    subTotal: money3(items.reduce((sum, item) => sum + number4(item.grossAmount ?? item.quantity * item.costPrice), 0)),
+    taxableAmount: money3(items.reduce((sum, item) => sum + number4(item.taxableAmount), 0)),
+    gstTotal: money3(items.reduce((sum, item) => sum + number4(item.gstAmount), 0)),
+    discount: money3(items.reduce((sum, item) => sum + number4(item.discountAmount), 0)),
+    roundOff,
+    roundOffMode,
+    grandTotal,
+    total: grandTotal
+  };
 }
-function buildSearchFilter(req) {
+function statusFor(order) {
+  const current = normalizeStatus(order.status);
+  if (current === "cancelled" || current === "draft") return current;
+  const items = order.items || [];
+  const ordered = items.reduce((sum, item) => sum + number4(item.quantity), 0);
+  const received = items.reduce((sum, item) => sum + number4(item.receivedQuantity), 0);
+  if (ordered > 0 && received >= ordered - 1e-6) return "completed";
+  if (received > 0) return "partially_received";
+  return "ordered";
+}
+function dateRange3(query4) {
+  const range2 = {};
+  if (query4.from) range2.$gte = new Date(query4.from);
+  if (query4.to) {
+    const end = new Date(query4.to);
+    end.setHours(23, 59, 59, 999);
+    range2.$lte = end;
+  }
+  return Object.keys(range2).length ? range2 : null;
+}
+async function buildSearchFilter(req) {
   const filter = { active: true };
-  if (req.query.status) filter.status = req.query.status;
+  if (req.query.status) filter.status = ["ordered", "pending"].includes(req.query.status) ? { $in: ["ordered", "pending"] } : req.query.status;
   if (req.query.supplier) filter.supplier = req.query.supplier;
+  const range2 = dateRange3(req.query);
+  if (range2) filter.orderDate = range2;
   if (req.query.search) {
     const term = new RegExp(String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    filter.$or = [{ poNumber: term }, { notes: term }, { "items.name": term }];
+    const matchingSuppliers = await Supplier.find({
+      $or: [{ supplierId: term }, { name: term }, { mobile: term }, { gstNumber: term }, { panNumber: term }]
+    }).select("_id").lean();
+    filter.$or = [
+      { poNumber: term },
+      { referenceNumber: term },
+      { notes: term },
+      { "items.name": term },
+      ...matchingSuppliers.length ? [{ supplier: { $in: matchingSuppliers.map((supplier) => supplier._id) } }] : []
+    ];
   }
   return filter;
 }
+async function assertSupplier(id) {
+  const supplier = await Supplier.findById(id).lean();
+  if (!supplier || supplier.active === false) throw new ApiError(400, "Supplier is required and must be active");
+  return supplier;
+}
+function assertDates(orderDate, expectedDate) {
+  if (!expectedDate) return;
+  if (Number.isNaN(new Date(expectedDate).getTime())) throw new ApiError(400, "Expected date is invalid");
+  if (new Date(expectedDate) < new Date(orderDate)) throw new ApiError(400, "Expected date cannot be before PO date");
+}
+async function loadOrder(id) {
+  const order = await PurchaseOrder.findById(id);
+  if (!order) throw new ApiError(404, "Purchase order not found");
+  if (order.status === "pending") order.status = "ordered";
+  return order;
+}
 var listPurchaseOrders = asyncHandler(async (req, res) => {
-  const purchaseOrders = await PurchaseOrder.find(buildSearchFilter(req)).populate("supplier", "name mobile gstNumber address").populate("purchase", "invoiceNumber total purchaseDate").sort({ createdAt: -1 }).limit(1e3);
+  const purchaseOrders = await PurchaseOrder.find(await buildSearchFilter(req)).populate("supplier", "supplierId name mobile gstNumber address").populate("purchase", "purchaseNo invoiceNumber total purchaseDate").populate("user cancelledBy convertedBy", "name email").populate("receivingHistory.receivedBy", "name email").sort({ orderDate: -1, createdAt: -1 }).limit(Number(req.query.limit || 1e3));
   res.json({ purchaseOrders });
 });
 var createPurchaseOrder = asyncHandler(async (req, res) => {
+  await assertSupplier(req.body.supplier);
+  const orderDate = req.body.orderDate ? new Date(req.body.orderDate) : /* @__PURE__ */ new Date();
+  assertDates(orderDate, req.body.expectedDate);
   const items = await resolveItems(req.body.items || []);
   const purchaseOrder = await PurchaseOrder.create({
     poNumber: req.body.poNumber || await nextPoNumber(),
+    referenceNumber: req.body.referenceNumber,
     supplier: req.body.supplier,
-    orderDate: req.body.orderDate ? new Date(req.body.orderDate) : /* @__PURE__ */ new Date(),
+    orderDate,
     expectedDate: req.body.expectedDate ? new Date(req.body.expectedDate) : void 0,
-    status: req.body.status || "draft",
+    status: normalizeStatus(req.body.status || "draft"),
     items,
-    total: items.reduce((sum, item) => sum + item.lineTotal, 0),
+    ...summarize(items, req.body),
     notes: req.body.notes,
     user: req.user?._id
   });
+  await logAudit(req, { action: "Purchase Order Created", module: "Purchase Orders", newValue: purchaseOrder.toObject() });
   res.status(201).json({ purchaseOrder });
 });
 var getPurchaseOrder = asyncHandler(async (req, res) => {
-  const purchaseOrder = await PurchaseOrder.findById(req.params.id).populate("supplier").populate("items.product").populate("purchase");
+  const purchaseOrder = await PurchaseOrder.findById(req.params.id).populate("supplier").populate("items.product").populate("purchase").populate("user cancelledBy convertedBy receivingHistory.receivedBy", "name email");
   if (!purchaseOrder) throw new ApiError(404, "Purchase order not found");
   res.json({ purchaseOrder });
 });
 var updatePurchaseOrder = asyncHandler(async (req, res) => {
-  const purchaseOrder = await PurchaseOrder.findById(req.params.id);
-  if (!purchaseOrder) throw new ApiError(404, "Purchase order not found");
-  if (["completed", "cancelled"].includes(purchaseOrder.status)) throw new ApiError(400, "Completed or cancelled purchase orders cannot be edited");
+  const purchaseOrder = await loadOrder(req.params.id);
+  if (!editableStatuses.includes(normalizeStatus(purchaseOrder.status))) throw new ApiError(400, "Only draft or ordered purchase orders can be edited");
+  if (purchaseOrder.receivingHistory?.length) throw new ApiError(400, "Purchase orders with receiving history cannot be edited");
+  const previous = purchaseOrder.toObject();
+  await assertSupplier(req.body.supplier);
+  const orderDate = req.body.orderDate ? new Date(req.body.orderDate) : purchaseOrder.orderDate;
+  assertDates(orderDate, req.body.expectedDate);
   const items = await resolveItems(req.body.items || []);
+  const nextStatus = normalizeStatus(req.body.status || purchaseOrder.status);
+  if (normalizeStatus(purchaseOrder.status) === "ordered" && nextStatus === "draft") {
+    throw new ApiError(400, "Ordered purchase orders cannot be moved back to draft");
+  }
+  purchaseOrder.referenceNumber = req.body.referenceNumber;
   purchaseOrder.supplier = req.body.supplier;
-  purchaseOrder.orderDate = req.body.orderDate ? new Date(req.body.orderDate) : purchaseOrder.orderDate;
+  purchaseOrder.orderDate = orderDate;
   purchaseOrder.expectedDate = req.body.expectedDate ? new Date(req.body.expectedDate) : void 0;
-  purchaseOrder.status = req.body.status || purchaseOrder.status;
+  purchaseOrder.status = nextStatus;
   purchaseOrder.items = items;
-  purchaseOrder.total = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  Object.assign(purchaseOrder, summarize(items, req.body));
   purchaseOrder.notes = req.body.notes;
   await purchaseOrder.save();
+  await logAudit(req, { action: "Purchase Order Edited", module: "Purchase Orders", previousValue: previous, newValue: purchaseOrder.toObject() });
   res.json({ purchaseOrder });
 });
 var receivePurchaseOrder = asyncHandler(async (req, res) => {
-  const purchaseOrder = await PurchaseOrder.findById(req.params.id);
-  if (!purchaseOrder) throw new ApiError(404, "Purchase order not found");
-  if (!["pending", "partially_received"].includes(purchaseOrder.status)) throw new ApiError(400, "Only pending purchase orders can receive goods");
+  const purchaseOrder = await loadOrder(req.params.id);
+  if (!receivableStatuses.includes(normalizeStatus(purchaseOrder.status))) throw new ApiError(400, "Cancelled, draft, or completed purchase orders cannot be received");
+  if (purchaseOrder.purchase || purchaseOrder.convertedAt) throw new ApiError(400, "Converted purchase orders cannot be received again");
+  const previous = purchaseOrder.toObject();
+  const receiptItems = [];
   for (const received of req.body.items || []) {
     const item = purchaseOrder.items.find((row) => String(row.product) === String(received.product));
     if (!item) throw new ApiError(400, "Received product is not in this purchase order");
-    const newReceived = Number(item.receivedQuantity || 0) + Number(received.receivedQuantity || 0);
-    if (newReceived > Number(item.quantity || 0)) throw new ApiError(400, `Received quantity exceeds ordered quantity for ${item.name}`);
-    item.receivedQuantity = newReceived;
+    const receiveNow = number4(received.receivedQuantity);
+    const freeNow = number4(received.freeQuantity);
+    if (receiveNow <= 0) throw new ApiError(400, `Receive quantity must be greater than zero for ${item.name}`);
+    if (freeNow < 0) throw new ApiError(400, `Free quantity cannot be negative for ${item.name}`);
+    const remaining = number4(item.quantity) - number4(item.receivedQuantity);
+    if (receiveNow > remaining + 1e-6) throw new ApiError(400, `Cannot receive more than remaining quantity for ${item.name}`);
+    item.receivedQuantity = money3(number4(item.receivedQuantity) + receiveNow);
+    item.receivedFreeQuantity = money3(number4(item.receivedFreeQuantity) + freeNow);
+    receiptItems.push({ product: item.product, name: item.name, quantity: receiveNow, freeQuantity: freeNow, unit: item.unit });
   }
+  if (!receiptItems.length) throw new ApiError(400, "At least one receive quantity is required");
+  purchaseOrder.receivingHistory.push({
+    receiptNo: `${purchaseOrder.poNumber}-RCV-${String((purchaseOrder.receivingHistory?.length || 0) + 1).padStart(2, "0")}`,
+    receivedAt: /* @__PURE__ */ new Date(),
+    receivedBy: req.user?._id,
+    notes: req.body.notes,
+    items: receiptItems
+  });
   purchaseOrder.status = statusFor(purchaseOrder);
+  Object.assign(purchaseOrder, summarize(purchaseOrder.items, purchaseOrder));
   await purchaseOrder.save();
+  await logAudit(req, { action: purchaseOrder.status === "completed" ? "Purchase Order Completed" : "Purchase Order Partially Received", module: "Purchase Orders", previousValue: previous, newValue: purchaseOrder.toObject() });
   res.json({ purchaseOrder });
 });
 var convertPurchaseOrder = asyncHandler(async (req, res) => {
-  const purchaseOrder = await PurchaseOrder.findById(req.params.id);
-  if (!purchaseOrder) throw new ApiError(404, "Purchase order not found");
-  if (!["pending", "partially_received"].includes(purchaseOrder.status)) throw new ApiError(400, "Purchase order cannot be converted in its current status");
+  const purchaseOrder = await loadOrder(req.params.id);
+  if (purchaseOrder.status === "cancelled") throw new ApiError(400, "Cancelled Purchase Orders cannot be converted");
+  if (purchaseOrder.status === "draft") throw new ApiError(400, "Draft Purchase Orders must be ordered before conversion");
+  if (purchaseOrder.purchase || purchaseOrder.convertedAt || await Purchase.exists({ sourcePurchaseOrder: purchaseOrder._id, active: true })) {
+    throw new ApiError(409, "Purchase Order has already been converted");
+  }
   const items = purchaseOrder.items.map((item) => {
-    const quantity = Number(item.receivedQuantity || 0) - Number(item.convertedQuantity || 0);
+    const quantity = number4(item.receivedQuantity || item.quantity) - number4(item.convertedQuantity);
+    const receivedFree = number4(item.receivedQuantity) > 0 ? number4(item.receivedFreeQuantity) : number4(item.freeQuantity);
+    const freeQuantity = Math.max(receivedFree - number4(item.convertedFreeQuantity), 0);
     if (quantity <= 0) return null;
     return {
       product: item.product,
       name: item.name,
+      sku: item.sku,
+      barcode: item.barcode,
       quantity,
+      freeQuantity,
       unit: item.unit,
       costPrice: item.costPrice,
+      purchasePrice: item.costPrice,
       gstRate: item.gstRate,
+      gstInclusive: item.gstInclusive,
+      taxableAmount: item.taxableAmount,
+      gstAmount: item.gstAmount,
+      cgst: item.cgst,
+      sgst: item.sgst,
+      igst: item.igst,
+      discountPercent: item.discountPercent,
+      discountAmount: item.discountAmount,
       mrp: item.mrp,
+      wholesalePrice: item.wholesalePrice,
+      retailPrice: item.retailPrice,
       sellingPrice: item.sellingPrice,
-      lineTotal: quantity * Number(item.costPrice || 0) * (1 + Number(item.gstRate || 0) / 100)
+      netAmount: item.netAmount,
+      lineTotal: calculatePurchaseLine2({ ...item.toObject ? item.toObject() : item, quantity }).lineTotal
     };
   }).filter(Boolean);
-  if (!items.length) throw new ApiError(400, "Receive goods before converting to purchase");
+  if (!items.length) throw new ApiError(400, "No quantity is available to convert");
+  const previous = purchaseOrder.toObject();
   const purchase = await createPurchaseFromPurchaseOrder({
     purchaseOrder,
     items,
@@ -385581,22 +386073,36 @@ var convertPurchaseOrder = asyncHandler(async (req, res) => {
     userId: req.user?._id,
     notes: req.body.notes || `Converted from ${purchaseOrder.poNumber}`
   });
-  for (const convertedItem of items) {
-    const item = purchaseOrder.items.find((row) => String(row.product) === String(convertedItem.product));
-    item.convertedQuantity = Number(item.convertedQuantity || 0) + Number(convertedItem.quantity || 0);
-  }
+  purchaseOrder.items.forEach((item) => {
+    item.convertedQuantity = number4(item.receivedQuantity || item.quantity);
+    item.convertedFreeQuantity = number4(item.receivedQuantity) > 0 ? number4(item.receivedFreeQuantity) : number4(item.freeQuantity);
+  });
   purchaseOrder.purchase = purchase._id;
-  purchaseOrder.status = statusFor(purchaseOrder);
+  purchaseOrder.convertedAt = /* @__PURE__ */ new Date();
+  purchaseOrder.convertedBy = req.user?._id;
+  purchaseOrder.status = "completed";
   await purchaseOrder.save();
+  await logAudit(req, { action: "Purchase Order Converted to Purchase", module: "Purchase Orders", previousValue: previous, newValue: { purchaseOrder: purchaseOrder.toObject(), purchase: purchase.toObject() } });
   res.json({ purchaseOrder, purchase });
 });
 var cancelPurchaseOrder = asyncHandler(async (req, res) => {
-  const purchaseOrder = await PurchaseOrder.findById(req.params.id);
-  if (!purchaseOrder) throw new ApiError(404, "Purchase order not found");
-  if (purchaseOrder.status === "completed") throw new ApiError(400, "Completed purchase orders cannot be cancelled");
+  const purchaseOrder = await loadOrder(req.params.id);
+  if (purchaseOrder.status === "completed" || purchaseOrder.purchase || purchaseOrder.convertedAt) throw new ApiError(400, "Completed or converted purchase orders cannot be cancelled");
+  if (number4(purchaseOrder.receivedQuantity) > 0 || purchaseOrder.receivingHistory?.length) throw new ApiError(400, "Purchase orders with received goods cannot be cancelled");
+  const previous = purchaseOrder.toObject();
   purchaseOrder.status = "cancelled";
+  purchaseOrder.cancelledAt = /* @__PURE__ */ new Date();
+  purchaseOrder.cancelledBy = req.user?._id;
+  purchaseOrder.cancellationReason = req.body.reason;
   purchaseOrder.notes = req.body.notes ?? purchaseOrder.notes;
   await purchaseOrder.save();
+  await logAudit(req, { action: "Purchase Order Cancelled", module: "Purchase Orders", previousValue: previous, newValue: purchaseOrder.toObject() });
+  res.json({ purchaseOrder });
+});
+var printPurchaseOrder = asyncHandler(async (req, res) => {
+  const purchaseOrder = await PurchaseOrder.findById(req.params.id).populate("supplier", "name mobile gstNumber address").populate("items.product", "productId sku barcode name");
+  if (!purchaseOrder) throw new ApiError(404, "Purchase order not found");
+  await logAudit(req, { action: "Purchase Order Printed", module: "Purchase Orders", newValue: { poNumber: purchaseOrder.poNumber } });
   res.json({ purchaseOrder });
 });
 
@@ -385607,7 +386113,8 @@ purchaseOrderRoutes.route("/").get(purchaseOrderListRules, validate, listPurchas
 purchaseOrderRoutes.route("/:id").get(idRule, validate, getPurchaseOrder).put(idRule, purchaseOrderRules, validate, updatePurchaseOrder);
 purchaseOrderRoutes.post("/:id/receive", idRule, receivePurchaseOrderRules, validate, receivePurchaseOrder);
 purchaseOrderRoutes.post("/:id/convert", idRule, validate, convertPurchaseOrder);
-purchaseOrderRoutes.post("/:id/cancel", idRule, validate, cancelPurchaseOrder);
+purchaseOrderRoutes.post("/:id/cancel", idRule, cancelPurchaseOrderRules, validate, cancelPurchaseOrder);
+purchaseOrderRoutes.post("/:id/print", idRule, validate, printPurchaseOrder);
 
 // ../server/src/routes/reportRoutes.js
 var import_express16 = __toESM(require_express2(), 1);
@@ -386380,7 +386887,7 @@ async function categoryProductFilter(rows, query4) {
   const allowed = new Set(products.map((product) => String(product._id)));
   return filtered.filter((row) => allowed.has(String(row.productId)));
 }
-function summarize(rows, amountKey = "total") {
+function summarize2(rows, amountKey = "total") {
   return {
     count: rows.length,
     quantity: rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0),
@@ -386409,11 +386916,11 @@ function columnsFor(type) {
 async function buildReport(type, query4) {
   if (["sales", "profit"].includes(type)) {
     const rows = await categoryProductFilter(await salesRows(query4), query4);
-    return { type, columns: columnsFor(type), rows, summary: summarize(rows) };
+    return { type, columns: columnsFor(type), rows, summary: summarize2(rows) };
   }
   if (type === "purchases") {
     const rows = await categoryProductFilter(await purchaseRows(query4), query4);
-    return { type, columns: columnsFor(type), rows, summary: summarize(rows) };
+    return { type, columns: columnsFor(type), rows, summary: summarize2(rows) };
   }
   if (type === "gst") {
     const [sales, purchases] = await Promise.all([salesRows(query4), purchaseRows(query4)]);
@@ -386422,7 +386929,7 @@ async function buildReport(type, query4) {
       ...purchases.map((row) => ({ ...row, party: row.supplier, type: "Purchase" }))
     ];
     const filtered = await categoryProductFilter(rows, query4);
-    return { type, columns: columnsFor(type), rows: filtered, summary: summarize(filtered) };
+    return { type, columns: columnsFor(type), rows: filtered, summary: summarize2(filtered) };
   }
   if (type === "stock-valuation" || type === "low-stock") {
     const filter = { active: true };
@@ -386440,7 +386947,7 @@ async function buildReport(type, query4) {
       purchaseValue: Number(product.purchasePrice || 0) * Number(product.stock || 0),
       sellingValue: Number(product.sellingPrice || 0) * Number(product.stock || 0)
     }));
-    return { type, columns: columnsFor(type), rows, summary: summarize(rows, "purchaseValue") };
+    return { type, columns: columnsFor(type), rows, summary: summarize2(rows, "purchaseValue") };
   }
   if (["fast-moving-products", "slow-moving-products", "dead-stock"].includes(type)) {
     const sold = await categoryProductFilter(await salesRows(query4), query4);
@@ -386460,10 +386967,10 @@ async function buildReport(type, query4) {
         purchaseValue: Number(product.purchasePrice || 0) * Number(product.stock || 0),
         lastSoldAt: "-"
       }));
-      return { type, columns: columnsFor(type), rows: rows2, summary: summarize(rows2, "purchaseValue") };
+      return { type, columns: columnsFor(type), rows: rows2, summary: summarize2(rows2, "purchaseValue") };
     }
     const rows = [...movement.values()].sort((a6, b6) => type === "fast-moving-products" ? b6.quantity - a6.quantity : a6.quantity - b6.quantity).slice(0, 100);
-    return { type, columns: columnsFor(type), rows, summary: summarize(rows, "revenue") };
+    return { type, columns: columnsFor(type), rows, summary: summarize2(rows, "revenue") };
   }
   if (type === "customer-purchases") {
     const rowsByCustomer = /* @__PURE__ */ new Map();
@@ -386477,7 +386984,7 @@ async function buildReport(type, query4) {
       rowsByCustomer.set(row.customer, current);
     });
     const reportRows = [...rowsByCustomer.values()].map((row) => ({ ...row, invoices: row.invoices.size })).sort((a6, b6) => b6.total - a6.total);
-    return { type, columns: columnsFor(type), rows: reportRows, summary: summarize(reportRows) };
+    return { type, columns: columnsFor(type), rows: reportRows, summary: summarize2(reportRows) };
   }
   if (type === "supplier-purchases") {
     const rowsBySupplier = /* @__PURE__ */ new Map();
@@ -386490,7 +386997,7 @@ async function buildReport(type, query4) {
       rowsBySupplier.set(row.supplier, current);
     });
     const reportRows = [...rowsBySupplier.values()].map((row) => ({ ...row, invoices: row.invoices.size })).sort((a6, b6) => b6.total - a6.total);
-    return { type, columns: columnsFor(type), rows: reportRows, summary: summarize(reportRows) };
+    return { type, columns: columnsFor(type), rows: reportRows, summary: summarize2(reportRows) };
   }
   return buildReport("sales", query4);
 }
@@ -386595,7 +387102,7 @@ var ReturnBalance = import_mongoose35.default.model("ReturnBalance", returnBalan
 var EPSILON = 1e-6;
 var regex = (value) => new RegExp(String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 var returnNo = (prefix) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e4).toString().padStart(4, "0")}`;
-function dateRange3(from, to) {
+function dateRange4(from, to) {
   if (!from && !to) return void 0;
   const range2 = {};
   if (from) range2.$gte = new Date(from);
@@ -386683,7 +387190,7 @@ var searchSalesInvoices = asyncHandler(async (req, res) => {
   const query4 = {};
   const term = String(req.query.q || "").trim();
   if (term) query4.$or = [{ invoiceNo: regex(term) }, { customerName: regex(term) }, { customerMobile: regex(term) }];
-  const dates = dateRange3(req.query.from || req.query.date, req.query.to || req.query.date);
+  const dates = dateRange4(req.query.from || req.query.date, req.query.to || req.query.date);
   if (dates) query4.createdAt = dates;
   let bills = await Bill_default.find(query4).populate("staff", "name").sort({ createdAt: -1 }).limit(100).lean();
   if (req.query.cashier) bills = bills.filter((bill) => regex(req.query.cashier).test(bill.staff?.name || ""));
@@ -386741,12 +387248,12 @@ var createSalesReturn = asyncHandler(async (req, res) => {
         refundAmount: Number(item.netAmount ?? taxable + gst) * quantity / soldQty
       });
     }
-    const number4 = returnNo("SR");
-    await applyStock(items, 1, { kind: "Sales Return", source: "sales_return", returnNo: number4, originalNo: bill.invoiceNo, referenceId: bill._id, billId: bill._id, userId: req.user._id });
+    const number5 = returnNo("SR");
+    await applyStock(items, 1, { kind: "Sales Return", source: "sales_return", returnNo: number5, originalNo: bill.invoiceNo, referenceId: bill._id, billId: bill._id, userId: req.user._id });
     stockApplied = true;
     const totals = items.reduce((sum, item) => ({ taxable: sum.taxable + item.taxableAmount, gst: sum.gst + item.gstAmount, discount: sum.discount + item.discount, refund: sum.refund + item.refundAmount }), { taxable: 0, gst: 0, discount: 0, refund: 0 });
     const salesReturn = await SalesReturn.create({
-      returnNo: number4,
+      returnNo: number5,
       originalBill: bill._id,
       originalInvoiceNo: bill.invoiceNo,
       customer: bill.customer,
@@ -386782,7 +387289,7 @@ var createSalesReturn = asyncHandler(async (req, res) => {
 var searchPurchases = asyncHandler(async (req, res) => {
   const query4 = { active: true };
   if (req.query.q) query4.invoiceNumber = regex(req.query.q);
-  const dates = dateRange3(req.query.from, req.query.to);
+  const dates = dateRange4(req.query.from, req.query.to);
   if (dates) query4.purchaseDate = dates;
   let purchases = await Purchase.find(query4).populate("supplier", "name mobile").populate("items.product", "name sku").sort({ purchaseDate: -1 }).limit(100).lean();
   if (req.query.supplier) purchases = purchases.filter((purchase) => regex(req.query.supplier).test(purchase.supplier?.name || ""));
@@ -386820,11 +387327,11 @@ var createPurchaseReturn = asyncHandler(async (req, res) => {
       const gstAmount = taxableAmount * Number(item.gstRate || 0) / 100;
       return { product: id, productName: item.name, unit: item.unit, quantity, costPrice: item.costPrice, gstRate: item.gstRate, taxableAmount, gstAmount, returnAmount: taxableAmount + gstAmount };
     });
-    const number4 = returnNo("PR");
-    await applyStock(items, -1, { kind: "Purchase Return", source: "purchase_return", returnNo: number4, originalNo: purchase.invoiceNumber, referenceId: purchase._id, supplier: purchase.supplier?._id || purchase.supplier, userId: req.user._id });
+    const number5 = returnNo("PR");
+    await applyStock(items, -1, { kind: "Purchase Return", source: "purchase_return", returnNo: number5, originalNo: purchase.invoiceNumber, referenceId: purchase._id, supplier: purchase.supplier?._id || purchase.supplier, userId: req.user._id });
     stockApplied = true;
     const totals = items.reduce((sum, item) => ({ taxable: sum.taxable + item.taxableAmount, gst: sum.gst + item.gstAmount, total: sum.total + item.returnAmount }), { taxable: 0, gst: 0, total: 0 });
-    const purchaseReturn = await PurchaseReturn.create({ returnNo: number4, originalPurchase: purchase._id, originalInvoiceNo: purchase.invoiceNumber, supplier: purchase.supplier?._id, supplierName: purchase.supplier?.name, items, taxableAmount: totals.taxable, gstAmount: totals.gst, returnAmount: totals.total, reason, processedBy: req.user._id });
+    const purchaseReturn = await PurchaseReturn.create({ returnNo: number5, originalPurchase: purchase._id, originalInvoiceNo: purchase.invoiceNumber, supplier: purchase.supplier?._id, supplierName: purchase.supplier?.name, items, taxableAmount: totals.taxable, gstAmount: totals.gst, returnAmount: totals.total, reason, processedBy: req.user._id });
     createdReturn = purchaseReturn;
     purchaseCreditApplied = Math.min(totals.total, Math.max(Number(purchase.total || 0) - Number(purchase.paidAmount || 0) - Number(purchase.returnCreditAmount || 0), 0));
     if (purchaseCreditApplied > 0) await Purchase.updateOne({ _id: purchase._id }, { $inc: { returnCreditAmount: purchaseCreditApplied } });
@@ -386842,7 +387349,7 @@ var createPurchaseReturn = asyncHandler(async (req, res) => {
 });
 function returnFilters(req, kind) {
   const query4 = { status: "Completed" };
-  const dates = dateRange3(req.query.from, req.query.to);
+  const dates = dateRange4(req.query.from, req.query.to);
   if (dates) query4.returnDate = dates;
   if (kind === "sales" && req.query.customer) query4.customerName = regex(req.query.customer);
   if (kind === "purchase" && req.query.supplier) query4.supplierName = regex(req.query.supplier);
@@ -386908,7 +387415,7 @@ var saleRules = [
   (0, import_express_validator13.body)("items.*.discount").optional().isFloat({ min: 0 }),
   (0, import_express_validator13.body)("paymentMethod").isIn(["cash", "upi", "card", "bank_transfer", "credit"])
 ];
-function isWholeNumber4(value) {
+function isWholeNumber5(value) {
   return Math.abs(Number(value) - Math.round(Number(value))) < 1e-7;
 }
 function requestPaidAmount2(body15, fallback2 = 0) {
@@ -386953,7 +387460,7 @@ var createSale = asyncHandler(async (req, res) => {
     const product = productMap.get(String(item.product));
     if (!product) throw new ApiError(404, "One or more products were not found");
     const unit = await getUnitRule2(product.unit || item.unit);
-    if (!unit.allowDecimal && !isWholeNumber4(item.quantity)) {
+    if (!unit.allowDecimal && !isWholeNumber5(item.quantity)) {
       throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
     }
     if (!allowNegativeStock && product.stock < item.quantity) {

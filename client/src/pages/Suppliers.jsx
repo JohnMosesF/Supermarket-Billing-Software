@@ -1,4 +1,4 @@
-import { ArchiveRestore, Edit2, Plus, Search, Trash2 } from 'lucide-react';
+import { ArchiveRestore, Edit2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -97,7 +97,11 @@ export function Suppliers() {
 
   return (
     <div>
-      <PageHeader title="Suppliers" description="Manage supplier contacts used by purchase entries." />
+      <PageHeader
+        title="Suppliers"
+        description="Manage supplier contacts used by purchase entries."
+        actions={<button className="btn-muted" onClick={load}><RefreshCw size={16} /> Refresh</button>}
+      />
       <div className="flex items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold">{showDeleted ? 'Deleted Suppliers' : 'Active Suppliers'}</h2>

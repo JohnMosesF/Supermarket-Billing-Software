@@ -1,4 +1,4 @@
-import { Edit2, Plus, Search, Trash2 } from 'lucide-react';
+import { Edit2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -105,7 +105,11 @@ export function UsersPage() {
 
   return (
     <div>
-      <PageHeader title="Users" description="Manage staff accounts, role access, and status in a professional workspace view." />
+      <PageHeader
+        title="Users"
+        description="Manage staff accounts, role access, and status in a professional workspace view."
+        actions={<button className="btn-muted" onClick={load}><RefreshCw size={16} /> Refresh</button>}
+      />
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <form className="panel space-y-3 p-5" onSubmit={handleSubmit(save)}>
           <h2 className="font-semibold">{editing ? 'Edit user' : 'Create user'}</h2>

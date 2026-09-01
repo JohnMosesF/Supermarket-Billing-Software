@@ -127,7 +127,7 @@ export function Inventory() {
 
   return (
     <div>
-      <PageHeader title="Inventory" description="Manage stock adjustments, movement history, bulk product updates, Excel import/export, and inventory settings." />
+      <PageHeader title="Inventory" description="Manage stock adjustments, movement history, bulk product updates, Excel import/export, and inventory settings." actions={<button className="btn-muted" onClick={load}><RefreshCw size={16} /> Refresh</button>} />
 
       <div className="mb-5 flex flex-wrap gap-2">
         {tabs.map(([key, label]) => (

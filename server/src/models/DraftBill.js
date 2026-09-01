@@ -9,7 +9,7 @@ const draftBillSchema = new mongoose.Schema(
       {
         productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
         productName: { type: String, trim: true },
-        quantity: { type: Number, min: 1, default: 1 },
+        quantity: { type: Number, min: 0.001, default: 1 },
         price: { type: Number, min: 0, default: 0 },
         total: { type: Number, min: 0, default: 0 }
       }

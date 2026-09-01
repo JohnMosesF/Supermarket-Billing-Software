@@ -57,7 +57,7 @@ export default function App() {
             <Route path="accounting/item-ledger" element={<ItemLedger />} />
             <Route path="accounting/collections" element={<CollectionReport />} />
             <Route path="expenses" element={<Expenses />} />
-            <Route path="reports" element={<Reports />} />
+            <Route path="reports/*" element={<Reports />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

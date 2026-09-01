@@ -1,4 +1,4 @@
-import { Edit2, Plus, Search, Trash2 } from 'lucide-react';
+import { Edit2, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -68,7 +68,11 @@ export function MasterDataPage({ type }) {
 
   return (
     <div>
-      <PageHeader title={config.title} description="Maintain reusable master data with search, status, validation, and controlled delete." />
+      <PageHeader
+        title={config.title}
+        description="Maintain reusable master data with search, status, validation, and controlled delete."
+        actions={<button className="btn-muted" onClick={load}><RefreshCw size={16} /> Refresh</button>}
+      />
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <form className="panel space-y-3 p-5" onSubmit={handleSubmit(save)}>
           <h2 className="font-semibold">{editing ? 'Edit' : 'Create'}</h2>

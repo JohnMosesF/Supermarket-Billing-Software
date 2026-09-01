@@ -186,6 +186,7 @@ export default function ModernPOSBilling() {
   const [customerSuggestionIndex, setCustomerSuggestionIndex] = useState(-1);
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [amountPaid, setAmountPaid] = useState(0);
+  const [amountPaidTouched, setAmountPaidTouched] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
   const [splitPayments, setSplitPayments] = useState([
     { method: 'cash', amount: '', reference: '' },
@@ -480,6 +481,7 @@ export default function ModernPOSBilling() {
   const resetPaymentState = () => {
     setPaymentMethod('cash');
     setAmountPaid(0);
+    setAmountPaidTouched(false);
     setCashReceived('');
     setSplitPayments([
       { method: 'cash', amount: '', reference: '' },
@@ -737,7 +739,9 @@ export default function ModernPOSBilling() {
     const payloadDiscount = snapshotTotals ? Number(snapshotTotals.discount || 0) : discount;
     const payloadDiscountPercent = snapshotTotals ? Number(snapshotTotals.discountPercent || 0) : Number(discountPercent || 0);
     const payloadDiscountAmount = snapshotTotals ? Number(snapshotTotals.discountAmount || 0) : billAmountDiscount;
-    const total = snapshotTotals ? Number(snapshotTotals.total ?? snapshotTotals.billTotal ?? computedTotal) : computedTotal;
+    const payloadTotalRaw = snapshotTotals ? Number(snapshotTotals.total ?? snapshotTotals.billTotal ?? computedTotal) : computedTotal;
+    const payloadRoundOff = snapshotTotals ? Number(snapshotTotals.roundOff || 0) : Number((Math.round(payloadTotalRaw) - payloadTotalRaw).toFixed(2));
+    const payloadGrandTotal = Number((payloadTotalRaw + payloadRoundOff).toFixed(2));
     const normalizedPaymentMethod = normalizePaymentMode(paymentMethod);
 
     /**
@@ -771,10 +775,10 @@ export default function ModernPOSBilling() {
       ? Number(snapshotPayment.paidAmount ?? snapshotPayment.amountPaid ?? 0)
       : normalizedPaymentMethod === 'split'
       ? splitPaidAmount
-      : normalizedPaymentMethod === 'cash'
-        ? total
-        : paymentAmount(amountPaid, total, paymentMethod);
-    const balanceAmount = snapshotPayment ? Number(snapshotPayment.balanceAmount ?? snapshotPayment.balanceDue ?? snapshotPayment.outstanding ?? Math.max(0, total - paidAmount)) : Math.max(0, total - paidAmount);
+      : paymentAmount(amountPaid, payloadGrandTotal, paymentMethod);
+    const balanceAmount = snapshotPayment
+      ? Number(snapshotPayment.balanceAmount ?? snapshotPayment.balanceDue ?? snapshotPayment.outstanding ?? Math.max(0, payloadGrandTotal - paidAmount))
+      : Math.max(0, payloadGrandTotal - paidAmount);
 
     const payload = {
       items,
@@ -783,7 +787,8 @@ export default function ModernPOSBilling() {
       discount: payloadDiscount,
       discountPercent: payloadDiscountPercent,
       discountAmount: payloadDiscountAmount,
-      total,
+      roundOff: payloadRoundOff,
+      total: payloadGrandTotal,
 
       paymentMethod: paymentMethod || 'Cash',
       paymentDetails: snapshotPayment?.paymentDetails?.length
@@ -799,8 +804,8 @@ export default function ModernPOSBilling() {
 
       amountPaid: paidAmount,
       paidAmount,
-      cashReceived: snapshotPayment ? Number(snapshotPayment.cashReceived || 0) : normalizedPaymentMethod === 'cash' ? Number(cashReceived || total) : 0,
-      changeReturn: snapshotPayment ? Number(snapshotPayment.changeReturn || 0) : normalizedPaymentMethod === 'cash' ? Math.max(Number(cashReceived || total) - total, 0) : 0,
+      cashReceived: snapshotPayment ? Number(snapshotPayment.cashReceived || 0) : normalizedPaymentMethod === 'cash' ? Number(cashReceived || paidAmount) : 0,
+      changeReturn: snapshotPayment ? Number(snapshotPayment.changeReturn || 0) : normalizedPaymentMethod === 'cash' ? Math.max(Number(cashReceived || paidAmount) - paidAmount, 0) : 0,
 
       balanceDue: balanceAmount,
       balanceAmount,
@@ -832,7 +837,7 @@ export default function ModernPOSBilling() {
       discount: payload.discount,
       discountPercent: payload.discountPercent,
       discountAmount: payload.discountAmount,
-      roundOff: payload.roundOff || 0,
+      roundOff: payload.roundOff != null ? payload.roundOff : 0,
       total: payload.total,
       billTotal: payload.total,
       netTotal: payload.total,
@@ -905,16 +910,21 @@ export default function ModernPOSBilling() {
     if (!payload.items.length) return 'Cart is empty';
     for (const item of payload.items) {
       if (Number(item.quantity || 0) <= 0) return `${item.productName || 'Item'} has zero quantity`;
+      if (!item.allowDecimalQty && !Number.isInteger(Number(item.quantity || 0))) {
+        return `${item.unit || 'pcs'} accepts whole number quantities only`;
+      }
       if (Number(item.price || 0) <= 0) return `${item.productName || 'Item'} has zero price`;
       if (Number(item.discount || 0) < 0) return `${item.productName || 'Item'} has invalid discount`;
       if (Number(item.gst || 0) < 0) return `${item.productName || 'Item'} has invalid GST`;
     }
     if (payload.total <= 0) return 'Bill total must be greater than zero';
     const mode = normalizePaymentMode(payload.paymentMethod);
-    if (mode === 'cash' && cashReceived !== '' && Number(cashReceived || 0) < payload.total) {
-      return 'Cash received cannot be less than invoice total';
+    if (mode === 'cash' && cashReceived !== '' && Number(cashReceived || 0) < Number(payload.paidAmount || 0)) {
+      return 'Cash received cannot be less than amount paid';
     }
-    if (mode === 'credit') {
+    if (mode === 'cash') {
+      if (Number(payload.paidAmount || 0) > payload.total) return 'Amount paid cannot exceed invoice total';
+    } else if (mode === 'credit') {
       if (!String(customerMobile || '').trim()) return 'Customer mobile is required for credit bills';
       if (Number(payload.paidAmount || 0) > payload.total) return 'Amount paid cannot exceed invoice total';
     } else if (mode === 'split') {
@@ -1175,6 +1185,7 @@ export default function ModernPOSBilling() {
     );
     setDiscountAmount(Number(bill.discountAmount || 0));
     setAmountPaid(Number(bill.paidAmount || 0));
+    setAmountPaidTouched(true);
     setCashReceived(bill.cashReceived ? String(bill.cashReceived) : '');
     setSplitPayments((bill.paymentDetails?.length ? bill.paymentDetails : [
       { method: normalizePaymentMode(bill.paymentMethod || 'cash'), amount: Number(bill.paidAmount || 0), reference: '' }
@@ -1276,6 +1287,7 @@ export default function ModernPOSBilling() {
     setCustomerMobile(customer.mobile || customer.phone || payload.customerMobile || '');
     setPaymentMethod(restoredPaymentMethod);
     setAmountPaid(Number(payment.paidAmount ?? payment.amountPaid ?? payload.paidAmount ?? payload.amountPaid ?? 0));
+    setAmountPaidTouched(true);
     setCashReceived(payment.cashReceived != null ? String(payment.cashReceived) : payload.cashReceived ? String(payload.cashReceived) : '');
     setSplitPayments(restoredSplitPayments);
     setDiscountPercent(
@@ -1415,22 +1427,29 @@ export default function ModernPOSBilling() {
     const itemDiscountTotal = lines.reduce((sum, line) => sum + line.discount, 0);
     const billPercentDiscount = subtotalValue * Number(discountPercent || 0) / 100;
     const billAmountDiscount = Number(discountAmount || 0);
+    const rawTotal = Math.max(subtotalValue + taxTotalValue - billPercentDiscount - billAmountDiscount, 0);
+    const roundedTotal = Math.round(rawTotal);
+    const roundOff = Number((roundedTotal - rawTotal).toFixed(2));
+    const grandTotal = Number((rawTotal + roundOff).toFixed(2));
     return {
       subtotal: subtotalValue,
       taxTotal: taxTotalValue,
       itemDiscount: itemDiscountTotal,
       billDiscount: billPercentDiscount + billAmountDiscount,
       discount: itemDiscountTotal + billPercentDiscount + billAmountDiscount,
-      total: Math.max(subtotalValue + taxTotalValue - billPercentDiscount - billAmountDiscount, 0)
+      total: rawTotal,
+      roundOff,
+      grandTotal
     };
   }, [cart, discountPercent, discountAmount]);
 
-  const { subtotal, taxTotal, discount, total } = computedTotals;
+  const { subtotal, taxTotal, discount, total, roundOff, grandTotal } = computedTotals;
   const heldTotals = resumedHoldId && heldSnapshot?.totals && !holdSnapshotDirty ? heldSnapshot.totals : null;
   const displayedSubtotal = heldTotals ? Number(heldTotals.subtotal || 0) : isReadOnly && loadedBill ? Number(loadedBill.subtotal || 0) : subtotal;
   const displayedTaxTotal = heldTotals ? Number(heldTotals.taxTotal ?? heldTotals.gst ?? 0) : isReadOnly && loadedBill ? Number(loadedBill.taxTotal || 0) : taxTotal;
   const displayedDiscount = heldTotals ? Number(heldTotals.discount || 0) : isReadOnly && loadedBill ? Number(loadedBill.discount || 0) : discount;
-  const displayedTotal = heldTotals ? Number(heldTotals.total ?? heldTotals.billTotal ?? 0) : isReadOnly && loadedBill ? Number(loadedBill.total || 0) : total;
+  const displayedRoundOff = heldTotals ? Number(heldTotals.roundOff || 0) : isReadOnly && loadedBill ? Number(loadedBill.roundOff || 0) : roundOff;
+  const displayedTotal = heldTotals ? Number(heldTotals.total ?? heldTotals.billTotal ?? heldTotals.grandTotal ?? 0) : isReadOnly && loadedBill ? Number(loadedBill.total || 0) : grandTotal;
   const normalizedPaymentMethod = normalizePaymentMode(paymentMethod);
   const isCashPayment = normalizedPaymentMethod === 'cash';
   const isSplitPayment = normalizedPaymentMethod === 'split';
@@ -1439,11 +1458,12 @@ export default function ModernPOSBilling() {
   const balanceDue = Math.max(0, displayedTotal - effectivePaidAmount);
   const displayedBalanceDue = heldPayment ? Number(heldPayment.balanceAmount ?? heldPayment.balanceDue ?? heldPayment.outstanding ?? balanceDue) : isReadOnly && loadedBill ? Number(loadedBill.dueAmount || 0) : balanceDue;
   const cashReceivedAmount = Number(cashReceived || 0);
-  const cashDifference = cashReceived === '' ? 0 : cashReceivedAmount - displayedTotal;
-  const cashDifferenceLabel = cashDifference < 0 ? 'Remaining Amount' : cashDifference > 0 ? 'Change to Return' : 'Change';
-  const cashDifferenceTone = cashDifference < 0
+  const cashChange = cashReceived === '' ? 0 : cashReceivedAmount - effectivePaidAmount;
+  const cashDisplayAmount = displayedBalanceDue > 0 ? displayedBalanceDue : Math.abs(cashChange);
+  const cashDifferenceLabel = displayedBalanceDue > 0 ? 'Remaining Amount' : cashChange > 0 ? 'Change to Return' : 'Change';
+  const cashDifferenceTone = displayedBalanceDue > 0 || cashChange < 0
     ? 'border-red-200 bg-red-50 text-red-700'
-    : cashDifference > 0
+    : cashChange > 0
       ? 'border-green-200 bg-green-50 text-green-700'
       : 'border-slate-200 bg-slate-50 text-slate-700';
   const itemCount = cart.length;
@@ -1473,6 +1493,11 @@ export default function ModernPOSBilling() {
     balanceAmount: Math.max(0, displayedTotal - (isSplitPayment ? splitPaidAmount : paymentAmount(amountPaid, displayedTotal, paymentMethod))),
     paymentDetails: isSplitPayment ? normalizedSplitPayments : []
   };
+
+  useEffect(() => {
+    if (!isCashPayment || heldPayment || isReadOnly || amountPaidTouched) return;
+    setAmountPaid(Number(displayedTotal.toFixed(2)));
+  }, [amountPaidTouched, displayedTotal, heldPayment, isCashPayment, isReadOnly]);
 
   return (
     <div className="h-screen overflow-hidden bg-gray-50 flex flex-col text-[length:var(--app-font-size)]">
@@ -1514,7 +1539,6 @@ export default function ModernPOSBilling() {
           
           {/* Cart items table */}
           <div className="flex-1 bg-white shadow-md rounded-lg p-3 min-h-0 overflow-hidden flex flex-col">
-            <h2 className="text-lg font-bold mb-2">Cart Items</h2>
             <div className="flex-1 overflow-auto">
               <BillingTable
                 cart={cart}
@@ -1574,6 +1598,7 @@ export default function ModernPOSBilling() {
               subtotal={displayedSubtotal}
               taxTotal={displayedTaxTotal}
               discount={displayedDiscount}
+              roundOff={displayedRoundOff}
               total={displayedTotal}
               invoiceAt={`${invoiceDate}T${invoiceTime}`}
               onSave={handleSave}
@@ -1702,6 +1727,7 @@ export default function ModernPOSBilling() {
                       const nextMethod = e.target.value;
                       markHoldWorkingCopyChanged();
                       setPaymentMethod(nextMethod);
+                      setAmountPaidTouched(false);
                       if (normalizePaymentMode(nextMethod) !== 'cash') setCashReceived('');
                     }}
                     className="w-full p-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
@@ -1785,11 +1811,14 @@ export default function ModernPOSBilling() {
                   ref={amountPaidRef}
                   type="number"
                   disabled={isReadOnly}
-                  readOnly={isCashPayment}
                   min="0"
                   step="0.01"
-                  value={isCashPayment ? displayedTotal.toFixed(2) : amountPaid}
-                  onChange={(e) => { markHoldWorkingCopyChanged(); setAmountPaid(Math.max(0, Number(e.target.value))); }}
+                  value={amountPaid}
+                  onChange={(e) => {
+                    markHoldWorkingCopyChanged();
+                    setAmountPaidTouched(true);
+                    setAmountPaid(Math.max(0, Number(e.target.value)));
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && isCashPayment) {
                       e.preventDefault();
@@ -1831,7 +1860,7 @@ export default function ModernPOSBilling() {
                       {cashDifferenceLabel}
                     </div>
                     <div className="text-2xl font-bold">
-                      {currency(Math.abs(cashDifference))}
+                      {currency(cashDisplayAmount)}
                     </div>
                   </div>
                 </div>
@@ -1911,15 +1940,33 @@ export default function ModernPOSBilling() {
         onResumeHeldBill={handleResumeHeldBill}
       />
 
-      {/* Keyboard shortcuts help */}
-      <div className="shrink-0 bg-gray-100 border-t px-4 py-1.5 text-xs text-gray-600">
-        <div className="flex flex-wrap gap-4">
-          <span>F1: New | F3: Customer | F4: Hold | F8: Print</span>
-          <span>Ctrl+S: Save | Ctrl+H: Hold | Ctrl+P: Print | Ctrl+F: Search</span>
-          <span>F2: Edit Row | ESC: Clear/Cancel Edit | Del: Remove | Tab: Next Field</span>
-        </div>
+      {/* Keyboard Shortcuts */}
+<div className="shrink-0 border-t bg-gray-100 px-4 py-2 text-[11px] text-gray-600">
+  <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+    <span><b>F1</b> New</span>
+    <span><b>F2</b> Edit</span>
+    <span><b>F3</b> Customer</span>
+    <span><b>F4</b> Hold</span>
+    <span><b>F8</b> Print</span>
+
+    <span className="text-gray-400">|</span>
+
+    <span><b>Ctrl+S</b> Save</span>
+    <span><b>Ctrl+H</b> Hold</span>
+    <span><b>Ctrl+P</b> Print</span>
+    <span><b>Ctrl+F</b> Search</span>
+
+    <span className="text-gray-400">|</span>
+
+    <span><b>Tab</b>/<b>Enter</b> Next</span>
+    <span><b>Shift+Tab</b> Previous</span>
+    <span><b>+</b>/<b>-</b> Qty</span>
+    <span><b>Del</b> Remove</span>
+    <span><b>Esc</b> Clear</span>
+  </div>
+</div>
       </div>
-    </div>
+      
   );
 }
 

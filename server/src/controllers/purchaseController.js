@@ -1,6 +1,7 @@
 import { body } from 'express-validator';
 import { Product } from '../models/Product.js';
 import { Purchase } from '../models/Purchase.js';
+import { PurchaseOrder } from '../models/PurchaseOrder.js';
 import { PurchaseReturn } from '../models/PurchaseReturn.js';
 import { Supplier } from '../models/Supplier.js';
 import { SupplierPriceHistory } from '../models/SupplierPriceHistory.js';
@@ -25,6 +26,8 @@ export const purchaseRules = [
   body('items.*.gstInclusive').optional().isBoolean(),
   body('items.*.discountPercent').optional().isFloat({ min: 0, max: 100 }),
   body('items.*.discountAmount').optional().isFloat({ min: 0 }),
+  body('roundOff').optional().isFloat(),
+  body('roundOffMode').optional().isIn(['auto', 'manual']),
   body('paidAmount').optional().isFloat({ min: 0 })
 ];
 
@@ -34,9 +37,21 @@ export const listPurchases = asyncHandler(async (req, res) => {
   const search = String(req.query.search || req.query.q || '').trim();
   if (search) {
     const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    filter.$or = [{ purchaseNo: regex }, { invoiceNumber: regex }, { supplierInvoice: regex }, { remarks: regex }];
+    const matchingSuppliers = await Supplier.find({
+      $or: [{ supplierId: regex }, { name: regex }, { mobile: regex }, { gstNumber: regex }, { panNumber: regex }]
+    }).select('_id').lean();
+    filter.$or = [
+      { purchaseNo: regex },
+      { invoiceNumber: regex },
+      { supplierInvoice: regex },
+      { remarks: regex },
+      ...(matchingSuppliers.length ? [{ supplier: { $in: matchingSuppliers.map((supplier) => supplier._id) } }] : [])
+    ];
   }
   if (req.query.supplier) filter.supplier = req.query.supplier;
+  if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
+  if (req.query.status === 'cancelled') filter.active = false;
+  if (req.query.status === 'active') filter.active = true;
   if (req.query.from || req.query.to) {
     filter.purchaseDate = {};
     if (req.query.from) filter.purchaseDate.$gte = new Date(req.query.from);
@@ -68,6 +83,16 @@ function number(value, fallback = 0) {
 
 function money(value) {
   return Math.round(number(value) * 100) / 100;
+}
+
+function automaticRoundOff(value) {
+  const total = money(value);
+  return money(Math.round(total) - total);
+}
+
+function roundOffModeForSource(source) {
+  if (source?.roundOffMode === 'manual' || source?.roundOffMode === 'auto') return source.roundOffMode;
+  return money(source?.roundOff || 0) !== 0 ? 'manual' : 'auto';
 }
 
 function hasExplicitDiscountAmount(item) {
@@ -199,8 +224,10 @@ function summarizePurchase(items, body = {}) {
   const discount = money(items.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0));
   const lineTotal = money(items.reduce((sum, item) => sum + Number(item.lineTotal ?? item.netAmount ?? 0), 0));
   const freightCharges = money(body.freightCharges || 0);
-  const roundOff = body.roundOff !== undefined ? money(body.roundOff || 0) : 0;
-  const grandTotal = money(Math.max(lineTotal + freightCharges + roundOff, 0));
+  const preRoundTotal = money(lineTotal + freightCharges);
+  const roundOffMode = roundOffModeForSource(body);
+  const roundOff = roundOffMode === 'manual' ? money(body.roundOff || 0) : automaticRoundOff(preRoundTotal);
+  const grandTotal = money(Math.max(preRoundTotal + roundOff, 0));
   const amountPaid = money(Math.min(Number(body.amountPaid ?? body.paidAmount ?? 0), grandTotal));
   return {
     itemCount: items.length,
@@ -210,6 +237,7 @@ function summarizePurchase(items, body = {}) {
     discount,
     freightCharges,
     roundOff,
+    roundOffMode,
     grandTotal,
     total: grandTotal,
     paidAmount: amountPaid,
@@ -270,6 +298,16 @@ async function recalculateSupplier(supplierId) {
 
 export const createPurchase = asyncHandler(async (req, res) => {
   const settings = await getInventorySettings();
+  let sourcePurchaseOrder = null;
+  if (req.body.sourcePurchaseOrder) {
+    sourcePurchaseOrder = await PurchaseOrder.findById(req.body.sourcePurchaseOrder);
+    if (!sourcePurchaseOrder) throw new ApiError(404, 'Purchase order not found');
+    if (sourcePurchaseOrder.status === 'cancelled') throw new ApiError(400, 'Cancelled Purchase Orders cannot be converted');
+    if (sourcePurchaseOrder.status === 'draft') throw new ApiError(400, 'Draft Purchase Orders must be ordered before conversion');
+    if (sourcePurchaseOrder.purchase || sourcePurchaseOrder.convertedAt || await Purchase.exists({ sourcePurchaseOrder: sourcePurchaseOrder._id, active: true })) {
+      throw new ApiError(409, 'Purchase Order has already been converted');
+    }
+  }
   const items = await resolvePurchaseItems(req.body.items || [], settings);
   const summary = summarizePurchase(items, req.body);
   const purchaseNo = String(req.body.purchaseNo || '').trim() || (settings.autoGeneratePurchaseNumber ? await nextPurchaseNumber() : undefined);
@@ -297,10 +335,27 @@ export const createPurchase = asyncHandler(async (req, res) => {
 
   await applyPurchaseStock(items, purchase, req.user?._id, 1);
   await recordSupplierPriceHistory(purchase);
+  if (sourcePurchaseOrder) {
+    sourcePurchaseOrder.items.forEach((item) => {
+      const purchased = items.find((row) => String(row.product) === String(item.product));
+      if (purchased) {
+        item.convertedQuantity = Number(item.convertedQuantity || 0) + Number(purchased.quantity || 0);
+        item.convertedFreeQuantity = Number(item.convertedFreeQuantity || 0) + Number(purchased.freeQuantity || 0);
+      }
+    });
+    sourcePurchaseOrder.purchase = purchase._id;
+    sourcePurchaseOrder.convertedAt = new Date();
+    sourcePurchaseOrder.convertedBy = req.user?._id;
+    sourcePurchaseOrder.status = 'completed';
+    await sourcePurchaseOrder.save();
+  }
   await recalculateSupplier(purchase.supplier);
   await reconcileSupplierAccounting(purchase.supplier);
   await rebuildDayBook();
   await logAudit(req, { action: 'Purchase Created', module: 'Purchases', newValue: purchase.toObject() });
+  if (sourcePurchaseOrder) {
+    await logAudit(req, { action: 'Purchase Order Converted to Purchase', module: 'Purchase Orders', newValue: { poNumber: sourcePurchaseOrder.poNumber, purchase: purchase._id } });
+  }
 
   res.status(201).json({ purchase });
 });
@@ -431,7 +486,6 @@ export const getSupplierPriceHistory = asyncHandler(async (req, res) => {
 
 export async function createPurchaseFromPurchaseOrder({ purchaseOrder, items, invoiceNumber, userId, notes }) {
   const settings = await getInventorySettings();
-  const total = items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
   const purchase = await Purchase.create({
     purchaseNo: settings.autoGeneratePurchaseNumber ? await nextPurchaseNumber() : undefined,
     supplier: purchaseOrder.supplier,
@@ -439,8 +493,7 @@ export async function createPurchaseFromPurchaseOrder({ purchaseOrder, items, in
     supplierInvoice: invoiceNumber,
     purchaseDate: new Date(),
     items,
-    ...summarizePurchase(items, { paidAmount: 0 }),
-    total,
+    ...summarizePurchase(items, { paidAmount: 0, roundOff: purchaseOrder.roundOff, roundOffMode: roundOffModeForSource(purchaseOrder) }),
     paidAmount: 0,
     sourcePurchaseOrder: purchaseOrder._id,
     user: userId,

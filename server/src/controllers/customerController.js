@@ -8,14 +8,14 @@ import { CustomerReceipt } from '../models/CustomerReceipt.js';
 import { reconcileCustomerAccounting, rebuildDayBook } from '../services/accountingService.js';
 
 export const customerRules = [
-  body('name').trim().notEmpty(),
-  body('mobile').trim().notEmpty().matches(/^[0-9+\-\s]{7,15}$/),
-  body('alternatePhone').optional({ checkFalsy: true }).matches(/^[0-9+\-\s]{7,15}$/),
-  body('email').optional({ checkFalsy: true }).isEmail().normalizeEmail(),
-  body('gstNumber').optional({ checkFalsy: true }).matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i),
-  body('panNumber').optional({ checkFalsy: true }).matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i),
-  body('openingBalance').optional().isFloat({ min: 0 }),
-  body('creditLimit').optional().isFloat({ min: 0 })
+  body('name').trim().notEmpty().withMessage('Customer name is required.'),
+  body('mobile').trim().notEmpty().withMessage('Mobile number is required.').bail().matches(/^[0-9+\-\s]{7,15}$/).withMessage('Mobile number is invalid.'),
+  body('alternatePhone').optional({ checkFalsy: true }).trim().matches(/^[0-9+\-\s]{7,15}$/).withMessage('Alternate phone is invalid.'),
+  body('email').optional({ checkFalsy: true }).trim().isEmail().withMessage('Email is invalid.').normalizeEmail(),
+  body('gstNumber').optional({ checkFalsy: true }).trim().matches(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i).withMessage('GST number is invalid.'),
+  body('panNumber').optional({ checkFalsy: true }).trim().matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/i).withMessage('PAN number is invalid.'),
+  body('openingBalance').optional().isFloat({ min: 0 }).withMessage('Opening balance must be zero or greater.'),
+  body('creditLimit').optional().isFloat({ min: 0 }).withMessage('Credit limit must be zero or greater.')
 ];
 
 export const collectionRules = [
@@ -40,9 +40,50 @@ export const listCustomers = asyncHandler(async (req, res) => {
   res.json({ customers, total, page, pages: Math.ceil(total / limit) });
 });
 
+const duplicateCustomerFields = [
+  ['customerId', 'Customer ID already exists.'],
+  ['mobile', 'Mobile number already exists.'],
+  ['gstNumber', 'GST number already exists.'],
+  ['email', 'Email already exists.']
+];
+
+function normalizeCustomerPayload(payload) {
+  const normalized = { ...payload };
+  for (const field of ['customerId', 'name', 'mobile', 'alternatePhone', 'email', 'gstNumber', 'panNumber', 'address', 'city', 'state', 'pincode', 'remarks', 'notes']) {
+    if (typeof normalized[field] === 'string') normalized[field] = normalized[field].trim();
+  }
+  if (normalized.email) normalized.email = normalized.email.toLowerCase();
+  if (normalized.gstNumber) normalized.gstNumber = normalized.gstNumber.toUpperCase();
+  if (normalized.panNumber) normalized.panNumber = normalized.panNumber.toUpperCase();
+  return normalized;
+}
+
+async function ensureCustomerIsUnique(payload, currentId = null) {
+  const checks = duplicateCustomerFields
+    .filter(([field]) => payload[field])
+    .map(([field, message]) => ({
+      field,
+      message,
+      query: { [field]: payload[field], ...(currentId ? { _id: { $ne: currentId } } : {}) }
+    }));
+
+  const details = [];
+  for (const check of checks) {
+    if (await Customer.exists(check.query)) {
+      details.push({ path: check.field, msg: check.message, value: payload[check.field] });
+    }
+  }
+
+  if (details.length) {
+    throw new ApiError(409, details.map((detail) => detail.msg).join('\n'), details);
+  }
+}
+
 export const createCustomer = asyncHandler(async (req, res) => {
-  const nextId = req.body.customerId || `CUST-${String((await Customer.countDocuments()) + 1).padStart(5, '0')}`;
-  const customer = await Customer.create({ ...req.body, customerId: nextId });
+  const payload = normalizeCustomerPayload(req.body);
+  const nextId = payload.customerId || `CUST-${String((await Customer.countDocuments()) + 1).padStart(5, '0')}`;
+  await ensureCustomerIsUnique({ ...payload, customerId: nextId });
+  const customer = await Customer.create({ ...payload, customerId: nextId });
   res.status(201).json({ customer });
 });
 
@@ -53,7 +94,9 @@ export const getCustomer = asyncHandler(async (req, res) => {
 });
 
 export const updateCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+  const payload = normalizeCustomerPayload(req.body);
+  await ensureCustomerIsUnique(payload, req.params.id);
+  const customer = await Customer.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
   if (!customer) throw new ApiError(404, 'Customer not found');
   res.json({ customer });
 });

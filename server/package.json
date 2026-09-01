@@ -9,7 +9,8 @@
     "seed": "node src/seed.js",
     "migrate:product-ids": "node scripts/migrate-product-ids.js",
     "test:e2e:hold": "node tests/holdBill.e2e.js",
-    "test:e2e": "npm run test:e2e:hold"
+    "test:e2e:billing": "node tests/billingValidation.e2e.js",
+    "test:e2e": "npm run test:e2e:hold && npm run test:e2e:billing"
   },
   "dependencies": {
     "archiver": "^7.0.1",

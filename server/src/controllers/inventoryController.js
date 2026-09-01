@@ -13,15 +13,23 @@ import { makeSku } from '../utils/invoice.js';
 import { getInventorySettings, recordAdjustmentMovement } from '../services/inventoryService.js';
 
 export const adjustmentRules = [
-  body('product').isMongoId(),
-  body('quantity').optional().isNumeric(),
-  body('adjustedQuantity').optional().isFloat({ min: 0.001 }),
-  body('adjustmentType').optional().isIn(['Increase', 'Decrease', 'Damage', 'Expired', 'Lost', 'Opening Correction']),
-  body('reason').trim().notEmpty()
+  body('product').isMongoId().withMessage('Product is required.'),
+  body('quantity').optional({ checkFalsy: true }).trim().custom((value) => {
+    const quantity = Number(value);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Quantity must be a positive number.');
+    return true;
+  }),
+  body('adjustedQuantity').optional({ checkFalsy: true }).trim().custom((value) => {
+    const quantity = Number(value);
+    if (!Number.isFinite(quantity) || quantity <= 0) throw new Error('Adjusted quantity must be a positive number.');
+    return true;
+  }),
+  body('adjustmentType').optional().isIn(['Increase', 'Decrease', 'Damage', 'Expired', 'Lost', 'Opening Correction']).withMessage('Adjustment type is invalid.'),
+  body('reason').trim().notEmpty().withMessage('Reason is required.')
 ];
 
 function isWholeNumber(value) {
-  return Math.abs(Number(value) - Math.round(Number(value))) < 0.0000001;
+  return Number.isInteger(value);
 }
 
 export const listInventoryLogs = asyncHandler(async (req, res) => {
@@ -40,13 +48,20 @@ export const adjustStock = asyncHandler(async (req, res) => {
   if (!product) throw new ApiError(404, 'Product not found');
   await ensureDefaultUnits();
   const unit = await Unit.findOne({ name: product.unit || 'pcs', active: true }).lean();
-  const quantity = parseFloat(req.body.quantity);
+  const rawQuantity = String(req.body.adjustedQuantity ?? req.body.quantity ?? '').trim();
+  const quantity = Number(rawQuantity);
+  if (!Number.isFinite(quantity)) {
+    throw new ApiError(400, 'Adjusted quantity must be a valid number.', [{ path: 'adjustedQuantity', msg: 'Adjusted quantity must be a valid number.', value: req.body.adjustedQuantity ?? req.body.quantity }]);
+  }
+  if (quantity <= 0) {
+    throw new ApiError(400, 'Adjusted quantity must be greater than zero.', [{ path: 'adjustedQuantity', msg: 'Adjusted quantity must be greater than zero.', value: quantity }]);
+  }
   if (unit && !unit.allowDecimal && !isWholeNumber(quantity)) {
-    throw new ApiError(400, `${product.unit || 'pcs'} accepts whole number quantities only`);
+    throw new ApiError(400, `${product.unit || 'pcs'} accepts whole number quantities only`, [{ path: 'adjustedQuantity', msg: `${product.unit || 'pcs'} accepts whole number quantities only`, value: quantity }]);
   }
 
   const adjustmentType = req.body.adjustmentType || (quantity < 0 ? 'Decrease' : 'Increase');
-  const adjustedQuantity = Math.abs(Number(req.body.adjustedQuantity ?? quantity));
+  const adjustedQuantity = Math.abs(quantity);
   const adjustment = await StockAdjustment.create({
     product: product._id,
     adjustmentType,

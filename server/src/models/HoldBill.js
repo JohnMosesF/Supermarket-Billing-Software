@@ -27,7 +27,7 @@ const holdBillSchema = new mongoose.Schema(
         category: { type: String, trim: true },
         hsnCode: { type: String, trim: true },
         unit: { type: String, default: 'pcs', trim: true },
-        quantity: { type: Number, min: 1, default: 1 },
+        quantity: { type: Number, min: 0.001, default: 1 },
         qty: { type: Number, min: 0, default: 0 },
         freeQuantity: { type: Number, min: 0, default: 0 },
         price: { type: Number, min: 0, default: 0 },

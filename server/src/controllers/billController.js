@@ -79,6 +79,25 @@ const money = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : Number(fallback || 0);
 };
 
+function validatePaymentForBill({ paymentMethod, total, paidAmount, cashReceived }) {
+  if (paidAmount < 0) {
+    throw new ApiError(400, 'Amount paid cannot be negative');
+  }
+  if (paidAmount - total > 0.01) {
+    throw new ApiError(400, 'Amount paid cannot exceed bill total');
+  }
+  if (paymentMethod === 'Cash' && cashReceived + 0.01 < paidAmount) {
+    throw new ApiError(400, 'Cash received cannot be less than amount paid');
+  }
+  if (paymentMethod === 'Credit' && paidAmount - total > 0.01) {
+    throw new ApiError(400, 'Amount paid cannot exceed bill total for credit sales');
+  }
+}
+
+function changeReturnForPayment(paymentMethod, cashReceived, paidAmount) {
+  return paymentMethod === 'Cash' ? Math.max(cashReceived - paidAmount, 0) : 0;
+}
+
 function clonePlain(value, fallback) {
   if (value === undefined || value === null) return fallback;
   try {
@@ -303,11 +322,15 @@ async function validateBillItemsForSale(items, stockCredits = []) {
     if (!product) throw new ApiError(400, `Product not found: ${String(it.productId)}`);
     const unit = await getUnitRule(product.unit || it.unit);
     it.unit = unit.name;
-    if (!unit.allowDecimal && !isWholeNumber(it.quantity)) {
+    const quantity = Number(it.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new ApiError(400, `${product.name} quantity must be greater than zero`);
+    }
+    if (!Boolean(product.allowDecimalQty || unit.allowDecimal) && !isWholeNumber(quantity)) {
       throw new ApiError(400, `${product.name} must use whole number quantity for ${unit.name}`);
     }
     const available = Number(product.stock || 0) + (creditsByProduct.get(String(it.productId)) || 0);
-    if (!allowNegativeStock && available < it.quantity) {
+    if (!allowNegativeStock && available + 0.0000001 < quantity) {
       throw new ApiError(400, 'Insufficient stock available.');
     }
   }
@@ -438,7 +461,7 @@ async function recalculateCustomerBillingTotals(customerId) {
 
 // Create bill
 export const createBill = asyncHandler(async (req, res) => {
-  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, discountAmount, total, customerMobile, customerName, customerAddress, notes } = req.body;
+  const { invoiceNo, items, subtotal, taxTotal, discount, discountPercent, discountAmount, roundOff, total, customerMobile, customerName, customerAddress, notes } = req.body;
   const paymentMethod = normalizePaymentMethod(req.body.paymentMethod);
 
   if (!items || items.length === 0) {
@@ -479,7 +502,7 @@ export const createBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
       productName: it.productName || it.name || '',
-      quantity: it.quantity || it.qty || 0.001,
+      quantity: it.quantity ?? it.qty ?? 0,
       unit: it.unit || 'pcs',
       price: it.price || it.sellingPrice || it.rate || 0,
       gst: it.gst || it.taxRate || it.tax || 0,
@@ -511,13 +534,9 @@ export const createBill = asyncHandler(async (req, res) => {
     : paymentMethod === 'Credit'
       ? requestPaidAmount(req.body, 0)
       : requestPaidAmount(req.body, billTotal);
+  const cashReceived = paymentMethod === 'Cash' ? money(req.body.cashReceived, paidAmount) : 0;
 
-  if (paidAmount < 0) {
-    throw new ApiError(400, 'Amount paid cannot be negative');
-  }
-  if (paymentMethod === 'Credit' && paidAmount > billTotal) {
-    throw new ApiError(400, 'Amount paid cannot exceed bill total for credit sales');
-  }
+  validatePaymentForBill({ paymentMethod, total: billTotal, paidAmount, cashReceived });
 
   const dueAmount = Math.max(billTotal - paidAmount, 0);
   const paymentStatus = paymentStatusFromAmounts(billTotal, paidAmount);
@@ -541,6 +560,7 @@ export const createBill = asyncHandler(async (req, res) => {
     discount: discount || 0,
     discountPercent: discountPercent || 0,
     discountAmount: discountAmount || 0,
+    roundOff: money(roundOff, 0),
     total: billTotal,
     paidAmount,
     balanceAmount: dueAmount,
@@ -548,8 +568,8 @@ export const createBill = asyncHandler(async (req, res) => {
     paymentStatus,
     paymentMethod,
     paymentDetails,
-    cashReceived: Number(req.body.cashReceived || 0),
-    changeReturn: Math.max(Number(req.body.cashReceived || 0) - billTotal, 0),
+    cashReceived,
+    changeReturn: changeReturnForPayment(paymentMethod, cashReceived, paidAmount),
     customerMobile: customerMobile || null,
     customerName: customerName || 'Walk-in Customer',
     customerAddress: customerAddress || '',
@@ -634,6 +654,7 @@ export const updateBill = asyncHandler(async (req, res) => {
     subtotal,
     taxTotal,
     discount,
+    roundOff,
     total,
     customerName,
     customerMobile,
@@ -667,7 +688,7 @@ export const updateBill = asyncHandler(async (req, res) => {
       productId: productIdObj,
       productIdNumber: it.productIdNumber ?? it.numericProductId ?? it.productIdValue,
       productName: it.productName || it.name || '',
-      quantity: it.quantity || it.qty || 0.001,
+      quantity: it.quantity ?? it.qty ?? 0,
       unit: it.unit || 'pcs',
       price: it.price || it.sellingPrice || it.rate || 0,
       gst: it.gst || it.taxRate || it.tax || 0,
@@ -713,7 +734,8 @@ export const updateBill = asyncHandler(async (req, res) => {
   bill.discount = discount != null ? discount : bill.discount;
   bill.discountPercent = discountPercent != null ? discountPercent : bill.discountPercent;
   bill.discountAmount = discountAmount != null ? discountAmount : bill.discountAmount;
-  bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount;
+  bill.roundOff = roundOff != null ? roundOff : bill.roundOff;
+  bill.total = total != null ? total : bill.subtotal + bill.taxTotal - bill.discount + bill.roundOff;
   bill.customer = customer?._id || undefined;
   bill.customerName = customerName || 'Walk-in Customer';
   bill.customerMobile = customerMobile || undefined;
@@ -723,8 +745,14 @@ export const updateBill = asyncHandler(async (req, res) => {
   bill.paidAmount = bill.paymentDetails.length
     ? bill.paymentDetails.reduce((sum, entry) => sum + Number(entry.amount || 0), 0)
     : requestPaidAmount(req.body, bill.paymentMethod === 'Credit' ? bill.paidAmount ?? 0 : bill.total);
-  bill.cashReceived = Number(req.body.cashReceived || 0);
-  bill.changeReturn = Math.max(bill.cashReceived - bill.total, 0);
+  bill.cashReceived = bill.paymentMethod === 'Cash' ? money(req.body.cashReceived, bill.paidAmount) : 0;
+  validatePaymentForBill({
+    paymentMethod: bill.paymentMethod,
+    total: bill.total,
+    paidAmount: bill.paidAmount,
+    cashReceived: bill.cashReceived
+  });
+  bill.changeReturn = changeReturnForPayment(bill.paymentMethod, bill.cashReceived, bill.paidAmount);
   const balanceAmount = Math.max(bill.total - bill.paidAmount - Number(bill.returnCreditAmount || 0), 0);
   bill.dueAmount = balanceAmount;
   bill.balanceAmount = balanceAmount;

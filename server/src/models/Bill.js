@@ -46,6 +46,7 @@ const billSchema = new mongoose.Schema(
     discount: { type: Number, required: true, min: 0, default: 0 },
     discountPercent: { type: Number, min: 0, default: 0 },
     discountAmount: { type: Number, min: 0, default: 0 },
+    roundOff: { type: Number, required: true, default: 0 },
     notes: { type: String, trim: true },
     total: { type: Number, required: true, min: 0 },
     paidAmount: { type: Number, required: true, min: 0, default: 0 },

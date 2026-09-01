@@ -4,7 +4,7 @@ const HoldBillItemSchema = new mongoose.Schema({
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
   name: String,
-  quantity: { type: parseFloat, required: true, min: 1 },
+  quantity: { type: Number, required: true, min: 0.001 },
   sellingPrice: { type: Number, required: true, min: 0 },
   taxRate: { type: Number, default: 0, min: 0 }
 });

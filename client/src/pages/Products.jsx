@@ -1,4 +1,4 @@
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -487,7 +487,11 @@ export function Products() {
   return (
     <div>
     
-      <PageHeader title="Products" description="Manage product catalog, prices, GST, images, and stock levels." />
+      <PageHeader
+        title="Products"
+        description="Manage product catalog, prices, GST, images, and stock levels."
+        actions={<button className="btn-muted" onClick={load}><RefreshCw size={16} /> Refresh</button>}
+      />
       <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
         <form onSubmit={handleSubmit(save)} className="panel space-y-3 p-5">
           <h2 className="font-semibold">{editing ? 'Edit product' : 'Add product'}</h2>
